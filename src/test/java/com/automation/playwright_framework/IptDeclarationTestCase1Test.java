@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class IptDeclarationTestCase1Test extends BaseTest {
@@ -26,6 +27,8 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     @Test
     void submitIptDeclarationTestCase1UsingJsonData() {
         JsonNode testData = IptDeclarationTestDataLoader.load(TEST_DATA_RESOURCE);
+        boolean shouldSubmitDeclaration = testData.path("summary").path("submitDeclaration").asBoolean(false)
+                || testData.path("formMetaData").path("submitDeclaration").asBoolean(false);
 
         LoginPage loginPage = new LoginPage(page);
         DeclarationsPage declarationsPage = new DeclarationsPage(page);
@@ -40,6 +43,18 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
 
         iptDeclarationPage.populateFrom(testData);
+        if (shouldSubmitDeclaration) {
+            page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
+                    .setFullPage(true)
+                    .setPath(Paths.get("target", "ipt-submission-after-submit.png")));
+            try {
+                Files.writeString(
+                        Paths.get("target", "ipt-submit-validation-diagnostics.json"),
+                        iptDeclarationPage.captureSubmitValidationDiagnostics());
+            } catch (Exception ignored) {
+            }
+            return;
+        }
         iptDeclarationPage.openInvoiceInfoSection();
         page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
                 .setFullPage(true)

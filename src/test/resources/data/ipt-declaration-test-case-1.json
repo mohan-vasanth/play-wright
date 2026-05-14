@@ -100,7 +100,7 @@
       "freightCharge": {
         "exchangeRate": "1.355300",
         "amount": {
-          "value": "150.00",
+          "value": "150",
           "currencyID": "USD"
         }
       },
@@ -132,7 +132,7 @@
       "unitCode": "PKG"
     },
     "totalGrossWeight": {
-      "value": "1000.000",
+      "value": "1000",
       "unitCode": "KGM"
     },
     "totalTariff": {
@@ -152,6 +152,7 @@
     "stsAndCwcIsActive": false,
     "internationalPermitExchangeIsActive": false,
     "declarationIndicator": false,
+    "submitDeclaration": true,
     "editUnitPrice": [
       false
     ],

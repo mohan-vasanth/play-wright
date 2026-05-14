@@ -36,6 +36,8 @@ public class IptDeclarationPage {
             Integer.getInteger("tradenix.ui.lookup.wait.ms", 1000);
     private static final int UI_NEXT_FIELD_PAUSE_MS =
             Integer.getInteger("tradenix.ui.next.field.pause.ms", 1000);
+    private static final int UI_SUBMIT_CLICK_WAIT_MS = 2000;
+    private static final int UI_POST_SUBMIT_WAIT_MS = 3000;
 
     private final Page page;
 
@@ -58,6 +60,71 @@ public class IptDeclarationPage {
 
     public String readSupplierManufacturerNameValue() {
         return normalize(readRenderedFieldValue(resolveSupplierManufacturerNameField()));
+    }
+
+    public String captureSubmitValidationDiagnostics() {
+        try {
+            return String.valueOf(page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const describeElement = element => {
+                            if (!element) {
+                                return '';
+                            }
+
+                            const ownText = normalize(element.innerText || element.textContent);
+                            const label = normalize(
+                                element.closest('div, td, tr, section, form')?.querySelector('label, .form-label, span, p, div')
+                                    ?.textContent);
+                            const placeholder = normalize(element.getAttribute('placeholder'));
+                            const name = normalize(element.getAttribute('name'));
+                            const formControlName = normalize(element.getAttribute('formcontrolname'));
+                            const id = normalize(element.getAttribute('id'));
+                            const type = normalize(element.getAttribute('type'));
+                            return JSON.stringify({
+                                label,
+                                text: ownText,
+                                placeholder,
+                                name,
+                                formControlName,
+                                id,
+                                type,
+                                ariaInvalid: normalize(element.getAttribute('aria-invalid')),
+                                classes: normalize(element.getAttribute('class'))
+                            });
+                        };
+
+                        const invalidSelectors = [
+                            'input.ng-invalid',
+                            'textarea.ng-invalid',
+                            'select.ng-invalid',
+                            '[role="combobox"].ng-invalid',
+                            '[aria-invalid="true"]',
+                            'input:invalid',
+                            'textarea:invalid',
+                            'select:invalid'
+                        ];
+
+                        const invalidElements = Array.from(new Set(
+                            invalidSelectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))
+                        )).filter(element => {
+                            const style = window.getComputedStyle(element);
+                            return style && style.display !== 'none' && style.visibility !== 'hidden';
+                        });
+
+                        const toastText = Array.from(document.querySelectorAll('*'))
+                            .map(element => normalize(element.innerText || element.textContent))
+                            .find(text => text.includes('Validation Failed')) || '';
+
+                        return JSON.stringify({
+                            toastText,
+                            invalidElements: invalidElements.map(describeElement)
+                        }, null, 2);
+                    }
+                    """));
+        } catch (PlaywrightException exception) {
+            return "Unable to capture submit validation diagnostics: " + exception.getMessage();
+        }
     }
 
     private void fillShipmentInfo(JsonNode data) {
@@ -227,7 +294,6 @@ public class IptDeclarationPage {
         JsonNode invoice = firstArrayItem(data.path("invoice"));
         JsonNode item = firstArrayItem(data.path("item"));
         JsonNode cascProduct = firstArrayItem(item.path("cascProduct"));
-        JsonNode additionalCascIdentification = firstArrayItem(cascProduct.path("additionalCascIdentification"));
 
         fillLookupFieldIfPresent(
                 "Invoice Number",
@@ -242,11 +308,85 @@ public class IptDeclarationPage {
         fillField("Item Unit Value", normalizeNumericForEntry(
                 text(item.path("transactionValue").path("unitPriceValue").path("amount"), "value")));
 
-        fillLookupField("Product Code", text(cascProduct, "cascProductCode"), text(cascProduct, "cascProductCode"));
-        fillField("Quantity", text(cascProduct.path("cascProductQuantity"), "value"));
+        fillCascDetails(cascProduct);
+    }
 
-        clickActionButton("ADDITIONAL CASC", "ADDITIONAL", "ADDITIONAL CA");
-        fillField("Code 1", text(additionalCascIdentification, "cascCodeOne"));
+    private void fillCascDetails(JsonNode cascProduct) {
+        if (isMissingOrEmpty(cascProduct)) {
+            return;
+        }
+
+        Locator cascSection = resolveSection("CASC Details");
+        Locator cascRow = resolvePrimaryCascRow(cascSection);
+
+        String productCode = text(cascProduct, "cascProductCode");
+        if (productCode != null && !productCode.isBlank()) {
+            Locator productCodeField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 0);
+            focusAndType(productCodeField, productCode, true, productCode);
+        }
+
+        JsonNode cascQuantity = cascProduct.path("cascProductQuantity");
+        String quantityValue = text(cascQuantity, "value");
+        if (quantityValue != null && !quantityValue.isBlank()) {
+            Locator quantityField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 1);
+            focusAndType(quantityField, quantityValue, false);
+        }
+
+        String quantityUom = text(cascQuantity, "unitCode");
+        if (quantityUom != null && !quantityUom.isBlank()) {
+            Locator uomField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 2);
+            focusAndType(uomField, quantityUom, true, quantityUom);
+        }
+
+        clickCascCloneButtonIfPresent(cascRow);
+
+        JsonNode additionalCascIdentification = firstArrayItem(cascProduct.path("additionalCascIdentification"));
+        if (isMissingOrEmpty(additionalCascIdentification)) {
+            return;
+        }
+
+        clickButtonInScope(cascRow, "ADDITIONAL CASC", "ADDITIONAL", "ADDITIONAL CA");
+        waitForAdditionalCascSection(cascSection, cascRow, 5000);
+        clickAdditionalCascAddButton(cascSection);
+        pauseUi(UI_ACTION_PAUSE_MS);
+
+        String cascCodeOne = text(additionalCascIdentification, "cascCodeOne");
+        if (cascCodeOne != null && !cascCodeOne.isBlank()) {
+            Locator additionalCascRow = waitForAdditionalCascEntryRow(cascSection, 5000);
+            fillAdditionalCascCodeOne(additionalCascRow, cascCodeOne);
+        }
+    }
+
+    private void fillAdditionalCascCodeOne(Locator additionalCascRow, String value) {
+        Locator editableField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
+        if (editableField != null) {
+            focusAndType(editableField, value, false);
+            return;
+        }
+
+        Locator activator = resolveAdditionalCascCodeOneActivatorOrNull(additionalCascRow);
+        if (activator != null) {
+            closeTransientOverlays();
+            activator.scrollIntoViewIfNeeded();
+            activator.click(new Locator.ClickOptions().setForce(true));
+            pauseUi(UI_ACTION_PAUSE_MS);
+
+            Locator activatedField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
+            if (activatedField != null) {
+                focusAndType(activatedField, value, false);
+                return;
+            }
+
+            page.keyboard().press("Control+A");
+            page.keyboard().press("Backspace");
+            page.keyboard().type(value);
+            page.keyboard().press("Tab");
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            return;
+        }
+
+        captureAdditionalCascFailureArtifacts("code-one-field-not-visible");
+        throw new IllegalStateException("Additional CASC Code 1 field was not visible.");
     }
 
     private void fillSummary(JsonNode data) {
@@ -255,9 +395,14 @@ public class IptDeclarationPage {
             setCheckboxByLabel("Declaration Indicator", true);
         }
         saveDraft();
-        if (data.path("summary").path("submitDeclaration").asBoolean(false)) {
-            clickActionButton("SUBMIT", "Submit Declaration", "SUBMIT Declaration");
+        if (shouldSubmitDeclaration(data)) {
+            clickSubmitDeclarationWithDelay(UI_SUBMIT_CLICK_WAIT_MS);
         }
+    }
+
+    private boolean shouldSubmitDeclaration(JsonNode data) {
+        return data.path("summary").path("submitDeclaration").asBoolean(false)
+                || data.path("formMetaData").path("submitDeclaration").asBoolean(false);
     }
 
     private void fillDeclarationType(String declarationType) {
@@ -294,8 +439,6 @@ public class IptDeclarationPage {
         setCheckboxByLabel("License", true);
         clickContainerByLabelIfPresent("License");
         page.waitForTimeout(300);
-        clickActionButtonIfVisible("ADD");
-        page.waitForTimeout(300);
 
         Locator licenseField = resolveLicenseFieldOrNull(visibleFieldIndexesBeforeOpening);
         if (licenseField == null) {
@@ -304,7 +447,7 @@ public class IptDeclarationPage {
         if (isFieldInsideText(licenseField, "Prev Permit Number", "Previous Permit Number")) {
             throw new IllegalStateException("Resolved License input belongs to Previous Permit Number.");
         }
-        focusAndType(licenseField, licenseValue, false);
+        focusAndType(licenseField, licenseValue, true, licenseValue);
         ensureTextFieldValue(licenseField, licenseValue);
         if (!waitForRenderedFieldValue(licenseField, licenseValue, 800)
                 && !waitForLicenseValue(licenseValue, 1500)) {
@@ -315,7 +458,7 @@ public class IptDeclarationPage {
 
     private Locator resolveLicenseFieldOrNull(Set<Integer> visibleFieldIndexesBeforeOpening) {
         Locator panelField = lastVisible(page.locator(
-                "xpath=(//*[normalize-space()='License'])[last()]/ancestor::*[.//button[contains(normalize-space(.), 'ADD')] and (.//input or .//textarea)][1]"
+                "xpath=(//*[normalize-space()='License'])[last()]/ancestor::*[.//input or .//textarea][1]"
                         + "//*[self::input[not(@type) or @type='text' or @type='search'] or self::textarea]"));
         if (panelField != null && !isFieldInsideText(panelField, "Prev Permit Number", "Previous Permit Number")) {
             return panelField;
@@ -1612,6 +1755,162 @@ public class IptDeclarationPage {
         return null;
     }
 
+    private Locator resolvePrimaryCascRow(Locator cascSection) {
+        Locator row = cascSection.locator(
+                "xpath=(.//*[self::button or @role='button' or self::a]"
+                        + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'ADDITIONAL CASC')"
+                        + " or contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'CLOSE')]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1])[1]");
+        Locator visibleRow = firstVisible(row);
+        if (visibleRow != null) {
+            return visibleRow;
+        }
+        throw new IllegalStateException("CASC product row was not visible.");
+    }
+
+    private void waitForAdditionalCascSection(Locator cascSection, Locator cascRow, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            boolean closeVisible = hasButtonInScopeVisible(cascRow, "CLOSE");
+            if (closeVisible || hasVisibleTextInScope(cascSection, "Code 1")) {
+                return;
+            }
+            page.waitForTimeout(100);
+        }
+        captureAdditionalCascFailureArtifacts("section-not-visible");
+        throw new IllegalStateException("Additional CASC section was not visible.");
+    }
+
+    private Locator waitForAdditionalCascEntryRow(Locator cascSection, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator entryRow = resolveAdditionalCascEntryRowOrNull(cascSection);
+            if (entryRow != null) {
+                return entryRow;
+            }
+            page.waitForTimeout(100);
+        }
+        captureAdditionalCascFailureArtifacts("entry-row-not-visible");
+        throw new IllegalStateException("Additional CASC entry row was not visible after clicking Add.");
+    }
+
+    private Locator resolveFirstVisibleEditableFieldInScopeOrNull(Locator scope) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator fields = visibleScope.locator(
+                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                        + "textarea:not([readonly]):not([disabled]), "
+                        + "select:not([disabled]), "
+                        + "[role='combobox'], "
+                        + "[role='textbox'], "
+                        + "[contenteditable='true']");
+        return firstVisible(fields);
+    }
+
+    private Locator resolveAdditionalCascEntryRowOrNull(Locator cascSection) {
+        Locator visibleScope = firstVisible(cascSection);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator copyRow = visibleScope.locator(
+                "xpath=(.//*[self::button or @role='button' or self::a]"
+                        + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'COPY')]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]][1])[1]");
+        Locator visibleCopyRow = firstVisible(copyRow);
+        if (visibleCopyRow != null) {
+            return visibleCopyRow;
+        }
+
+        Locator placeholderRow = visibleScope.locator(
+                "xpath=(.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
+                        + "[not(self::th)]"
+                        + "[not(ancestor::*[self::thead or @role='columnheader'])]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1])[last()]");
+        return firstVisible(placeholderRow);
+    }
+
+    private Locator resolveAdditionalCascCodeOneActivatorOrNull(Locator additionalCascRow) {
+        Locator visibleScope = firstVisible(additionalCascRow);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator rowCodeOne = visibleScope.locator(
+                "xpath=(.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')])[last()]");
+        return firstVisible(rowCodeOne);
+    }
+
+    private void clickAdditionalCascAddButton(Locator cascSection) {
+        Locator visibleSection = firstVisible(cascSection);
+        if (visibleSection == null) {
+            captureAdditionalCascFailureArtifacts("add-button-scope-not-visible");
+            throw new IllegalStateException("CASC Details section was not visible for Additional CASC add.");
+        }
+
+        Locator candidates = visibleSection.locator(
+                "button, [role='button'], input[type='button'], input[type='submit'], a, div, span");
+        int count = candidates.count();
+        for (int index = count - 1; index >= 0; index--) {
+            Locator candidate = candidates.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            String text = normalize(candidate.innerText()).toUpperCase();
+            String ariaLabel = normalize(candidate.getAttribute("aria-label")).toUpperCase();
+            String title = normalize(candidate.getAttribute("title")).toUpperCase();
+            String value = normalize(candidate.getAttribute("value")).toUpperCase();
+            String name = normalize(candidate.getAttribute("name")).toUpperCase();
+            String id = normalize(candidate.getAttribute("id")).toUpperCase();
+            String dataAction = normalize(candidate.getAttribute("data-action")).toUpperCase();
+            boolean exactAdd = "ADD".equals(text)
+                    || "ADD".equals(ariaLabel)
+                    || "ADD".equals(title)
+                    || "ADD".equals(value)
+                    || "ADD".equals(name)
+                    || "ADD".equals(id)
+                    || "ADD".equals(dataAction);
+            if (!exactAdd) {
+                continue;
+            }
+
+            candidate.scrollIntoViewIfNeeded();
+            candidate.click(new Locator.ClickOptions().setForce(true));
+            return;
+        }
+
+        captureAdditionalCascFailureArtifacts("add-button-not-visible");
+        throw new IllegalStateException("Additional CASC Add button was not visible.");
+    }
+
+    private boolean hasVisibleTextInScope(Locator scope, String text) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null || text == null || text.isBlank()) {
+            return false;
+        }
+
+        String expected = normalize(text);
+        Locator candidates = visibleScope.locator(
+                "xpath=.//*[contains(normalize-space(translate(., '*', '')), " + toXpathLiteral(expected) + ")]");
+        int count = candidates.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = candidates.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            String candidateText = normalize(candidate.innerText());
+            if (candidateText.contains(expected)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private Locator resolveFieldByLabelOrNull(String label, int occurrence) {
         waitForFormControls();
         String escapedLabel = toXpathLiteral(label);
@@ -1801,7 +2100,53 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Action button was not visible: " + String.join(", ", buttonTexts));
     }
 
+    private void clickActionButtonWithDelay(int delayMs, String... buttonTexts) {
+        if (delayMs > 0) {
+            page.waitForTimeout(delayMs);
+        }
+        clickActionButton(buttonTexts);
+    }
+
+    private void clickSubmitDeclarationWithDelay(int delayMs) {
+        Locator button = resolveSubmitDeclarationButton();
+        if (delayMs > 0) {
+            page.waitForTimeout(delayMs);
+        }
+
+        closeTransientOverlays();
+        button = resolveSubmitDeclarationButton();
+        button.scrollIntoViewIfNeeded();
+        try {
+            button.click();
+        } catch (PlaywrightException ignored) {
+            button.click(new Locator.ClickOptions().setForce(true));
+        }
+        page.waitForTimeout(UI_POST_SUBMIT_WAIT_MS);
+    }
+
     private boolean clickActionButtonIfVisible(String buttonText) {
+        closeTransientOverlays();
+        Locator button = resolveActionButtonOrNull(buttonText);
+        if (button == null) {
+            return false;
+        }
+
+        button.scrollIntoViewIfNeeded();
+        button.click(new Locator.ClickOptions().setForce(true));
+        return true;
+    }
+
+    private Locator resolveActionButton(String... buttonTexts) {
+        for (String buttonText : buttonTexts) {
+            Locator button = resolveActionButtonOrNull(buttonText);
+            if (button != null) {
+                return button;
+            }
+        }
+        throw new IllegalStateException("Action button was not visible: " + String.join(", ", buttonTexts));
+    }
+
+    private Locator resolveActionButtonOrNull(String buttonText) {
         closeTransientOverlays();
         Locator buttons = page.locator("button, [role='button'], input[type='button'], input[type='submit'], a");
         String expected = buttonText.trim().toUpperCase();
@@ -1829,13 +2174,194 @@ public class IptDeclarationPage {
                     && !dataAction.contains(expected)) {
                 continue;
             }
+            return button;
+        }
+
+        return null;
+    }
+
+    private Locator resolveSubmitDeclarationButton() {
+        closeTransientOverlays();
+        Locator exactText = page.locator(
+                "xpath=(//*[self::button or @role='button' or self::a]"
+                        + "[normalize-space(translate(., '*', ''))='SUBMIT DECLARATION'])[last()]");
+        Locator visibleExactText = lastVisible(exactText);
+        if (visibleExactText != null) {
+            return visibleExactText;
+        }
+
+        Locator exactValue = page.locator(
+                "input[type='button'][value='SUBMIT DECLARATION'], input[type='submit'][value='SUBMIT DECLARATION']");
+        Locator visibleExactValue = lastVisible(exactValue);
+        if (visibleExactValue != null) {
+            return visibleExactValue;
+        }
+
+        Locator exactAria = page.locator(
+                "xpath=(//*[self::button or @role='button' or self::a]"
+                        + "[normalize-space(translate(@aria-label, '*', ''))='SUBMIT DECLARATION'])[last()]");
+        Locator visibleExactAria = lastVisible(exactAria);
+        if (visibleExactAria != null) {
+            return visibleExactAria;
+        }
+
+        Locator fallback = resolveActionButtonOrNull("SUBMIT DECLARATION");
+        if (fallback != null) {
+            return fallback;
+        }
+
+        throw new IllegalStateException("Submit Declaration button was not visible.");
+    }
+
+    private void clickButtonInScope(Locator scope, String... buttonTexts) {
+        for (String buttonText : buttonTexts) {
+            if (clickButtonInScopeIfVisible(scope, buttonText)) {
+                return;
+            }
+        }
+        throw new IllegalStateException("Scoped action button was not visible: " + String.join(", ", buttonTexts));
+    }
+
+    private boolean clickButtonInScopeIfVisible(Locator scope, String buttonText) {
+        closeTransientOverlays();
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return false;
+        }
+
+        Locator buttons = visibleScope.locator("button, [role='button'], input[type='button'], input[type='submit'], a");
+        return clickMatchingButton(buttons, buttonText);
+    }
+
+    private boolean hasButtonInScopeVisible(Locator scope, String buttonText) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return false;
+        }
+
+        Locator buttons = visibleScope.locator("button, [role='button'], input[type='button'], input[type='submit'], a");
+        String expected = buttonText.trim().toUpperCase();
+        int count = buttons.count();
+        for (int index = count - 1; index >= 0; index--) {
+            Locator button = buttons.nth(index);
+            if (!button.isVisible()) {
+                continue;
+            }
+
+            String text = normalize(button.innerText()).toUpperCase();
+            String ariaLabel = normalize(button.getAttribute("aria-label")).toUpperCase();
+            String title = normalize(button.getAttribute("title")).toUpperCase();
+            String value = normalize(button.getAttribute("value")).toUpperCase();
+            String name = normalize(button.getAttribute("name")).toUpperCase();
+            String id = normalize(button.getAttribute("id")).toUpperCase();
+            String dataAction = normalize(button.getAttribute("data-action")).toUpperCase();
+            if (text.contains(expected)
+                    || ariaLabel.contains(expected)
+                    || title.contains(expected)
+                    || value.contains(expected)
+                    || name.contains(expected)
+                    || id.contains(expected)
+                    || dataAction.contains(expected)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean clickMatchingButton(Locator buttons, String buttonText) {
+        String expected = buttonText.trim().toUpperCase();
+        int count = buttons.count();
+        for (int index = count - 1; index >= 0; index--) {
+            Locator button = buttons.nth(index);
+            if (!button.isVisible()) {
+                continue;
+            }
+
+            String text = normalize(button.innerText()).toUpperCase();
+            String ariaLabel = normalize(button.getAttribute("aria-label")).toUpperCase();
+            String title = normalize(button.getAttribute("title")).toUpperCase();
+            String value = normalize(button.getAttribute("value")).toUpperCase();
+            String name = normalize(button.getAttribute("name")).toUpperCase();
+            String id = normalize(button.getAttribute("id")).toUpperCase();
+            String dataAction = normalize(button.getAttribute("data-action")).toUpperCase();
+            if (!text.contains(expected)
+                    && !ariaLabel.contains(expected)
+                    && !title.contains(expected)
+                    && !value.contains(expected)
+                    && !name.contains(expected)
+                    && !id.contains(expected)
+                    && !dataAction.contains(expected)) {
+                continue;
+            }
 
             button.scrollIntoViewIfNeeded();
             button.click(new Locator.ClickOptions().setForce(true));
             return true;
         }
-
         return false;
+    }
+
+    private void clickCascCloneButtonIfPresent(Locator cascRow) {
+        Locator visibleRow = firstVisible(cascRow);
+        if (visibleRow == null) {
+            return;
+        }
+
+        Locator buttons = visibleRow.locator("button, [role='button'], input[type='button'], input[type='submit'], a");
+        if (clickMatchingButton(buttons, "CLONE") || clickMatchingButton(buttons, "COPY")) {
+            return;
+        }
+
+        int count = buttons.count();
+        for (int index = 0; index < count; index++) {
+            Locator button = buttons.nth(index);
+            if (!button.isVisible()) {
+                continue;
+            }
+
+            String text = normalize(button.innerText()).toUpperCase();
+            String ariaLabel = normalize(button.getAttribute("aria-label")).toUpperCase();
+            String title = normalize(button.getAttribute("title")).toUpperCase();
+            String value = normalize(button.getAttribute("value")).toUpperCase();
+            String className = normalize(button.getAttribute("class")).toUpperCase();
+            boolean deleteButton = text.contains("DELETE")
+                    || ariaLabel.contains("DELETE")
+                    || title.contains("DELETE")
+                    || value.contains("DELETE")
+                    || className.contains("TRASH")
+                    || className.contains("DELETE");
+            boolean additionalButton = text.contains("ADDITIONAL CASC")
+                    || text.contains("CLOSE")
+                    || ariaLabel.contains("ADDITIONAL")
+                    || title.contains("ADDITIONAL");
+            if (deleteButton || additionalButton) {
+                continue;
+            }
+
+            button.scrollIntoViewIfNeeded();
+            button.click(new Locator.ClickOptions().setForce(true));
+            return;
+        }
+    }
+
+    private boolean isMissingOrEmpty(JsonNode node) {
+        return node == null || node.isMissingNode() || node.isNull()
+                || (node.isTextual() && normalize(node.asText()).isBlank())
+                || (node.isArray() && node.isEmpty())
+                || (node.isObject() && node.isEmpty());
+    }
+
+    private void captureAdditionalCascFailureArtifacts(String suffix) {
+        if (page == null) {
+            return;
+        }
+
+        try {
+            page.screenshot(new Page.ScreenshotOptions()
+                    .setFullPage(true)
+                    .setPath(Paths.get("target", "additional-casc-" + suffix + ".png")));
+        } catch (PlaywrightException ignored) {
+        }
     }
 
     private void setCheckboxByLabel(String label, boolean checked) {
