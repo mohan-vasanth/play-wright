@@ -65,6 +65,7 @@ public class DeclarationsPage {
             button.click();
             return;
         }
+        
 
         Boolean clicked = (Boolean) page.evaluate("""
                 () => {
