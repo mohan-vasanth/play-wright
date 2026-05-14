@@ -1,0 +1,224 @@
+{
+  "header": {
+    "messageReference": "TDX2605120009",
+    "uniqueReferenceNumber": {
+      "id": "202535359H",
+      "date": "13-05-2026",
+      "sequenceNumeric": "1008"
+    },
+    "declarantId": "ADAT.ADAT001",
+    "commonAccessReference": "IPTDEC",
+    "declarationType": "10",
+    "declarationIndicator": true
+  },
+  "licence": [
+    {
+      "referenceID": "IP03L1886"
+    }
+  ],
+  "cargo": {
+    "cargoPackingType": "5",
+    "releaseLocation": {
+      "locationCode": "CZ",
+      "locationName": "CHANGI FTZ"
+    },
+    "receiptLocation": {
+      "locationCode": "O",
+      "locationName": "OTHERS"
+    },
+    "transportEquipmentIsActive": false
+  },
+  "transport": {
+    "inwardTransport": {
+      "transportMeans": {
+        "transportMode": {
+          "modeCode": "4",
+          "conveyanceReferenceNumber": "SQ0001"
+        },
+        "mawboucroblNumber": "61812345678"
+      },
+      "arrivalDate": "13-05-2026",
+      "loadingPort": "USLAX"
+    }
+  },
+  "party": {
+    "declarantParty": {
+      "personInformation": {
+        "codeValue": "S8562791J",
+        "name": "NAMASIVAYAM GUNESPARAN"
+      },
+      "telephone": "81189066"
+    },
+    "importerParty": {
+      "partyIdentification": {
+        
+      },
+      "partyName": {
+        "name": "FORESPAND FOOD "
+      }
+    },
+    "declaringAgentParty": {
+      "partyIdentification": {
+        "id": "202535359H"
+      },
+      "partyName": {
+        "name": "ADATA PVT LMT"
+      }
+    },
+    "freightForwarderParty": {
+      "partyIdentification": {
+        
+      },
+      "partyName": {
+        "name": "ADATA"
+      }
+    },
+    "inwardCarrierAgentParty": {
+      "partyIdentification": {
+        
+      },
+      "partyName": {
+        "name": "AB SHIPPING PTE LTD"
+      }
+    }
+  },
+  "invoice": [
+    {
+      "invoiceNumber": "1",
+      "invoiceDate": "13-05-2026",
+      "supplierManufacturerParty": {
+        "name": "NAME"
+      },
+      "unitPriceTermType": "FOB",
+      "totalInvoiceValue": {
+        "amount": {
+          "value": "5000",
+          "currencyID": "USD"
+        },
+        "exchangeRate": "1.3553"
+      },
+      "freightCharge": {
+        "exchangeRate": "1.355300",
+        "amount": {
+          "value": "150.00",
+          "currencyID": "USD"
+        }
+      },
+      "insuranceCharge": {
+        "exchangeRate": "1.000000",
+        "amount": {
+          "value": "69.80",
+          "currencyID": "SGD"
+        },
+        "chargePercent": "1.00"
+      },
+      "gst": "9",
+      "invoiceCalculation": {
+        "insuranceAmountSgd": "69.80",
+        "cifAmountSgd": "7049.60",
+        "gstAmountSgd": "634.46"
+      }
+    }
+  ],
+  "summary": {
+    "numberOfInvoices": "1",
+    "numberOfItems": "1",
+    "sumOfInvoiceAmount": "5000.00",
+    "sumOfItemAmount": "5000.00",
+    "totalInvoiceCifValue": "7049.60",
+    "totalCifFobValue": "7049.59",
+    "totalOuterPack": {
+      "value": "10",
+      "unitCode": "PKG"
+    },
+    "totalGrossWeight": {
+      "value": "1000.000",
+      "unitCode": "KGM"
+    },
+    "totalTariff": {
+      "totalGoodsAndServicesTaxAmount": "634.46",
+      "totalAmountPayable": "634.46"
+    }
+  },
+  "formMetaData": {
+    "additionalRecipientIdIsActive": false,
+    "licenceIsActive": true,
+    "supportingDocumentIsActive": false,
+    "transportEquipmentIsActive": false,
+    "aeoIsActive": false,
+    "cwcIsActive": false,
+    "seastoreIsActive": false,
+    "stsIsActive": false,
+    "stsAndCwcIsActive": false,
+    "internationalPermitExchangeIsActive": false,
+    "declarationIndicator": false,
+    "editUnitPrice": [
+      false
+    ],
+    "shippingMarksIsActive": [
+      false
+    ],
+    "itemPackingIsActive": [
+      false
+    ],
+    "tariffLotIdentificationIsActive": [
+      false
+    ]
+  },
+  "item": [
+    {
+      "itemSequenceNumeric": "1",
+      "itemHarmonizedSystemCode": "21069099",
+      "goodsDescription": "OTHER FOOD PREPARATIONS NOT ELSEWHERE SPECIFIED (KGM)",
+      "originCountry": "US",
+      "brandName": "NA",
+      "dangerousGoodsIndicator": false,
+      "inHawbHucrHblNumber": "A1234",
+      "itemInvoiceNumber": "1",
+      "itemQuantity": {
+        "harmonizedSystemQuantity": {
+          "value": "10",
+          "unitCode": "KGM"
+        },
+        "hsQuantity": {
+          "value": "10",
+          "unitCode": "KGM"
+        }
+      },
+      "transactionValue": {
+        "itemCIFFOBValue": "7049.59",
+        "unitPriceValue": {
+          "amount": {
+            "value": "5000.00",
+            "currencyID": "USD"
+          },
+          "exchangeRate": "1.3553"
+        }
+      },
+      "itemCalculation": {
+        "itemCifFobValueSgd": "7049.59"
+      },
+      "tariff": {
+        "goodsAndServicesTax": {
+          "goodsAndServicesTaxPercent": "9",
+          "goodsAndServicesTaxAmount": "634.46"
+        }
+      },
+      "cascProduct": [
+        {
+          "cascProductCode": "ZFP0DA0QB00",
+          "cascProductQuantity": {
+            "value": "10",
+            "unitCode": "KGM"
+          },
+          "additionalCascIdentification": [
+            {
+              "cascCodeOne": "US99999"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "type": "IPT"
+}
