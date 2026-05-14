@@ -6,6 +6,9 @@ import com.microsoft.playwright.PlaywrightException;
 
 public class DeclarationsPage {
 
+
+    
+
     private final Page page;
     private static final String DECLARATIONS_MENU = "text=Declarations";
     private static final String NEW_DECLARATION_BUTTON = "button:has-text('NEW DECLARATION')";
