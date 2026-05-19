@@ -219,7 +219,13 @@ public class IptDeclarationPage {
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
             attemptPartySuggestionSelection(selectionHints);
+            try {
+                page.keyboard().press("Tab");
+            } catch (PlaywrightException ignored) {
+            }
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
             if (waitForPartyFieldValue(field, partyName, 2500)
+                    || waitForCommittedPartySelection(field, 2500)
                     || waitForPartyRowValues(rowLabel, partyName, 1500)) {
                 matched = true;
                 break;
@@ -240,6 +246,44 @@ public class IptDeclarationPage {
         appendCandidate(expectedValues, expectedName);
         appendCandidate(expectedValues, deduplicateRepeatedPartyName(expectedName));
         return waitForAnyRenderedFieldValue(field, timeoutMs, expectedValues.toArray(String[]::new));
+    }
+
+    private boolean waitForCommittedPartySelection(Locator field, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            if (hasCommittedPartySelection(field)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private boolean hasCommittedPartySelection(Locator field) {
+        try {
+            return Boolean.TRUE.equals(field.evaluate("""
+                    element => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const container = element.closest('.ng-select, [role="combobox"], [class*="select"], [class*="combobox"]')
+                            || element.parentElement;
+                        if (!container) {
+                            return false;
+                        }
+
+                        const selectedText = normalize(
+                            container.querySelector('.ng-value-label, .selected-item, .mat-mdc-select-value-text, [class*="single-label"], [class*="value-label"]')
+                                ?.textContent);
+                        const rawValue = normalize(element.value);
+                        const hasClearAction = !!container.querySelector(
+                            '.ng-clear-wrapper, .ng-clear, .ng-value-icon, [aria-label*="clear" i], [title*="clear" i]');
+                        const ariaExpanded = normalize(container.getAttribute('aria-expanded'));
+
+                        return !!selectedText && (selectedText !== rawValue || hasClearAction || ariaExpanded === 'FALSE');
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private void ensurePartyRowValues(String rowLabel, String expectedName) {
@@ -1334,10 +1378,17 @@ public class IptDeclarationPage {
             return;
         }
 
+        if (waitForAnyVisibleSuggestion(2500)
+                && (clickVisibleSuggestion(selectionHints) || clickFirstVisibleSuggestion())) {
+            page.waitForTimeout(1000);
+            return;
+        }
+
         try {
             page.keyboard().press("ArrowDown");
             page.waitForTimeout(300);
-            if (clickVisibleSuggestion(selectionHints)) {
+            if (waitForAnyVisibleSuggestion(1500)
+                    && (clickVisibleSuggestion(selectionHints) || clickFirstVisibleSuggestion())) {
                 page.waitForTimeout(1000);
                 return;
             }
@@ -1373,12 +1424,26 @@ public class IptDeclarationPage {
     }
 
     private String readPartyRowText(String rowLabel) {
-        Locator row = resolvePartyRowContainerOrNull(rowLabel);
-        if (row == null) {
-            return "";
-        }
         try {
-            return normalize(row.innerText());
+            Locator field = resolvePartyNameField(rowLabel);
+            return normalize(String.valueOf(field.evaluate("""
+                    (element, expectedRowLabel) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const expected = normalize(expectedRowLabel).toUpperCase();
+                        let current = element;
+                        while (current) {
+                            const text = normalize(current.innerText || current.textContent);
+                            const upperText = text.toUpperCase();
+                            const fieldCount = current.querySelectorAll(
+                                'input, textarea, select, [role="combobox"], [role="textbox"]').length;
+                            if (upperText.includes(expected) && fieldCount >= 1) {
+                                return text;
+                            }
+                            current = current.parentElement;
+                        }
+                        return '';
+                    }
+                    """, rowLabel)));
         } catch (PlaywrightException ignored) {
             return "";
         }
@@ -1434,6 +1499,11 @@ public class IptDeclarationPage {
         String normalized = normalize(partyName);
         if (!normalized.isBlank()) {
             String[] words = normalized.split(" ");
+            String condensed = normalized.replaceAll("[^A-Za-z0-9]", "");
+            appendCandidate(candidates, condensed);
+            if (words.length >= 1) {
+                appendCandidate(candidates, words[0]);
+            }
             if (words.length >= 4) {
                 appendCandidate(candidates, String.join(" ", words[0], words[1], words[2], words[3]));
             }
@@ -1442,7 +1512,17 @@ public class IptDeclarationPage {
             }
             if (words.length >= 2) {
                 appendCandidate(candidates, String.join(" ", words[0], words[1]));
+                appendCandidate(candidates, words[0] + words[1]);
             }
+            String businessStem = normalized
+                    .replaceAll("\\bPTE\\b", "")
+                    .replaceAll("\\bLTD\\b", "")
+                    .replaceAll("\\bLIMITED\\b", "")
+                    .replaceAll("\\bPRIVATE\\b", "")
+                    .replaceAll("\\s+", " ")
+                    .trim();
+            appendCandidate(candidates, businessStem);
+            appendCandidate(candidates, businessStem.replaceAll("[^A-Za-z0-9]", ""));
         }
 
         return candidates.stream().distinct().toArray(String[]::new);
@@ -1907,6 +1987,33 @@ public class IptDeclarationPage {
             if (candidateText.contains(expected)) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    private boolean waitForAnyVisibleSuggestion(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean visible = (Boolean) page.evaluate("""
+                    () => {
+                        const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const overlayRoots = [
+                            ...document.querySelectorAll(
+                                '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
+                        ].filter(element => isVisible(element));
+                        const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
+                        const candidates = (overlayRoots.length > 0
+                                ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
+                                : Array.from(document.querySelectorAll(optionQuery)))
+                            .filter(element => isVisible(element))
+                            .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName));
+                        return candidates.length > 0;
+                    }
+                    """);
+            if (Boolean.TRUE.equals(visible)) {
+                return true;
+            }
+            page.waitForTimeout(100);
         }
         return false;
     }

@@ -4,6 +4,8 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
 
+import java.util.Map;
+
 public class DeclarationsPage {
 
     private final Page page;
@@ -20,10 +22,8 @@ public class DeclarationsPage {
     }
 
     public void openDeclarationList(String menuLabel, String route) {
-        expandDeclarationsMenuIfNeeded();
-        Locator menuItem = page.locator("a:has-text('" + menuLabel + "')").first();
-        menuItem.waitFor(new Locator.WaitForOptions().setTimeout(30000));
-        menuItem.click();
+        openDeclarationsMenuIfNeeded();
+        clickDeclarationMenuItem(menuLabel, route);
         page.waitForURL("**" + route);
         waitForNewDeclarationButton();
     }
@@ -33,10 +33,41 @@ public class DeclarationsPage {
         page.waitForURL("**" + route + "/edit/*");
     }
 
-    private void expandDeclarationsMenuIfNeeded() {
-        if (!page.locator(IPT_MENU_ITEM).isVisible()) {
+    private void openDeclarationsMenuIfNeeded() {
+        if (!page.locator(IPT_MENU_ITEM).first().isVisible()) {
             page.locator(DECLARATIONS_MENU).first().click();
-            page.locator(IPT_MENU_ITEM).first().waitFor(new Locator.WaitForOptions().setTimeout(30000));
+            page.waitForTimeout(500);
+        }
+    }
+
+    private void clickDeclarationMenuItem(String menuLabel, String route) {
+        Locator visibleMenuItem = page.locator("a:visible:has-text('" + menuLabel + "')").first();
+        if (visibleMenuItem.count() > 0 && visibleMenuItem.isVisible()) {
+            visibleMenuItem.click();
+            return;
+        }
+
+        Boolean clicked = (Boolean) page.evaluate("""
+                ({ menuLabel, route }) => {
+                    const normalize = value => (value || "").replace(/\\s+/g, " ").trim().toUpperCase();
+                    const normalizedLabel = normalize(menuLabel);
+                    const candidates = Array.from(document.querySelectorAll("a"));
+                    const target = candidates.find(element => {
+                        const href = element.getAttribute("href") || "";
+                        const routerLink = element.getAttribute("routerLink") || "";
+                        const text = normalize(element.innerText || element.textContent);
+                        return href === route || routerLink === route || text.includes(normalizedLabel);
+                    });
+                    if (!target) {
+                        return false;
+                    }
+                    target.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+                    return true;
+                }
+                """, Map.of("menuLabel", menuLabel, "route", route));
+
+        if (!Boolean.TRUE.equals(clicked)) {
+            throw new IllegalStateException("Unable to open declaration menu item: " + menuLabel);
         }
     }
 
