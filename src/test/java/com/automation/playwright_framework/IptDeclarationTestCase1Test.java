@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class IptDeclarationTestCase1Test extends BaseTest {
@@ -27,13 +28,13 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
     private static final String IPT_ROUTE = "/declarations/ipt";
     private static final String IPT_MENU_LABEL = "In-Payment (IPT)";
-    private static final String TEST_DATA_RESOURCE = "data/ipt-declaration-test-case-1.json";
+    private static final String TEST_DATA_RESOURCE = System.getProperty(
+            "tradenix.ipt.test.data",
+            "data/ipt-declaration-test-case-1.json");
 
     @Test
     void submitIptDeclarationTestCase1UsingJsonData() {
         JsonNode testData = loadTestData(TEST_DATA_RESOURCE);
-        boolean shouldSubmitDeclaration = testData.path("summary").path("submitDeclaration").asBoolean(false)
-                || testData.path("formMetaData").path("submitDeclaration").asBoolean(false);
 
         LoginPage loginPage = new LoginPage(page);
         DeclarationsPage declarationsPage = new DeclarationsPage(page);
@@ -45,19 +46,21 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         declarationsPage.autoAcceptUnsavedChanges();
         declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+        if (testData.isArray()) {
+            submitBatchDeclarations(testData, declarationsPage, iptDeclarationPage);
+            return;
+        }
+
+        boolean shouldSubmitDeclaration = testData.path("summary").path("submitDeclaration").asBoolean(false)
+                || testData.path("formMetaData").path("submitDeclaration").asBoolean(false);
         declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
 
         iptDeclarationPage.populateFrom(testData);
         if (shouldSubmitDeclaration) {
-            page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
-                    .setFullPage(true)
-                    .setPath(Paths.get("target", "ipt-submission-after-submit.png")));
-            try {
-                Files.writeString(
-                        Paths.get("target", "ipt-submit-validation-diagnostics.json"),
-                        iptDeclarationPage.captureSubmitValidationDiagnostics());
-            } catch (Exception ignored) {
-            }
+            captureDiagnosticsArtifacts(
+                    Paths.get("target", "ipt-submission-after-submit.png"),
+                    Paths.get("target", "ipt-submit-validation-diagnostics.json"),
+                    iptDeclarationPage);
             return;
         }
         iptDeclarationPage.openInvoiceInfoSection();
@@ -65,6 +68,52 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                 .setFullPage(true)
                 .setPath(Paths.get("target", "invoice-supplier-manufacturer-verification.png")));
         Assertions.assertEquals("NAME", iptDeclarationPage.readSupplierManufacturerNameValue());
+    }
+
+    private void submitBatchDeclarations(
+            JsonNode declarationBatch,
+            DeclarationsPage declarationsPage,
+            IptDeclarationPage iptDeclarationPage) {
+        if (declarationBatch.isEmpty()) {
+            throw new IllegalArgumentException("Batch test data must not be empty: " + TEST_DATA_RESOURCE);
+        }
+
+        for (int index = 0; index < declarationBatch.size(); index++) {
+            JsonNode declaration = declarationBatch.get(index);
+            declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
+
+            try {
+                iptDeclarationPage.populateDraftFrom(declaration);
+                iptDeclarationPage.submitDeclaration();
+                captureDiagnosticsArtifacts(
+                        Paths.get("target", "ipt-batch-submit-" + (index + 1) + ".png"),
+                        Paths.get("target", "ipt-batch-submit-validation-" + (index + 1) + ".json"),
+                        iptDeclarationPage);
+            } catch (Exception exception) {
+                captureDiagnosticsArtifacts(
+                        Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".png"),
+                        Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".json"),
+                        iptDeclarationPage);
+                throw exception;
+            }
+
+            if (index < declarationBatch.size() - 1) {
+                declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+            }
+        }
+    }
+
+    private void captureDiagnosticsArtifacts(
+            Path screenshotPath,
+            Path diagnosticsPath,
+            IptDeclarationPage iptDeclarationPage) {
+        page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
+                .setFullPage(true)
+                .setPath(screenshotPath));
+        try {
+            Files.writeString(diagnosticsPath, iptDeclarationPage.captureSubmitValidationDiagnostics());
+        } catch (Exception ignored) {
+        }
     }
 
     private static JsonNode loadTestData(String resourcePath) {
