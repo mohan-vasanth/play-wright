@@ -1,232 +1,25 @@
 [
-  
-  {
+ 
+    {
     "type": "IPTDEC",
-    
+
         "header": {
-            "messageReference": "TDX2605190032",
+            "messageReference": "TDX2605200069",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260519",
-                "sequenceNumeric": "1031"
-            },
-            "declarantId": "ADAT.ADAT001",
-            "commonAccessReference": "IPTDEC",
-            "declarationType": "10",
-            "declarationIndicator": true
-        },
-        "cargo": {
-            "cargoPackingType": "9",
-            "releaseLocation": {
-                "locationCode": "CZ",
-                "locationName": "CHANGI FTZ"
-            },
-            "receiptLocation": {
-                "locationCode": "O",
-                "locationName": "OTHERS"
-            },
-            "transportEquipmentIsActive": true,
-            "transportEquipment": [
-                {
-                    "sequenceNumeric": "1",
-                    "equipmentID": "  TRIU6719798",
-                    "sizeTypeCode": "FCL20",
-                    "equipmentWeightMeasureNumeric": "8",
-                    "transportEquipmentSeal": {
-                        "sealID": "KSC547522"
-                    }
-                }
-            ]
-        },
-        "transport": {
-            "inwardTransport": {
-                "transportMeans": {
-                    "transportMode": {
-                        "modeCode": "1",
-                        "conveyanceReferenceNumber": "2512S",
-                        "transportIdentifier": "KMTC SHIMIZU"
-                    },
-                    "mawboucroblNumber": "SNKO010251102945"
-                },
-                "arrivalDate": "20260519",
-                "loadingPort": "KRPUS"
-            }
-        },
-        "party": {
-            "declarantParty": {
-                "personInformation": {
-                    "codeValue": "S8562791J",
-                    "name": "NAMASIVAYAM GUNESPARAN"
-                },
-                "telephone": "81189066"
-            },
-            "importerParty": {
-                "partyIdentification": {
-                  
-                },
-                "partyName": {
-                    "name": "A*STAR RESEARCH ENTITIES"
-                }
-            },
-            "declaringAgentParty": {
-                "partyIdentification": {
-                    "id": "202535359H"
-                },
-                "partyName": {
-                    "name": "ADATA PVT LMT"
-                }
-            },
-            "freightForwarderParty": {
-                "partyIdentification": {
-              
-                },
-                "partyName": {
-                    "name": "ADATA"
-                }
-            },
-            "inwardCarrierAgentParty": {
-                "partyIdentification": {
-                    
-                },
-                "partyName": {
-                    "name": "AB SHIPPING PTE LTD "
-                }
-            }
-        },
-        "invoice": [
-            {
-                "invoiceNumber": "001",
-                "invoiceDate": "20260513",
-                "supplierManufacturerParty": {
-                    "name": "ADATA"
-                },
-                "unitPriceTermType": "CIF",
-                "totalInvoiceValue": {
-                    "amount": {
-                        "value": "2000",
-                        "currencyID": "USD"
-                    },
-                    "exchangeRate": "1.3553"
-                },
-                "gst": "9",
-                "invoiceCalculation": {
-                    "cifAmountSgd": "2710.60",
-                    "gstAmountSgd": "243.95"
-                }
-            }
-        ],
-        "summary": {
-            "numberOfInvoices": "1",
-            "numberOfItems": "1",
-            "sumOfInvoiceAmount": "2000.00",
-            "sumOfItemAmount": "2000.00",
-            "totalInvoiceCifValue": "2710.60",
-            "totalCifFobValue": "2710.60",
-            "totalOuterPack": {
-                "value": "10",
-                "unitCode": "PKG"
-            },
-            "totalGrossWeight": {
-                "value": "1000",
-                "unitCode": "TNE"
-            },
-            "totalTariff": {
-                "totalGoodsAndServicesTaxAmount": "243.95",
-                "totalAmountPayable": "243.95"
-            }
-        },
-        "formMetaData": {
-            "additionalRecipientIdIsActive": false,
-            "licenceIsActive": false,
-            "supportingDocumentIsActive": false,
-            "transportEquipmentIsActive": true,
-            "aeoIsActive": false,
-            "cwcIsActive": false,
-            "seastoreIsActive": false,
-            "stsIsActive": false,
-            "stsAndCwcIsActive": false,
-            "internationalPermitExchangeIsActive": false,
-            "declarationIndicator": false,
-            "editUnitPrice": [
-                false
-            ],
-            "shippingMarksIsActive": [
-                false
-            ],
-            "itemPackingIsActive": [
-                false
-            ],
-            "tariffLotIdentificationIsActive": [
-                false
-            ]
-        },
-        "item": [
-            {
-                "itemSequenceNumeric": "1",
-                "itemHarmonizedSystemCode": "01012100",
-                "goodsDescription": "PURE BRED BREEDING HORSES (NMB)",
-                "originCountry": "US",
-                "brandName": "ABC",
-                "dangerousGoodsIndicator": false,
-                "inHawbHucrHblNumber": "ab1234",
-                "itemInvoiceNumber": "001",
-                "itemQuantity": {
-                    "harmonizedSystemQuantity": {
-                        "value": "10",
-                        "unitCode": "NMB"
-                    },
-                    "hsQuantity": {
-                        "value": "10",
-                        "unitCode": "NMB"
-                    }
-                },
-                "transactionValue": {
-                    "itemCIFFOBValue": "2710.6",
-                    "unitPriceValue": {
-                        "amount": {
-                            "value": "2000.00",
-                            "currencyID": "USD"
-                        },
-                        "exchangeRate": "1.3553"
-                    }
-                },
-                "itemCalculation": {
-                    "itemCifFobValueSgd": "2710.6"
-                },
-                "tariff": {
-                    "goodsAndServicesTax": {
-                        "goodsAndServicesTaxPercent": "9",
-                        "goodsAndServicesTaxAmount": "243.95"
-                    }
-                },
-                "cascProduct": [
-                    {
-                        "cascProductCode": "VBA0HO",
-                        "cascProductQuantity": {
-                            "value": "10",
-                            "unitCode": "NMB"
-                        }
-                    }
-                ]
-            }
-        ],
-        "type": "IPT"
-    
-},
-{
-    "type": "IPTDEC",
-  
-        "header": {
-            "messageReference": "TDX2605190064",
-            "uniqueReferenceNumber": {
-                "id": "202535359H",
-                "date": "20260519",
-                "sequenceNumeric": "1063"
+                "date": "20260520",
+                "sequenceNumeric": "1068"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "IPTDEC",
             "declarationType": "12",
             "declarationIndicator": true,
+            "bankerGuaranteeCode": "D",
+            "previousPermitNumber": "IGH8888FDFDF",
+            "additionalRecipientIdIsActive": true,
+            "additionalRecipientId": [
+                "DGJFJJFJF"
+            ],
             "remarks": {
                 "freeText": "ADATA TEST CASE 3"
             }
@@ -237,7 +30,7 @@
             }
         ],
         "cargo": {
-            "cargoPackingType": "5",
+            "cargoPackingType": "9",
             "releaseLocation": {
                 "locationCode": "THQ",
                 "locationName": "TUAS HQ"
@@ -246,15 +39,30 @@
                 "locationCode": "O",
                 "locationName": "OTHERS"
             },
-            "transportEquipmentIsActive": false
+            "supplyIndicator": "true",
+            "blanketStartDate": "20260520",
+            "transportEquipmentIsActive": true,
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "TRIU6719798 ",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "8",
+                    "transportEquipmentSeal": {
+                        "sealID": "  KSC547522"
+                    }
+                }
+            ]
         },
         "transport": {
             "inwardTransport": {
                 "transportMeans": {
                     "transportMode": {
                         "modeCode": "3",
+                        "conveyanceReferenceNumber": "DFSSD5544",
                         "transportIdentifier": "NA"
-                    }
+                    },
+                    "mawboucroblNumber": "DDFDDDDDDDDD"
                 },
                 "arrivalDate": "20260508",
                 "loadingPort": "MYJHB"
@@ -273,7 +81,7 @@
                     
                 },
                 "partyName": {
-                    "name": "FORESPAND FOOD "
+                    "name": "FORESPAND FOOD"
                 }
             },
             "declaringAgentParty": {
@@ -289,7 +97,16 @@
                     
                 },
                 "partyName": {
-                    "name": "ADATACOMPANY PTE LTD"
+                    "name": "ADATA"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    
+                },
+                "partyName": {
+                    "name": "ALPINE"
+
                 }
             }
         },
@@ -300,7 +117,7 @@
                 "supplierManufacturerParty": {
                     "name": "ADATA"
                 },
-                "unitPriceTermType": "CIF",
+                "unitPriceTermType": "FAS",
                 "totalInvoiceValue": {
                     "amount": {
                         "value": "10000",
@@ -308,10 +125,33 @@
                     },
                     "exchangeRate": "1"
                 },
+                "freightCharge": {
+                    "exchangeRate": "1.355300",
+                    "amount": {
+                        "value": "1000.00",
+                        "currencyID": "USD"
+                    }
+                },
+                "insuranceCharge": {
+                    "exchangeRate": "1.000000",
+                    "amount": {
+                        "value": "113.55",
+                        "currencyID": "SGD"
+                    },
+                    "chargePercent": "1.00"
+                },
+                "otherTaxableCharge": {
+                    "exchangeRate": "1.000000",
+                    "amount": {
+                        "value": "10.00",
+                        "currencyID": "SGD"
+                    }
+                },
                 "gst": "9",
                 "invoiceCalculation": {
-                    "cifAmountSgd": "10000.00",
-                    "gstAmountSgd": "900.00"
+                    "insuranceAmountSgd": "113.55",
+                    "cifAmountSgd": "11478.85",
+                    "gstAmountSgd": "1033.10"
                 }
             }
         ],
@@ -320,8 +160,8 @@
             "numberOfItems": "1",
             "sumOfInvoiceAmount": "10000.00",
             "sumOfItemAmount": "10000.00",
-            "totalInvoiceCifValue": "10000.00",
-            "totalCifFobValue": "10000.00",
+            "totalInvoiceCifValue": "11478.85",
+            "totalCifFobValue": "11478.85",
             "totalOuterPack": {
                 "value": "1",
                 "unitCode": "LTR"
@@ -331,16 +171,16 @@
                 "unitCode": "KGM"
             },
             "totalTariff": {
-                "totalGoodsAndServicesTaxAmount": "900.63",
+                "totalGoodsAndServicesTaxAmount": "135.63",
                 "totalExciseDutyAmount": "7.04",
-                "totalAmountPayable": "907.67"
+                "totalAmountPayable": "142.67"
             }
         },
         "formMetaData": {
-            "additionalRecipientIdIsActive": false,
+            "additionalRecipientIdIsActive": true,
             "licenceIsActive": true,
             "supportingDocumentIsActive": false,
-            "transportEquipmentIsActive": false,
+            "transportEquipmentIsActive": true,
             "aeoIsActive": false,
             "cwcIsActive": false,
             "seastoreIsActive": false,
@@ -352,7 +192,7 @@
                 false
             ],
             "shippingMarksIsActive": [
-                false
+                true
             ],
             "itemPackingIsActive": [
                 true
@@ -368,6 +208,7 @@
                 "goodsDescription": "WINE OF FRESH GRAPES OF ALCOHOLIC STRENGTH NOT EXCEEDING 15% VOL IN CONTAINERS OF 2L OR LESS (LTR)",
                 "originCountry": "AU",
                 "brandName": "ABC",
+                "modelDescription": "BMW",
                 "dangerousGoodsIndicator": false,
                 "inHawbHucrHblNumber": "SGSIN0000123456",
                 "itemInvoiceNumber": "1",
@@ -391,38 +232,66 @@
                     "alcoholPercent": "8"
                 },
                 "transactionValue": {
-                    "itemCIFFOBValue": "10000",
+                    "itemCIFFOBValue": "11478.85",
+                    "lastSellingPriceValue": "1500",
                     "unitPriceValue": {
                         "amount": {
                             "value": "10000.00",
                             "currencyID": "SGD"
                         },
                         "exchangeRate": "1"
+                    },
+                    "optionalItemCharge": {
+                        "amount": {
+                            "value": "11.00",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1",
+                        "transactionValue": "11.00"
                     }
                 },
                 "itemCalculation": {
-                    "itemCifFobValueSgd": "10000"
+                    "itemCifFobValueSgd": "11478.85"
                 },
                 "tariff": {
                     "goodsAndServicesTax": {
                         "goodsAndServicesTaxPercent": "9",
-                        "goodsAndServicesTaxAmount": "900.63"
+                        "goodsAndServicesTaxAmount": "135.63"
                     },
                     "exciseDuty": {
                         "dutyRate": "88",
                         "dutyRateUnit": "LPA",
                         "dutyAmount": "7.04"
-                    }
+                    },
+                    "preferentialCode": "PRI"
                 },
                 "packingDescription": {
                     "outerPackQuantity": {
                         "value": "1",
                         "unitCode": "LTR"
+                    },
+                    "inPackQuantity": {
+                        "value": "1"
+                    },
+                    "innerPackQuantity": {
+                        "value": "1"
+                    },
+                    "inmostPackQuantity": {
+                        "value": "1"
                     }
                 },
                 "lotIdentification": {
+                    "currentLotNumber": "2609",
+                    "previousLotNumber": "2609",
                     "marking": "HW"
                 },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "lomm111"
+                        ]
+                    }
+                ],
                 "cascProduct": [
                     {
                         "cascProductCode": "ZBP0BH0QVDG",
@@ -441,5 +310,6 @@
         ],
         "type": "IPT"
     }
+
 
 ]
