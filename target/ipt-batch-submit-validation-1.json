@@ -1,4 +1,4 @@
 {
-  "toastText": "Tradenix IPT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2605200130 URN ID 202535359H Sequence Number 1129 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice Info (V) Items (I) CPC (C) Summary (Y) Response (R) Latest Backend Validation Errors GST amount mismatch: client='135.63', server='136.62', diff=0.99 No response available. Submit the declaration to receive a backend or TradeNet response. Raw Response Data SHOW RAW JSON Validation Failed: Please fill in all required fields before submitting: GST amount mismatch: client='135.63', server='136.62', diff=0.99",
+  "toastText": "",
   "invalidElements": []
 }

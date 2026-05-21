@@ -1,6 +1,4 @@
 {
-  "toastText": "Tradenix IPT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2605190060 URN ID 202535359H Sequence Number 1059 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice Info (V) Items (I) CPC (C) Summary (Y) Response (R) Summary Total Items 1 Total Item Amount 2000.00 USD Total Item CIF 2737.71 USD Sum of Invoice Amount 2000.00 USD Total Invoice CIF Value 2737.71 USD Customs Duty 0.00 USD Excise Duty 0.00 USD GST Amount 246.39 USD Other Tax 0.00 USD Total Payable 246.39 USD Remarks Remarks Internal Remarks Customer Remarks Permit Summary Importer (UEN) A*STAR RESEARCH ENTITIES (199702110H) Total Package 10 PKG Total Gross Weight 1000 TNE Item HS Qty Sum 10.000 NMB HAWB Number ab1234 Cross Reference ID Declaration Indicator I/We declare that all particulars in this application are true and correct. PREVIOUS NEXT SAVE DRAFT SUBMIT DECLARATION Validation Failed: Please fill in all required fields before submitting: Invoice 1: Freight Charge currency is required for term type Invoice 1: Freight Charge amount or percentage is required for term type Price Term Type is required",
-  "invalidElements": [
-    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-257\",\"type\":\"text\",\"ariaInvalid\":\"\",\"classes\":\"clr-input ng-untouched ng-pristine ng-invalid\"}"
-  ]
+  "toastText": "",
+  "invalidElements": []
 }

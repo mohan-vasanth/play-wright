@@ -1,6 +1,0 @@
-{
-  "toastText": "",
-  "invalidElements": [
-    "{\"label\":\"I/We declare that all particulars in this application are true and correct.\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-20\",\"type\":\"checkbox\",\"ariaInvalid\":\"\",\"classes\":\"ng-untouched ng-pristine ng-invalid\"}"
-  ]
-}

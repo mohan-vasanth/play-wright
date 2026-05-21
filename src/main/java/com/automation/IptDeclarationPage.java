@@ -62,6 +62,7 @@ public class IptDeclarationPage {
     }
 
     public void submitDeclaration() {
+        advanceToSubmitDeclarationIfNecessary();
         clickSubmitDeclarationWithDelay(UI_SUBMIT_CLICK_WAIT_MS);
     }
 
@@ -192,7 +193,7 @@ public class IptDeclarationPage {
     private void fillChecksSection(JsonNode header, JsonNode cargo) {
         String bgIndicator = text(header, "bankerGuaranteeCode");
         if (bgIndicator != null && !bgIndicator.isBlank()) {
-            fillLookupFieldInSectionIfPresent("Checks", "BG Indicator", bgIndicator, bgIndicatorHints(bgIndicator));
+            selectBgIndicator(bgIndicator);
         }
 
         String blanketStartDate = formatUiDate(text(cargo, "blanketStartDate"));
@@ -202,6 +203,65 @@ public class IptDeclarationPage {
 
         if (cargo.path("supplyIndicator").asBoolean(false)) {
             setCheckboxByLabel("Supply Indicator", true);
+        }
+    }
+
+    private void selectBgIndicator(String bgIndicator) {
+        if (bgIndicator == null || bgIndicator.isBlank()) {
+            return;
+        }
+
+        String[] exactSelectionHints = compactValues(bgIndicator);
+        String[] selectionHints = bgIndicatorHints(bgIndicator);
+        Locator field = resolveBgIndicatorField();
+        closeTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+
+        if (trySelectNativeDropdown(field, bgIndicator, selectionHints)) {
+            if (!waitForAnyRenderedFieldValue(field, 1000, selectionHints)) {
+                throw new IllegalStateException("BG Indicator value was not rendered. Expected one of: "
+                        + String.join(", ", selectionHints) + ", Actual: " + readRenderedFieldValue(field));
+            }
+            page.keyboard().press("Tab");
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            return;
+        }
+
+        clickDropdownActivator(field);
+        pauseUi(UI_ACTION_PAUSE_MS);
+
+        boolean optionSelected = waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, exactSelectionHints)
+                && clickVisibleSuggestionExact(exactSelectionHints);
+        if (!optionSelected) {
+            try {
+                page.keyboard().press("ArrowDown");
+                pauseUi(UI_ACTION_PAUSE_MS);
+            } catch (PlaywrightException ignored) {
+            }
+            optionSelected = clickVisibleSuggestionExact(exactSelectionHints);
+        }
+        if (!optionSelected) {
+            optionSelected = waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, selectionHints)
+                    && clickVisibleSuggestion(selectionHints);
+        }
+        if (!optionSelected) {
+            openLookupAndChooseOption(field, selectionHints);
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, exactSelectionHints[0], selectionHints[0])) {
+            closeTransientOverlays();
+            clickDropdownActivator(field);
+            pauseUi(UI_ACTION_PAUSE_MS);
+            if (waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, exactSelectionHints)) {
+                clickVisibleSuggestionExact(exactSelectionHints);
+            } else if (waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, selectionHints)) {
+                clickVisibleSuggestion(selectionHints);
+            }
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, exactSelectionHints[0], selectionHints[0])) {
+            throw new IllegalStateException("BG Indicator value was not rendered. Expected one of: "
+                    + String.join(", ", selectionHints) + ", Actual: " + readRenderedFieldValue(field));
         }
     }
 
@@ -652,21 +712,22 @@ public class IptDeclarationPage {
         pauseUi(UI_ACTION_PAUSE_MS);
 
         Locator shippingMarksSection = resolveShippingMarksSection();
-        if (clickButtonInScopeIfVisible(shippingMarksSection, "ADD LINE")) {
-            pauseUi(UI_ACTION_PAUSE_MS);
-        }
         Locator field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
         if (field == null && clickButtonInScopeIfVisible(shippingMarksSection, "ADD GROUP")) {
             pauseUi(UI_ACTION_PAUSE_MS);
-            if (clickButtonInScopeIfVisible(shippingMarksSection, "ADD LINE")) {
-                pauseUi(UI_ACTION_PAUSE_MS);
-            }
             field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
         }
-        Locator target = field;
-        if (target == null) {
-            target = resolveShippingMarksActivatorOrNull(shippingMarksSection);
+        if (field == null && clickButtonInScopeIfVisible(shippingMarksSection, "ADD LINE")) {
+            pauseUi(UI_ACTION_PAUSE_MS);
+            field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
         }
+
+        if (field != null) {
+            focusAndType(field, shippingMark, false);
+            return;
+        }
+
+        Locator target = resolveShippingMarksActivatorOrNull(shippingMarksSection);
         if (target == null) {
             target = firstVisible(shippingMarksSection);
         }
@@ -678,6 +739,12 @@ public class IptDeclarationPage {
         target.scrollIntoViewIfNeeded();
         target.click(new Locator.ClickOptions().setForce(true));
         pauseUi(UI_ACTION_PAUSE_MS);
+        field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
+        if (field != null) {
+            focusAndType(field, shippingMark, false);
+            return;
+        }
+
         typeIntoFocusedEditor(shippingMark);
     }
 
@@ -761,6 +828,7 @@ public class IptDeclarationPage {
 
     private void fillSummary(JsonNode data) {
         openSection("Summary (Y)");
+        fillFieldInSectionIfPresent("Remarks", "Remarks", text(data.path("header").path("remarks"), "freeText"));
         if (data.path("header").path("declarationIndicator").asBoolean(false)) {
             setCheckboxByLabel("Declaration Indicator", true);
         }
@@ -1445,7 +1513,7 @@ public class IptDeclarationPage {
     private void openLookupAndChooseOption(Locator field, String... optionHints) {
         closeTransientOverlays();
         field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
+        clickDropdownActivator(field);
         page.waitForTimeout(250);
 
         boolean optionClicked = clickVisibleSuggestion(optionHints);
@@ -1471,6 +1539,43 @@ public class IptDeclarationPage {
         page.waitForTimeout(150);
     }
 
+    private void clickDropdownActivator(Locator field) {
+        try {
+            Boolean clicked = (Boolean) field.evaluate("""
+                    element => {
+                        const isVisible = candidate =>
+                            candidate && (candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        const candidates = [
+                            element,
+                            element.querySelector?.('[role="combobox"]'),
+                            element.querySelector?.('[aria-haspopup="listbox"]'),
+                            element.querySelector?.('[aria-haspopup="menu"]'),
+                            element.querySelector?.('.ng-select-container'),
+                            element.querySelector?.('.mat-mdc-select-trigger'),
+                            element.querySelector?.('.mat-select-trigger'),
+                            element.querySelector?.('[class*="select-trigger"]'),
+                            element.querySelector?.('[class*="dropdown-toggle"]'),
+                            element.querySelector?.('button')
+                        ].filter(isVisible);
+
+                        if (candidates.length === 0) {
+                            return false;
+                        }
+
+                        candidates[0].scrollIntoView({ block: 'center' });
+                        candidates[0].click();
+                        return true;
+                    }
+                    """);
+            if (Boolean.TRUE.equals(clicked)) {
+                return;
+            }
+        } catch (PlaywrightException ignored) {
+        }
+
+        field.click(new Locator.ClickOptions().setForce(true));
+    }
+
     private boolean trySelectNativeDropdown(Locator field, String value, String... suggestionHints) {
         String tagName;
         try {
@@ -1492,6 +1597,16 @@ public class IptDeclarationPage {
         }
 
         try {
+            if (value != null && !value.isBlank()) {
+                try {
+                    List<String> byValue = field.selectOption(value);
+                    if (byValue != null && !byValue.isEmpty()) {
+                        return true;
+                    }
+                } catch (PlaywrightException ignored) {
+                }
+            }
+
             Boolean matched = (Boolean) field.evaluate("""
                     (element, expectedValues) => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
@@ -1766,6 +1881,39 @@ public class IptDeclarationPage {
                         .sort((left, right) => {
                             return matchScore(right.text) - matchScore(left.text) || right.text.length - left.text.length;
                         });
+
+                    if (optionLikeCandidates.length === 0) {
+                        return false;
+                    }
+
+                    optionLikeCandidates[0].element.scrollIntoView({ block: 'center' });
+                    optionLikeCandidates[0].element.click();
+                    return true;
+                }
+                """, values));
+    }
+
+    private boolean clickVisibleSuggestionExact(String... values) {
+        return Boolean.TRUE.equals(page.evaluate("""
+                expectedValues => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const expectedList = expectedValues.map(normalize).filter(Boolean);
+                    const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    const overlayRoots = [
+                        ...document.querySelectorAll(
+                            '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
+                    ].filter(element => isVisible(element));
+                    const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
+                    const optionLikeCandidates = (overlayRoots.length > 0
+                            ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
+                            : Array.from(document.querySelectorAll(optionQuery)))
+                        .filter(element => isVisible(element))
+                        .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
+                        .map(element => ({
+                            element,
+                            text: normalize(element.innerText || element.textContent)
+                        }))
+                        .filter(candidate => expectedList.some(expected => candidate.text === expected));
 
                     if (optionLikeCandidates.length === 0) {
                         return false;
@@ -2580,6 +2728,21 @@ public class IptDeclarationPage {
             return visibleLineOneField;
         }
 
+        Locator placeholderLineOneField = visibleScope.locator(
+                "input[placeholder*='Line 1'], textarea[placeholder*='Line 1'], input[placeholder*='max 17 chars'], textarea[placeholder*='max 17 chars']");
+        Locator visiblePlaceholderLineOneField = firstVisible(placeholderLineOneField);
+        if (visiblePlaceholderLineOneField != null) {
+            return visiblePlaceholderLineOneField;
+        }
+
+        Locator firstTextbox = visibleScope.locator(
+                "xpath=(.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'GROUP 1')]"
+                        + "/following::*[self::input or self::textarea or @role='textbox'])[1]");
+        Locator visibleFirstTextbox = firstVisible(firstTextbox);
+        if (visibleFirstTextbox != null) {
+            return visibleFirstTextbox;
+        }
+
         return null;
     }
 
@@ -2767,6 +2930,46 @@ public class IptDeclarationPage {
         return false;
     }
 
+    private boolean waitForVisibleSuggestionExact(int timeoutMs, String... values) {
+        List<String> candidates = new ArrayList<>();
+        if (values != null) {
+            for (String value : values) {
+                appendCandidate(candidates, value);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return true;
+        }
+
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean visible = (Boolean) page.evaluate("""
+                    expectedValues => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const expectedList = expectedValues.map(normalize).filter(Boolean);
+                        const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const overlayRoots = [
+                            ...document.querySelectorAll(
+                                '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
+                        ].filter(element => isVisible(element));
+                        const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
+                        const candidates = (overlayRoots.length > 0
+                                ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
+                                : Array.from(document.querySelectorAll(optionQuery)))
+                            .filter(element => isVisible(element))
+                            .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
+                            .map(element => normalize(element.innerText || element.textContent));
+                        return candidates.some(candidate => expectedList.some(expected => candidate === expected));
+                    }
+                    """, candidates);
+            if (Boolean.TRUE.equals(visible)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
     private boolean waitForAnyVisibleSuggestion(int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
@@ -2869,6 +3072,48 @@ public class IptDeclarationPage {
         Locator placeholders = section.locator(
                 "input[placeholder='" + escapeForSelector(label) + "'], textarea[placeholder='" + escapeForSelector(label) + "']");
         return firstVisible(placeholders);
+    }
+
+    private Locator resolveBgIndicatorField() {
+        Locator checksSection = resolveSection("Checks");
+        String escapedLabel = toXpathLiteral("BG Indicator");
+
+        Locator selectField = checksSection.locator(
+                "xpath=((.//*[self::label or self::span or self::div or self::p]"
+                        + "[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")])])[1]"
+                        + "/following::*[self::select][1])[1]");
+        Locator visibleSelectField = firstVisible(selectField);
+        if (visibleSelectField != null) {
+            return visibleSelectField;
+        }
+
+        Locator field = checksSection.locator(
+                "xpath=((.//*[self::label or self::span or self::div or self::p]"
+                        + "[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")])])[1]"
+                        + "/following::*[self::select or @role='combobox' or @role='listbox' or @role='button'"
+                        + " or @aria-haspopup='listbox' or @aria-haspopup='menu'"
+                        + " or contains(@class, 'ng-select') or contains(@class, 'mat-mdc-select')"
+                        + " or contains(@class, 'select') or contains(@class, 'dropdown')][1])[1]");
+        Locator visibleField = firstVisible(field);
+        if (visibleField != null) {
+            return visibleField;
+        }
+
+        Locator firstSelectLikeField = checksSection.locator(
+                "select, [role='combobox'], [role='listbox'], [aria-haspopup='listbox'], [aria-haspopup='menu'], .ng-select, .mat-mdc-select, .mat-select");
+        Locator visibleFirstSelectLikeField = firstVisible(firstSelectLikeField);
+        if (visibleFirstSelectLikeField != null) {
+            return visibleFirstSelectLikeField;
+        }
+
+        Locator fallbackField = resolveFieldByLabelInSectionOrNull("Checks", "BG Indicator", 0);
+        if (fallbackField != null) {
+            return fallbackField;
+        }
+
+        throw new IllegalStateException("BG Indicator field was not visible in Checks section.");
     }
 
     private Locator resolveAssociatedControl(Locator scope, Locator labels, int occurrence, String controlQuery) {
@@ -3007,6 +3252,35 @@ public class IptDeclarationPage {
         page.waitForTimeout(UI_POST_SUBMIT_WAIT_MS);
     }
 
+    private void advanceToSubmitDeclarationIfNecessary() {
+        Locator submitButton = resolveSubmitDeclarationButtonOrNull();
+        if (submitButton != null) {
+            return;
+        }
+
+        for (int attempts = 0; attempts < 3; attempts++) {
+            Locator nextButton = resolveActionButtonOrNull("NEXT");
+            if (nextButton == null) {
+                break;
+            }
+
+            closeTransientOverlays();
+            nextButton.scrollIntoViewIfNeeded();
+            try {
+                nextButton.click();
+            } catch (PlaywrightException ignored) {
+                nextButton.click(new Locator.ClickOptions().setForce(true));
+            }
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            page.waitForTimeout(UI_ACTION_PAUSE_MS);
+
+            submitButton = resolveSubmitDeclarationButtonOrNull();
+            if (submitButton != null) {
+                return;
+            }
+        }
+    }
+
     private boolean clickActionButtonIfVisible(String buttonText) {
         closeTransientOverlays();
         return clickMatchingPageButton(buttonText);
@@ -3073,6 +3347,15 @@ public class IptDeclarationPage {
     }
 
     private Locator resolveSubmitDeclarationButton() {
+        Locator resolved = resolveSubmitDeclarationButtonOrNull();
+        if (resolved != null) {
+            return resolved;
+        }
+
+        throw new IllegalStateException("Submit Declaration button was not visible.");
+    }
+
+    private Locator resolveSubmitDeclarationButtonOrNull() {
         closeTransientOverlays();
         Locator exactText = page.locator(
                 "xpath=(//*[self::button or @role='button' or self::a]"
@@ -3101,8 +3384,7 @@ public class IptDeclarationPage {
         if (fallback != null) {
             return fallback;
         }
-
-        throw new IllegalStateException("Submit Declaration button was not visible.");
+        return null;
     }
 
     private void clickButtonInScope(Locator scope, String... buttonTexts) {
@@ -3488,11 +3770,23 @@ public class IptDeclarationPage {
     private String[] bgIndicatorHints(String bgIndicator) {
         String normalized = normalize(bgIndicator).toUpperCase();
         return switch (normalized) {
-            case "D" -> compactValues(
+            case "I" -> compactValues(
                     bgIndicator,
                     "I - From Importer's BG",
                     "From Importer's BG",
-                    "Importer's BG");
+                    "Importer's BG",
+                    "Importer");
+            case "D" -> compactValues(
+                    bgIndicator,
+                    "D - From Declaring Agent's BG",
+                    "D - From Declarant's BG",
+                    "From Declaring Agent's BG",
+                    "From Declarant's BG",
+                    "Declaring Agent's BG",
+                    "Declarant's BG",
+                    "Agent's BG",
+                    "Declarant",
+                    "Declaring Agent");
             default -> compactValues(bgIndicator);
         };
     }
