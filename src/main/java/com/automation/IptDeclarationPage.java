@@ -797,7 +797,7 @@ public class IptDeclarationPage {
     private void fillAdditionalCascCodeOne(Locator additionalCascRow, String value) {
         Locator editableField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
         if (editableField != null) {
-            focusAndType(editableField, value, false);
+            fillAdditionalCascCodeOneField(editableField, value);
             return;
         }
 
@@ -810,7 +810,7 @@ public class IptDeclarationPage {
 
             Locator activatedField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
             if (activatedField != null) {
-                focusAndType(activatedField, value, false);
+                fillAdditionalCascCodeOneField(activatedField, value);
                 return;
             }
 
@@ -824,6 +824,56 @@ public class IptDeclarationPage {
 
         captureAdditionalCascFailureArtifacts("code-one-field-not-visible");
         throw new IllegalStateException("Additional CASC Code 1 field was not visible.");
+    }
+
+    private void fillAdditionalCascCodeOneField(Locator field, String value) {
+        closeTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+
+        if (trySelectNativeDropdown(field, value, value)) {
+            if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+                throw new IllegalStateException("Additional CASC Code 1 value was not rendered. Expected: "
+                        + value + ", Actual: " + readRenderedFieldValue(field));
+            }
+            page.keyboard().press("Tab");
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            return;
+        }
+
+        field.click(new Locator.ClickOptions().setForce(true));
+        try {
+            field.fill("");
+        } catch (PlaywrightException ignored) {
+            page.keyboard().press("Control+A");
+            page.keyboard().press("Backspace");
+        }
+        field.type(value, new Locator.TypeOptions().setDelay(80));
+        pauseUi(UI_ACTION_PAUSE_MS);
+
+        if (waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, value)) {
+            clickVisibleSuggestionExact(value);
+            pauseUi(UI_ACTION_PAUSE_MS);
+        } else if (waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, value)) {
+            clickVisibleSuggestion(value);
+            pauseUi(UI_ACTION_PAUSE_MS);
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
+            try {
+                field.fill(value);
+            } catch (PlaywrightException ignored) {
+            }
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
+            ensureTextFieldValue(field, value);
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("Additional CASC Code 1 value was not rendered. Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+
+        page.keyboard().press("Tab");
+        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
     }
 
     private void fillSummary(JsonNode data) {
