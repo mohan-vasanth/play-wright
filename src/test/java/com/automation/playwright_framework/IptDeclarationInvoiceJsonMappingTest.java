@@ -29,16 +29,21 @@ class IptDeclarationInvoiceJsonMappingTest {
     }
 
     @Test
-    void readsBankerGuaranteeCodeFromBatchHeader() {
+    void readsCascCodeOneFromBatchItem() {
         JsonNode testData = loadTestData("data/ipt-declaration-batch-test-case.json");
 
-        String bankerGuaranteeCode = testData
+        String cascCodeOne = testData
                 .get(0)
-                .path("header")
-                .path("bankerGuaranteeCode")
+                .path("item")
+                .get(0)
+                .path("cascProduct")
+                .get(0)
+                .path("additionalCascIdentification")
+                .get(0)
+                .path("cascCodeOne")
                 .asText();
 
-        assertEquals("I", bankerGuaranteeCode);
+        assertEquals("US99999", cascCodeOne);
     }
 
     private static JsonNode loadTestData(String resourcePath) {
