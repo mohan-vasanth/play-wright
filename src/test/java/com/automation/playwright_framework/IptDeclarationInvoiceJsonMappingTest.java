@@ -28,6 +28,19 @@ class IptDeclarationInvoiceJsonMappingTest {
         assertEquals("NAME", supplierManufacturerName);
     }
 
+    @Test
+    void readsBankerGuaranteeCodeFromBatchHeader() {
+        JsonNode testData = loadTestData("data/ipt-declaration-batch-test-case.json");
+
+        String bankerGuaranteeCode = testData
+                .get(0)
+                .path("header")
+                .path("bankerGuaranteeCode")
+                .asText();
+
+        assertEquals("I", bankerGuaranteeCode);
+    }
+
     private static JsonNode loadTestData(String resourcePath) {
         InputStream resourceStream = IptDeclarationInvoiceJsonMappingTest.class.getClassLoader()
                 .getResourceAsStream(resourcePath);
