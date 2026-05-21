@@ -2,6 +2,7 @@ package com.automation;
 
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Page.NavigateOptions;
+import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 
@@ -24,6 +25,18 @@ public class LoginPage {
     }
 
     public void navigate(String url) {
+        navigateAndWait(url);
+    }
+
+    private void navigateAndWait(String url) {
+        try {
+            page.navigate(url, new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            page.locator(USERNAME).waitFor();
+            return;
+        } catch (PlaywrightException ignored) {
+        }
+
         page.navigate(extractOrigin(url), new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
         page.locator(USERNAME).waitFor();

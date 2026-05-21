@@ -7,4 +7,3 @@ com\automation\playwright_framework\UserApiTest.class
 com\automation\playwright_framework\IptDeclarationInvoiceJsonMappingTest.class
 com\automation\playwright_framework\PlaywrightFrameworkApplicationTests.class
 com\automation\playwright_framework\IptDeclarationPageDateFormatTest.class
-com\automation\playwright_framework\IptDeclarationTestDataLoader.class
