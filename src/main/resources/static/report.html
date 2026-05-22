@@ -15,6 +15,8 @@
             --success-bg: #e8f7ef;
             --failure: #b42318;
             --failure-bg: #fdecec;
+            --issue: #8a4b00;
+            --issue-bg: #fff4df;
             --neutral: #1f6feb;
             --neutral-bg: #eaf2ff;
         }
@@ -33,7 +35,7 @@
         }
 
         .wrap {
-            max-width: 980px;
+            max-width: 1180px;
             margin: 0 auto;
             padding: 32px 20px 48px;
         }
@@ -46,22 +48,24 @@
             margin-bottom: 24px;
         }
 
-        h1 {
+        h1, h2, h3 {
             margin: 0;
+        }
+
+        h1 {
             font-size: 32px;
             line-height: 1.1;
+        }
+
+        h2 {
+            font-size: 22px;
+            margin-bottom: 14px;
         }
 
         .sub {
             color: var(--muted);
             margin-top: 6px;
             font-size: 14px;
-        }
-
-        .actions {
-            display: flex;
-            gap: 12px;
-            align-items: center;
         }
 
         button {
@@ -84,7 +88,7 @@
 
         .hero {
             display: grid;
-            grid-template-columns: 1.3fr 1fr;
+            grid-template-columns: 1.4fr 1fr;
             gap: 20px;
             margin-bottom: 20px;
         }
@@ -104,9 +108,29 @@
             background: var(--success-bg);
         }
 
+        .status-PERMIT_ISSUED {
+            color: var(--success);
+            background: var(--success-bg);
+        }
+
         .status-FAILURE {
             color: var(--failure);
             background: var(--failure-bg);
+        }
+
+        .status-FAILED {
+            color: var(--failure);
+            background: var(--failure-bg);
+        }
+
+        .status-ISSUE {
+            color: var(--issue);
+            background: var(--issue-bg);
+        }
+
+        .status-DRAFT {
+            color: var(--neutral);
+            background: var(--neutral-bg);
         }
 
         .status-NO_REPORT, .status-SKIPPED {
@@ -159,7 +183,7 @@
         .case {
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 14px;
+            padding: 16px;
             background: #fff;
         }
 
@@ -167,12 +191,13 @@
             display: flex;
             justify-content: space-between;
             gap: 12px;
-            align-items: center;
+            align-items: flex-start;
             margin-bottom: 8px;
         }
 
         .case-name {
             font-weight: 700;
+            font-size: 18px;
         }
 
         .case-class, .fine {
@@ -180,8 +205,34 @@
             font-size: 13px;
         }
 
+        .detail-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 10px;
+            background: #f8fbff;
+            color: var(--text);
+            font-size: 12px;
+            text-decoration: none;
+        }
+
         pre {
-            margin: 10px 0 0;
+            margin: 12px 0 0;
             padding: 12px;
             border-radius: 12px;
             background: #0f1720;
@@ -196,7 +247,8 @@
                 grid-template-columns: 1fr;
             }
 
-            .meta {
+            .meta,
+            .detail-row {
                 grid-template-columns: 1fr 1fr;
             }
 
@@ -212,11 +264,9 @@
     <div class="topbar">
         <div>
             <h1>Automation Report</h1>
-            <div class="sub">Latest Maven surefire result shown in UI</div>
+            <div class="sub">Batch declaration results from the latest Maven run</div>
         </div>
-        <div class="actions">
-            <button id="refreshBtn" type="button">Refresh</button>
-        </div>
+        <button id="refreshBtn" type="button">Refresh</button>
     </div>
 
     <div class="hero">
@@ -227,33 +277,61 @@
         </div>
         <div class="meta">
             <div class="metric">
-                <div class="label">Tests</div>
-                <div id="tests" class="value">0</div>
+                <div class="label">Declarations</div>
+                <div id="batchTotal" class="value">0</div>
+            </div>
+            <div class="metric">
+                <div class="label">Success</div>
+                <div id="batchSuccess" class="value">0</div>
+            </div>
+            <div class="metric">
+                <div class="label">Issues</div>
+                <div id="batchIssues" class="value">0</div>
             </div>
             <div class="metric">
                 <div class="label">Failures</div>
-                <div id="failures" class="value">0</div>
+                <div id="batchFailures" class="value">0</div>
             </div>
             <div class="metric">
-                <div class="label">Errors</div>
-                <div id="errors" class="value">0</div>
-            </div>
-            <div class="metric">
-                <div class="label">Skipped</div>
-                <div id="skipped" class="value">0</div>
+                <div class="label">Drafts</div>
+                <div id="batchDrafts" class="value">0</div>
             </div>
         </div>
     </div>
 
     <div class="grid">
         <div class="panel">
-            <div class="fine" id="suiteName"></div>
-            <div class="fine" id="updatedAt" style="margin-top: 6px;"></div>
-            <div class="fine" id="duration" style="margin-top: 6px;"></div>
+            <h2>Batch Results</h2>
+            <div id="batchCases" class="cases"></div>
         </div>
 
         <div class="panel">
-            <h2 style="margin-top: 0;">Test Cases</h2>
+            <h2>JUnit Wrapper</h2>
+            <div id="suiteName" class="fine"></div>
+            <div id="updatedAt" class="fine" style="margin-top: 6px;"></div>
+            <div id="duration" class="fine" style="margin-top: 6px;"></div>
+            <div class="detail-row" style="margin-top: 16px;">
+                <div class="metric">
+                    <div class="label">Wrapper Tests</div>
+                    <div id="tests" class="value">0</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Wrapper Failures</div>
+                    <div id="failures" class="value">0</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Wrapper Errors</div>
+                    <div id="errors" class="value">0</div>
+                </div>
+                <div class="metric">
+                    <div class="label">Wrapper Skipped</div>
+                    <div id="skipped" class="value">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>Wrapper Test Cases</h2>
             <div id="cases" class="cases"></div>
         </div>
     </div>
@@ -271,12 +349,58 @@
     const errors = document.getElementById('errors');
     const skipped = document.getElementById('skipped');
     const cases = document.getElementById('cases');
+    const batchTotal = document.getElementById('batchTotal');
+    const batchSuccess = document.getElementById('batchSuccess');
+    const batchIssues = document.getElementById('batchIssues');
+    const batchFailures = document.getElementById('batchFailures');
+    const batchDrafts = document.getElementById('batchDrafts');
+    const batchCases = document.getElementById('batchCases');
 
     function escapeHtml(value) {
-        return (value || '')
+        return String(value || '')
             .replaceAll('&', '&amp;')
             .replaceAll('<', '&lt;')
             .replaceAll('>', '&gt;');
+    }
+
+    function renderArtifactLink(label, fileName) {
+        if (!fileName) {
+            return '';
+        }
+        return `<a class="chip" href="/api/reports/artifacts/${encodeURIComponent(fileName)}" target="_blank">${escapeHtml(label)}: ${escapeHtml(fileName)}</a>`;
+    }
+
+    function renderBatchCase(batchCase) {
+        const diagnostics = batchCase.diagnosticsText
+            ? `<pre>${escapeHtml(batchCase.diagnosticsText)}</pre>`
+            : '';
+        const toast = batchCase.toastText
+            ? `<div class="fine" style="margin-top: 8px;">Toast: ${escapeHtml(batchCase.toastText)}</div>`
+            : '';
+        return `
+            <div class="case">
+                <div class="case-head">
+                    <div>
+                        <div class="case-name">Declaration ${escapeHtml(batchCase.index)}</div>
+                        <div class="case-class">${escapeHtml(batchCase.message || '')}</div>
+                    </div>
+                    <div class="status-badge status-${escapeHtml(batchCase.jobStatus || batchCase.status || 'NO_REPORT')}">${escapeHtml(batchCase.jobStatus || batchCase.status || 'UNKNOWN')}</div>
+                </div>
+                <div class="detail-row">
+                    <div class="fine">Declaration Type: ${escapeHtml(batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-')}</div>
+                    <div class="fine">Status: ${escapeHtml(batchCase.jobStatus || '-')}</div>
+                    <div class="fine">Job ID: ${escapeHtml(batchCase.jobId || '-')}</div>
+                    <div class="fine">Invalid Fields: ${escapeHtml(batchCase.invalidCount ?? 0)}</div>
+                    <div class="fine">Updated: ${escapeHtml(batchCase.updatedAt || '-')}</div>
+                </div>
+                ${toast}
+                <div class="chips">
+                    ${renderArtifactLink('Diagnostics', batchCase.diagnosticsFile)}
+                    ${renderArtifactLink('Screenshot', batchCase.screenshotFile)}
+                </div>
+                ${diagnostics}
+            </div>
+        `;
     }
 
     function renderCase(testCase) {
@@ -305,19 +429,31 @@
     async function loadReport() {
         const response = await fetch('/api/reports/latest', { cache: 'no-store' });
         const report = await response.json();
+        const batchSummary = report.batchSummary || {};
 
         statusBadge.className = `status-badge status-${report.status || 'NO_REPORT'}`;
         statusBadge.textContent = report.status || 'NO_REPORT';
         issue.textContent = report.primaryIssue || '';
-        source.textContent = report.sourceFile ? `Source: ${report.sourceFile}` : '';
-        suiteName.textContent = report.suiteName ? `Suite: ${report.suiteName}` : '';
-        updatedAt.textContent = report.updatedAt ? `Updated: ${report.updatedAt}` : '';
-        duration.textContent = report.durationSeconds ? `Duration: ${report.durationSeconds} s` : '';
+        source.textContent = report.sourceFile ? `Surefire XML: ${report.sourceFile}` : 'Surefire XML: not available';
+        suiteName.textContent = report.suiteName ? `Suite: ${report.suiteName}` : 'Suite: not available';
+        updatedAt.textContent = report.updatedAt ? `Updated: ${report.updatedAt}` : 'Updated: -';
+        duration.textContent = report.durationSeconds ? `Wrapper Duration: ${report.durationSeconds} s` : 'Wrapper Duration: -';
+
+        batchTotal.textContent = batchSummary.total ?? 0;
+        batchSuccess.textContent = batchSummary.successes ?? 0;
+        batchIssues.textContent = batchSummary.issues ?? 0;
+        batchFailures.textContent = batchSummary.failures ?? 0;
+        batchDrafts.textContent = batchSummary.drafts ?? 0;
+
         tests.textContent = report.tests ?? 0;
         failures.textContent = report.failures ?? 0;
         errors.textContent = report.errors ?? 0;
         skipped.textContent = report.skipped ?? 0;
-        cases.innerHTML = (report.testCases || []).map(renderCase).join('') || '<div class="fine">No test cases available.</div>';
+
+        batchCases.innerHTML = (report.batchCases || []).map(renderBatchCase).join('')
+            || '<div class="fine">No batch declaration results available.</div>';
+        cases.innerHTML = (report.testCases || []).map(renderCase).join('')
+            || '<div class="fine">No wrapper test cases available.</div>';
     }
 
     document.getElementById('refreshBtn').addEventListener('click', loadReport);
