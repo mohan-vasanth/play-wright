@@ -326,6 +326,8 @@ public class IptDeclarationPage {
                 "Inward Flight Number",
                 "Flight Number",
                 "Conveyance Reference Number",
+                "Transport Identifier",
+                "Inward Aircraft Registration Number",
                 "Inward Voyage Number",
                 "Inward Vessel Name",
                 "Vehicle Licence/Registration Number",
@@ -344,6 +346,8 @@ public class IptDeclarationPage {
         fillFieldInSectionByAnyLabelIfPresent(
                 "Inward Transport Means",
                 text(transportMode, "transportIdentifier"),
+                "Transport Identifier",
+                "Inward Aircraft Registration Number",
                 "Inward Vessel Name",
                 "Vehicle Licence/Registration Number");
         fillFieldInSectionByAnyLabelIfPresent(

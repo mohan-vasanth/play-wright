@@ -45,9 +45,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         page.waitForURL("**/dashboard");
 
         declarationsPage.autoAcceptUnsavedChanges();
-        declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+        openDeclarationListWithRelogin(loginPage, declarationsPage);
         if (testData.isArray()) {
-            submitBatchDeclarations(testData, declarationsPage, iptDeclarationPage);
+            submitBatchDeclarations(testData, loginPage, declarationsPage, iptDeclarationPage);
             return;
         }
 
@@ -72,6 +72,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
     private void submitBatchDeclarations(
             JsonNode declarationBatch,
+            LoginPage loginPage,
             DeclarationsPage declarationsPage,
             IptDeclarationPage iptDeclarationPage) {
         if (declarationBatch.isEmpty()) {
@@ -80,25 +81,40 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         for (int index = 0; index < declarationBatch.size(); index++) {
             JsonNode declaration = declarationBatch.get(index);
+            String messageReference = declaration.path("header").path("messageReference").asText(null);
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
             declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
 
             try {
                 iptDeclarationPage.populateDraftFrom(declaration);
                 iptDeclarationPage.submitDeclaration();
+                Path diagnosticsPath = Paths.get("target", "ipt-batch-submit-validation-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
                         Paths.get("target", "ipt-batch-submit-" + (index + 1) + ".png"),
-                        Paths.get("target", "ipt-batch-submit-validation-" + (index + 1) + ".json"),
+                        diagnosticsPath,
                         iptDeclarationPage);
+                openDeclarationListWithRelogin(loginPage, declarationsPage);
+                writeDeclarationOutcomeToDiagnostics(
+                        diagnosticsPath,
+                        declarationsPage.readDeclarationListEntry(messageReference));
             } catch (Exception exception) {
+                Path diagnosticsPath = Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
                         Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".png"),
-                        Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".json"),
+                        diagnosticsPath,
                         iptDeclarationPage);
+                try {
+                    openDeclarationListWithRelogin(loginPage, declarationsPage);
+                    writeDeclarationOutcomeToDiagnostics(
+                            diagnosticsPath,
+                            declarationsPage.readDeclarationListEntry(messageReference));
+                } catch (Exception ignored) {
+                }
                 throw exception;
             }
 
             if (index < declarationBatch.size() - 1) {
-                declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+                openDeclarationListWithRelogin(loginPage, declarationsPage);
             }
         }
     }
@@ -129,5 +145,56 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read test data from: " + resourcePath, exception);
         }
+    }
+
+    private void writeDeclarationOutcomeToDiagnostics(
+            Path diagnosticsPath,
+            DeclarationsPage.DeclarationListEntry declarationListEntry) {
+        if (declarationListEntry == null) {
+            return;
+        }
+        String jobId = declarationListEntry.jobId();
+        String jobStatus = declarationListEntry.jobStatus();
+        if ((jobId == null || jobId.isBlank()) && (jobStatus == null || jobStatus.isBlank())) {
+            return;
+        }
+        try {
+            JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
+            com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) current
+                    : OBJECT_MAPPER.createObjectNode();
+            if (jobId != null && !jobId.isBlank()) {
+                root.put("jobId", jobId);
+            }
+            if (jobStatus != null && !jobStatus.isBlank()) {
+                root.put("jobStatus", jobStatus);
+            }
+            Files.writeString(diagnosticsPath, OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void openDeclarationListWithRelogin(LoginPage loginPage, DeclarationsPage declarationsPage) {
+        ensureLoggedIn(loginPage);
+        declarationsPage.autoAcceptUnsavedChanges();
+        declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+    }
+
+    private void ensureLoggedIn(LoginPage loginPage) {
+        String currentUrl = page.url();
+        boolean onLoginPage = currentUrl != null && currentUrl.contains("/auth/login");
+        if (!onLoginPage) {
+            try {
+                onLoginPage = page.locator("input[formcontrolname='username']").first().isVisible();
+            } catch (Exception ignored) {
+                onLoginPage = false;
+            }
+        }
+        if (!onLoginPage) {
+            return;
+        }
+        loginPage.navigate(LOGIN_URL);
+        loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
+        page.waitForURL("**/dashboard");
     }
 }

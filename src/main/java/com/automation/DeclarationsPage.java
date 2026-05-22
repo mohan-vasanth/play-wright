@@ -33,6 +33,142 @@ public class DeclarationsPage {
         page.waitForURL("**" + route + "/edit/*");
     }
 
+    public DeclarationListEntry readDeclarationListEntry(String messageReference) {
+        if (messageReference == null || messageReference.isBlank()) {
+            return new DeclarationListEntry(null, null);
+        }
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+                    (messageReference) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                        const targetReference = upper(messageReference);
+
+                        const headerCandidates = Array.from(document.querySelectorAll('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'))
+                            .filter(isVisible);
+                        const headerTexts = headerCandidates.map(textOf).map(upper);
+                        const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
+                        const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
+                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+
+                        const rowCandidates = Array.from(document.querySelectorAll('tr, [role="row"], .mat-row, .ag-row'))
+                            .filter(row => isVisible(row) && !row.querySelector('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+
+                        const extractStatus = cells => {
+                            if (statusIndex >= 0 && statusIndex < cells.length) {
+                                const explicitStatus = upper(textOf(cells[statusIndex]));
+                                if (explicitStatus) {
+                                    return explicitStatus;
+                                }
+                            }
+                            return cells
+                                .map(textOf)
+                                .map(upper)
+                                .find(text => ['PERMIT_ISSUED', 'FAILED', 'DRAFT', 'SUBMITTED'].includes(text)) || null;
+                        };
+
+                        for (const row of rowCandidates) {
+                            const cells = Array.from(row.querySelectorAll('td, [role="cell"], .mat-cell, .ag-cell')).filter(isVisible);
+                            const rowTexts = cells.map(textOf);
+                            const normalizedRowTexts = rowTexts.map(upper);
+                            const messageMatches = messageReferenceIndex >= 0 && messageReferenceIndex < normalizedRowTexts.length
+                                ? normalizedRowTexts[messageReferenceIndex] === targetReference
+                                : normalizedRowTexts.some(text => text === targetReference || text.includes(targetReference));
+                            if (!messageMatches) {
+                                continue;
+                            }
+
+                            let jobId = null;
+                            if (jobIdIndex >= 0 && jobIdIndex < rowTexts.length) {
+                                const candidate = rowTexts[jobIdIndex];
+                                if (/^\\d{3,}$/.test(candidate || '')) {
+                                    jobId = candidate;
+                                }
+                            }
+                            if (!jobId) {
+                                jobId = rowTexts.find(value => /^\\d{3,}$/.test(value || '')) || null;
+                            }
+
+                            return {
+                                jobId,
+                                jobStatus: extractStatus(cells)
+                            };
+                        }
+                        return null;
+                    }
+                    """, messageReference);
+            if (result != null) {
+                String jobId = stringValue(result.get("jobId"));
+                String jobStatus = stringValue(result.get("jobStatus"));
+                if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())) {
+                    return new DeclarationListEntry(jobId, jobStatus);
+                }
+            }
+            page.waitForTimeout(1000);
+        }
+
+        return new DeclarationListEntry(null, null);
+    }
+
+    public String readLatestJobId() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            String jobId = (String) page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const textOf = element => normalize(element?.innerText || element?.textContent || '');
+
+                        const headers = Array.from(document.querySelectorAll('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+                        const jobHeader = headers.find(element => upper(textOf(element)) === 'JOB ID');
+                        if (jobHeader) {
+                            const headerRow = jobHeader.closest('tr, [role="row"], .mat-header-row, .ag-header-row');
+                            const headerCells = headerRow
+                                ? Array.from(headerRow.querySelectorAll('th, td, [role="columnheader"], .mat-header-cell, .ag-header-cell')).filter(isVisible)
+                                : headers.filter(isVisible);
+                            const columnIndex = headerCells.findIndex(cell => cell === jobHeader || upper(textOf(cell)) === 'JOB ID');
+                            if (columnIndex >= 0) {
+                                const rowCandidates = Array.from(document.querySelectorAll('tr, [role="row"], .mat-row, .ag-row'))
+                                    .filter(row => isVisible(row) && !row.querySelector('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+                                for (const row of rowCandidates) {
+                                    const cells = Array.from(row.querySelectorAll('td, [role="cell"], .mat-cell, .ag-cell')).filter(isVisible);
+                                    if (columnIndex < cells.length) {
+                                        const value = textOf(cells[columnIndex]);
+                                        if (value && /^\\d{3,}$/.test(value)) {
+                                            return value;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        const links = Array.from(document.querySelectorAll('a, button, [role="link"]'))
+                            .filter(isVisible)
+                            .map(element => textOf(element))
+                            .filter(value => /^\\d{3,}$/.test(value));
+                        return links[0] || null;
+                    }
+                    """);
+            if (jobId != null && !jobId.isBlank()) {
+                return jobId.trim();
+            }
+            page.waitForTimeout(1000);
+        }
+        return null;
+    }
+
+    private String stringValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() || "null".equalsIgnoreCase(text) ? null : text;
+    }
+
     private void openDeclarationsMenuIfNeeded() {
         if (!page.locator(IPT_MENU_ITEM).first().isVisible()) {
             page.locator(DECLARATIONS_MENU).first().click();
@@ -134,5 +270,8 @@ public class DeclarationsPage {
         }
 
         return null;
+    }
+
+    public record DeclarationListEntry(String jobId, String jobStatus) {
     }
 }

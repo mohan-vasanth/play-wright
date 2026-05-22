@@ -1,0 +1,6 @@
+{
+  "toastText": "",
+  "invalidElements": [
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"username\",\"id\":\"clr-form-control-1032\",\"type\":\"text\",\"ariaInvalid\":\"\",\"classes\":\"ng-untouched ng-pristine ng-invalid clr-input\"}"
+  ]
+}

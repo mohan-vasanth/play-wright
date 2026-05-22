@@ -1,9 +1,0 @@
-base\BaseTest.class
-com\automation\playwright_framework\LoginTest.class
-com\automation\playwright_framework\DeclarationNavigationTest$DeclarationType.class
-com\automation\playwright_framework\IptDeclarationTestCase1Test.class
-com\automation\playwright_framework\DeclarationNavigationTest.class
-com\automation\playwright_framework\UserApiTest.class
-com\automation\playwright_framework\IptDeclarationInvoiceJsonMappingTest.class
-com\automation\playwright_framework\PlaywrightFrameworkApplicationTests.class
-com\automation\playwright_framework\IptDeclarationPageDateFormatTest.class
