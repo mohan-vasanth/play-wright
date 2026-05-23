@@ -37,10 +37,11 @@ public class TestReportController {
 
     private static final Path TARGET_DIR = Paths.get("target");
     private static final Path SUREFIRE_REPORTS_DIR = TARGET_DIR.resolve("surefire-reports");
-    private static final Pattern BATCH_VALIDATION_JSON = Pattern.compile("^ipt-batch-submit-validation-(\\d+)\\.json$");
-    private static final Pattern BATCH_FAILURE_JSON = Pattern.compile("^ipt-batch-submit-failure-(\\d+)\\.json$");
-    private static final Pattern BATCH_SUCCESS_SCREENSHOT = Pattern.compile("^ipt-batch-submit-(\\d+)\\.png$");
-    private static final Pattern BATCH_FAILURE_SCREENSHOT = Pattern.compile("^ipt-batch-submit-failure-(\\d+)\\.png$");
+    private static final String DEFAULT_ARTIFACT_PREFIX = "ipt-batch-submit";
+    private static final String REPORT_ARTIFACT_PREFIX_PROPERTY = "tradenix.report.artifact.prefix";
+    private static final List<String> TEST_DATA_PROPERTIES = List.of(
+            "tradenix.out.test.data",
+            "tradenix.ipt.test.data");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -49,7 +50,8 @@ public class TestReportController {
         try {
             SurefireReportSummary surefireReport = readLatestSurefireReport();
             BatchReportSummary batchReport = readBatchReport(
-                    surefireReport != null ? surefireReport.testDataResourcePath() : null);
+                    surefireReport != null ? surefireReport.testDataResourcePath() : null,
+                    surefireReport != null ? surefireReport.artifactPrefix() : null);
 
             if (surefireReport == null && batchReport.batchCases().isEmpty()) {
                 return ResponseEntity.ok(TestReportResponse.noReport("No test report artifacts found in target."));
@@ -133,7 +135,11 @@ public class TestReportController {
         int skipped = parseInt(suite.getAttribute("skipped"));
         String duration = blankToNull(suite.getAttribute("time"));
         String suiteName = blankToNull(suite.getAttribute("name"));
-        String testDataResourcePath = readSuiteProperty(suite, "tradenix.ipt.test.data");
+        String testDataResourcePath = readSuiteProperty(suite, TEST_DATA_PROPERTIES);
+        String artifactPrefix = firstNonBlank(
+                readSuiteProperty(suite, REPORT_ARTIFACT_PREFIX_PROPERTY),
+                inferArtifactPrefix(testDataResourcePath, suiteName),
+                DEFAULT_ARTIFACT_PREFIX);
 
         List<TestCaseResult> testCases = new ArrayList<>();
         NodeList testCaseNodes = suite.getElementsByTagName("testcase");
@@ -153,6 +159,7 @@ public class TestReportController {
                 skipped,
                 duration,
                 testDataResourcePath,
+                artifactPrefix,
                 lastModifiedMillis(latestReport),
                 testCases);
     }
@@ -169,15 +176,46 @@ public class TestReportController {
         return null;
     }
 
-    private BatchReportSummary readBatchReport(String testDataResourcePath) throws Exception {
+    private String readSuiteProperty(Element suite, List<String> propertyNames) {
+        for (String propertyName : propertyNames) {
+            String value = readSuiteProperty(suite, propertyName);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String inferArtifactPrefix(String testDataResourcePath, String suiteName) {
+        String normalizedPath = testDataResourcePath == null ? "" : testDataResourcePath.toLowerCase();
+        String normalizedSuite = suiteName == null ? "" : suiteName.toLowerCase();
+        if (normalizedPath.contains("/out-") || normalizedPath.contains("\\out-") || normalizedPath.contains("out-declaration")
+                || normalizedSuite.contains("outdeclaration")) {
+            return "out-batch-submit";
+        }
+        return DEFAULT_ARTIFACT_PREFIX;
+    }
+
+    private BatchReportSummary readBatchReport(String testDataResourcePath, String artifactPrefix) throws Exception {
         if (!Files.isDirectory(TARGET_DIR)) {
             return BatchReportSummary.empty();
         }
 
         Map<Integer, BatchMetaInfo> batchMetaByIndex = readBatchMetaByIndex(testDataResourcePath);
         Map<Integer, BatchCaseAccumulator> casesByIndex = new TreeMap<>();
+        String resolvedArtifactPrefix = firstNonBlank(artifactPrefix, DEFAULT_ARTIFACT_PREFIX);
+        Pattern validationPattern = artifactPattern(resolvedArtifactPrefix, "-validation-(\\d+)\\.json$");
+        Pattern failurePattern = artifactPattern(resolvedArtifactPrefix, "-failure-(\\d+)\\.json$");
+        Pattern successScreenshotPattern = artifactPattern(resolvedArtifactPrefix, "-(\\d+)\\.png$");
+        Pattern failureScreenshotPattern = artifactPattern(resolvedArtifactPrefix, "-failure-(\\d+)\\.png$");
         try (Stream<Path> files = Files.list(TARGET_DIR)) {
-            files.filter(Files::isRegularFile).forEach(path -> accumulateBatchArtifact(casesByIndex, path));
+            files.filter(Files::isRegularFile).forEach(path -> accumulateBatchArtifact(
+                    casesByIndex,
+                    path,
+                    validationPattern,
+                    failurePattern,
+                    successScreenshotPattern,
+                    failureScreenshotPattern));
         }
 
         List<BatchCaseResult> batchCases = new ArrayList<>();
@@ -217,12 +255,22 @@ public class TestReportController {
                 updatedAtMillis);
     }
 
-    private void accumulateBatchArtifact(Map<Integer, BatchCaseAccumulator> casesByIndex, Path path) {
+    private Pattern artifactPattern(String artifactPrefix, String suffixPattern) {
+        return Pattern.compile("^" + Pattern.quote(artifactPrefix) + suffixPattern);
+    }
+
+    private void accumulateBatchArtifact(
+            Map<Integer, BatchCaseAccumulator> casesByIndex,
+            Path path,
+            Pattern validationPattern,
+            Pattern failurePattern,
+            Pattern successScreenshotPattern,
+            Pattern failureScreenshotPattern) {
         String fileName = path.getFileName().toString();
-        registerBatchPath(casesByIndex, path, fileName, BATCH_VALIDATION_JSON, BatchArtifactType.VALIDATION_JSON);
-        registerBatchPath(casesByIndex, path, fileName, BATCH_FAILURE_JSON, BatchArtifactType.FAILURE_JSON);
-        registerBatchPath(casesByIndex, path, fileName, BATCH_SUCCESS_SCREENSHOT, BatchArtifactType.SUCCESS_SCREENSHOT);
-        registerBatchPath(casesByIndex, path, fileName, BATCH_FAILURE_SCREENSHOT, BatchArtifactType.FAILURE_SCREENSHOT);
+        registerBatchPath(casesByIndex, path, fileName, validationPattern, BatchArtifactType.VALIDATION_JSON);
+        registerBatchPath(casesByIndex, path, fileName, failurePattern, BatchArtifactType.FAILURE_JSON);
+        registerBatchPath(casesByIndex, path, fileName, successScreenshotPattern, BatchArtifactType.SUCCESS_SCREENSHOT);
+        registerBatchPath(casesByIndex, path, fileName, failureScreenshotPattern, BatchArtifactType.FAILURE_SCREENSHOT);
     }
 
     private void registerBatchPath(
@@ -508,6 +556,7 @@ public class TestReportController {
             int skipped,
             String durationSeconds,
             String testDataResourcePath,
+            String artifactPrefix,
             long updatedAtMillis,
             List<TestCaseResult> testCases) {
     }

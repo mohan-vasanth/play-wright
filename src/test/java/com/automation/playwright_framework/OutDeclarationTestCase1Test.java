@@ -2,11 +2,10 @@ package com.automation.playwright_framework;
 
 import base.BaseTest;
 import com.automation.DeclarationsPage;
-import com.automation.IptDeclarationPage;
 import com.automation.LoginPage;
+import com.automation.OutDeclarationPage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -15,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-public class IptDeclarationTestCase1Test extends BaseTest {
+public class OutDeclarationTestCase1Test extends BaseTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -26,16 +25,16 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "12345678");
     private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
-    private static final String IPT_ROUTE = "/declarations/ipt";
-    private static final String IPT_MENU_LABEL = "In-Payment (IPT)";
+    private static final String OUT_ROUTE = "/declarations/out";
+    private static final String OUT_MENU_LABEL = "Out Payment (OUT)";
     private static final String TEST_DATA_RESOURCE = System.getProperty(
-            "tradenix.ipt.test.data",
-            "data/ipt-declaration-test-case-1.json");
-    private static final String REPORT_ARTIFACT_PREFIX = "ipt-batch-submit";
+            "tradenix.out.test.data",
+            "data/out-declaration-batch-test-case.json");
+    private static final String REPORT_ARTIFACT_PREFIX = "out-batch-submit";
 
     @Test
-    void submitIptDeclarationTestCase1UsingJsonData() {
-        System.setProperty("tradenix.ipt.test.data", TEST_DATA_RESOURCE);
+    void submitOutDeclarationTestCase1UsingJsonData() {
+        System.setProperty("tradenix.out.test.data", TEST_DATA_RESOURCE);
         System.setProperty("tradenix.report.artifact.prefix", REPORT_ARTIFACT_PREFIX);
         deleteExistingArtifacts(REPORT_ARTIFACT_PREFIX);
 
@@ -43,7 +42,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         LoginPage loginPage = new LoginPage(page);
         DeclarationsPage declarationsPage = new DeclarationsPage(page);
-        IptDeclarationPage iptDeclarationPage = new IptDeclarationPage(page);
+        OutDeclarationPage outDeclarationPage = new OutDeclarationPage(page);
 
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
@@ -52,34 +51,29 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         declarationsPage.autoAcceptUnsavedChanges();
         openDeclarationListWithRelogin(loginPage, declarationsPage);
         if (testData.isArray()) {
-            submitBatchDeclarations(testData, loginPage, declarationsPage, iptDeclarationPage);
+            submitBatchDeclarations(testData, loginPage, declarationsPage, outDeclarationPage);
             return;
         }
 
         boolean shouldSubmitDeclaration = testData.path("summary").path("submitDeclaration").asBoolean(false)
                 || testData.path("formMetaData").path("submitDeclaration").asBoolean(false);
-        declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
+        declarationsPage.createNewDeclarationDraft(OUT_ROUTE);
 
-        iptDeclarationPage.populateFrom(testData);
+        outDeclarationPage.populateDraftFrom(testData);
         if (shouldSubmitDeclaration) {
+            outDeclarationPage.submitDeclaration();
             captureDiagnosticsArtifacts(
-                    Paths.get("target", "ipt-submission-after-submit.png"),
-                    Paths.get("target", "ipt-submit-validation-diagnostics.json"),
-                    iptDeclarationPage);
-            return;
+                    Paths.get("target", "out-submission-after-submit.png"),
+                    Paths.get("target", "out-submit-validation-diagnostics.json"),
+                    outDeclarationPage);
         }
-        iptDeclarationPage.openInvoiceInfoSection();
-        page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
-                .setFullPage(true)
-                .setPath(Paths.get("target", "invoice-supplier-manufacturer-verification.png")));
-        Assertions.assertEquals("NAME", iptDeclarationPage.readSupplierManufacturerNameValue());
     }
 
     private void submitBatchDeclarations(
             JsonNode declarationBatch,
             LoginPage loginPage,
             DeclarationsPage declarationsPage,
-            IptDeclarationPage iptDeclarationPage) {
+            OutDeclarationPage outDeclarationPage) {
         if (declarationBatch.isEmpty()) {
             throw new IllegalArgumentException("Batch test data must not be empty: " + TEST_DATA_RESOURCE);
         }
@@ -88,16 +82,16 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             JsonNode declaration = declarationBatch.get(index);
             String messageReference = declaration.path("header").path("messageReference").asText(null);
             openDeclarationListWithRelogin(loginPage, declarationsPage);
-            declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
+            declarationsPage.createNewDeclarationDraft(OUT_ROUTE);
 
             try {
-                iptDeclarationPage.populateDraftFrom(declaration);
-                iptDeclarationPage.submitDeclaration();
+                outDeclarationPage.populateDraftFrom(declaration);
+                outDeclarationPage.submitDeclaration();
                 Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
                         Paths.get("target", REPORT_ARTIFACT_PREFIX + "-" + (index + 1) + ".png"),
                         diagnosticsPath,
-                        iptDeclarationPage);
+                        outDeclarationPage);
                 openDeclarationListWithRelogin(loginPage, declarationsPage);
                 writeDeclarationOutcomeToDiagnostics(
                         diagnosticsPath,
@@ -107,7 +101,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                 captureDiagnosticsArtifacts(
                         Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-" + (index + 1) + ".png"),
                         diagnosticsPath,
-                        iptDeclarationPage);
+                        outDeclarationPage);
                 try {
                     openDeclarationListWithRelogin(loginPage, declarationsPage);
                     writeDeclarationOutcomeToDiagnostics(
@@ -127,20 +121,23 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private void captureDiagnosticsArtifacts(
             Path screenshotPath,
             Path diagnosticsPath,
-            IptDeclarationPage iptDeclarationPage) {
-        page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
-                .setFullPage(true)
-                .setPath(screenshotPath));
+            OutDeclarationPage outDeclarationPage) {
         try {
-            Files.writeString(diagnosticsPath, iptDeclarationPage.captureSubmitValidationDiagnostics());
+            page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
+                    .setFullPage(true)
+                    .setPath(screenshotPath));
+        } catch (Exception ignored) {
+        }
+        try {
+            Files.writeString(diagnosticsPath, outDeclarationPage.captureSubmitValidationDiagnostics());
         } catch (Exception ignored) {
         }
     }
 
     private static JsonNode loadTestData(String resourcePath) {
-        InputStream resourceStream = IptDeclarationTestCase1Test.class.getClassLoader().getResourceAsStream(resourcePath);
+        InputStream resourceStream = OutDeclarationTestCase1Test.class.getClassLoader().getResourceAsStream(resourcePath);
         if (resourceStream == null) {
-            resourceStream = IptDeclarationTestCase1Test.class.getResourceAsStream("/" + resourcePath);
+            resourceStream = OutDeclarationTestCase1Test.class.getResourceAsStream("/" + resourcePath);
         }
         try (InputStream inputStream = resourceStream) {
             if (inputStream == null) {
@@ -182,7 +179,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private void openDeclarationListWithRelogin(LoginPage loginPage, DeclarationsPage declarationsPage) {
         ensureLoggedIn(loginPage);
         declarationsPage.autoAcceptUnsavedChanges();
-        declarationsPage.openDeclarationList(IPT_MENU_LABEL, IPT_ROUTE);
+        declarationsPage.openDeclarationList(OUT_MENU_LABEL, OUT_ROUTE);
     }
 
     private void ensureLoggedIn(LoginPage loginPage) {

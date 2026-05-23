@@ -39,7 +39,7 @@ public class IptDeclarationPage {
     private static final int UI_SUBMIT_CLICK_WAIT_MS = 2000;
     private static final int UI_POST_SUBMIT_WAIT_MS = 3000;
 
-    private final Page page;
+    protected final Page page;
 
     public IptDeclarationPage(Page page) {
         this.page = page;
@@ -186,7 +186,7 @@ public class IptDeclarationPage {
                 "Previous Permit Number",
                 text(header, "previousPermitNumber"));
         fillChecksSection(header, cargo);
-        fillAdditionalRecipients(header);
+        fillAdditionalRecipients(header, data.path("formMetaData"));
         fillLicense(text(license, "referenceID"));
     }
 
@@ -265,7 +265,11 @@ public class IptDeclarationPage {
         }
     }
 
-    private void fillAdditionalRecipients(JsonNode header) {
+    private void fillAdditionalRecipients(JsonNode header, JsonNode formMetaData) {
+        if (formMetaData == null || !formMetaData.path("additionalRecipientIdIsActive").asBoolean(false)) {
+            return;
+        }
+
         JsonNode additionalRecipientIds = header.path("additionalRecipientId");
         if (additionalRecipientIds == null || !additionalRecipientIds.isArray() || additionalRecipientIds.isEmpty()) {
             return;
@@ -525,7 +529,7 @@ public class IptDeclarationPage {
         fillLookupFieldInChargeRow("E. Insurance Charge", "Currency", text(insuranceCharge.path("amount"), "currencyID"));
     }
 
-    private void fillInvoiceTermType(String termType) {
+    protected void fillInvoiceTermType(String termType) {
         if (termType == null || termType.isBlank()) {
             return;
         }
@@ -622,11 +626,11 @@ public class IptDeclarationPage {
         fillFieldAfterScopeLabelIfPresent(itemQuantitySection, "Alcohol %", 0, text(itemQuantity, "alcoholPercent"));
     }
 
-    private void fillQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode) {
+    protected void fillQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode) {
         fillQuantityRowInScope(scope, rowLabel, quantityNode, null);
     }
 
-    private void fillQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode, String defaultUnitCode) {
+    protected void fillQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode, String defaultUnitCode) {
         if (isMissingOrEmpty(quantityNode)) {
             return;
         }
@@ -636,7 +640,7 @@ public class IptDeclarationPage {
         fillLookupFieldAfterScopeLabelIfPresent(scope, rowLabel, 1, unitCode, unitCode);
     }
 
-    private void fillItemValues(JsonNode transactionValue) {
+    protected void fillItemValues(JsonNode transactionValue) {
         if (isMissingOrEmpty(transactionValue)) {
             return;
         }
@@ -661,7 +665,7 @@ public class IptDeclarationPage {
                 normalizeNumericForEntry(text(transactionValue, "lastSellingPriceValue")));
     }
 
-    private void fillLotIdentification(JsonNode item, JsonNode lotIdentification) {
+    protected void fillLotIdentification(JsonNode item, JsonNode lotIdentification) {
         JsonNode tariff = item.path("tariff");
         String preferentialCode = text(tariff, "preferentialCode");
         String marking = text(lotIdentification, "marking");
@@ -703,7 +707,7 @@ public class IptDeclarationPage {
                 previousLotNumber);
     }
 
-    private void fillShippingMarks(JsonNode shippingMarksInformation) {
+    protected void fillShippingMarks(JsonNode shippingMarksInformation) {
         JsonNode shippingMarks = firstArrayItem(shippingMarksInformation.path("shippingMarks"));
         String shippingMark = shippingMarks == null || shippingMarks.isMissingNode() || shippingMarks.isNull()
                 ? null
@@ -752,7 +756,7 @@ public class IptDeclarationPage {
         typeIntoFocusedEditor(shippingMark);
     }
 
-    private void fillCascDetails(JsonNode cascProduct) {
+    protected void fillCascDetails(JsonNode cascProduct) {
         if (isMissingOrEmpty(cascProduct)) {
             return;
         }
@@ -894,7 +898,7 @@ public class IptDeclarationPage {
                 || data.path("formMetaData").path("submitDeclaration").asBoolean(false);
     }
 
-    private void fillDeclarationType(String declarationType) {
+    protected void fillDeclarationType(String declarationType) {
         if (declarationType == null || declarationType.isBlank()) {
             return;
         }
@@ -935,12 +939,20 @@ public class IptDeclarationPage {
                         "90");
                 return;
             }
+            case "40" -> {
+                openLookupAndChooseOption(
+                        field,
+                        "40 DRT",
+                        "DRT",
+                        "40");
+                return;
+            }
         }
 
         focusAndType(field, declarationType, true, declarationType);
     }
 
-    private void fillSectionAndAdvance(String sectionName, Runnable filler) {
+    protected void fillSectionAndAdvance(String sectionName, Runnable filler) {
         openSection(sectionName);
         filler.run();
         saveDraft();
@@ -1060,7 +1072,7 @@ public class IptDeclarationPage {
                 + "textarea:not([readonly]):not([disabled])";
     }
 
-    private void fillField(String label, String value) {
+    protected void fillField(String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1068,7 +1080,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillFieldIfPresent(String label, String value) {
+    protected void fillFieldIfPresent(String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1079,7 +1091,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillDateField(String label, String value) {
+    protected void fillDateField(String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1092,7 +1104,7 @@ public class IptDeclarationPage {
         ensureDateFieldValue(field, value);
     }
 
-    private void fillSupplierManufacturerName(String value) {
+    protected void fillSupplierManufacturerName(String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1181,7 +1193,7 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Supplier / Manufacturer Party section was not visible.");
     }
 
-    private void fillLookupField(String label, String value, String... suggestionHints) {
+    protected void fillLookupField(String label, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1189,7 +1201,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillFieldInSection(String sectionTitle, String label, String value) {
+    protected void fillFieldInSection(String sectionTitle, String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1197,7 +1209,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillFieldInSectionIfPresent(String sectionTitle, String label, String value) {
+    protected void fillFieldInSectionIfPresent(String sectionTitle, String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1208,7 +1220,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillFieldInSectionByAnyLabelIfPresent(String sectionTitle, String value, String... labels) {
+    protected void fillFieldInSectionByAnyLabelIfPresent(String sectionTitle, String value, String... labels) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1222,7 +1234,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void fillDateFieldInSection(String sectionTitle, String label, String value) {
+    protected void fillDateFieldInSection(String sectionTitle, String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1235,7 +1247,7 @@ public class IptDeclarationPage {
         ensureDateFieldValue(field, value);
     }
 
-    private void fillDateFieldInSectionIfPresent(String sectionTitle, String label, String value) {
+    protected void fillDateFieldInSectionIfPresent(String sectionTitle, String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1262,7 +1274,7 @@ public class IptDeclarationPage {
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
     }
 
-    private void fillLookupFieldInSection(String sectionTitle, String label, String value, String... suggestionHints) {
+    protected void fillLookupFieldInSection(String sectionTitle, String label, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1270,7 +1282,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillNthLookupFieldInSection(String sectionTitle, int occurrence, String value, String... suggestionHints) {
+    protected void fillNthLookupFieldInSection(String sectionTitle, int occurrence, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1278,7 +1290,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillNthLookupFieldInSectionIfPresent(String sectionTitle, int occurrence, String value, String... suggestionHints) {
+    protected void fillNthLookupFieldInSectionIfPresent(String sectionTitle, int occurrence, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1309,7 +1321,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void fillFirstFieldInSection(String sectionTitle, String value) {
+    protected void fillFirstFieldInSection(String sectionTitle, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1317,7 +1329,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillLookupFieldInSectionIfPresent(String sectionTitle, String label, String value, String... suggestionHints) {
+    protected void fillLookupFieldInSectionIfPresent(String sectionTitle, String label, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1328,7 +1340,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillLookupFieldIfPresent(String label, String value, String... suggestionHints) {
+    protected void fillLookupFieldIfPresent(String label, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1374,7 +1386,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillNthFieldInSectionIfPresent(String sectionTitle, int occurrence, String value) {
+    protected void fillNthFieldInSectionIfPresent(String sectionTitle, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1385,7 +1397,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillNthFieldInScopeIfPresent(Locator scope, int occurrence, String value) {
+    protected void fillNthFieldInScopeIfPresent(Locator scope, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1396,7 +1408,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillNthLookupFieldInScopeIfPresent(Locator scope, int occurrence, String value, String... suggestionHints) {
+    protected void fillNthLookupFieldInScopeIfPresent(Locator scope, int occurrence, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1407,7 +1419,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillFieldInScopeRowIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
+    protected void fillFieldInScopeRowIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1418,7 +1430,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillLookupFieldInScopeRowIfPresent(
+    protected void fillLookupFieldInScopeRowIfPresent(
             Locator scope,
             String rowLabel,
             int occurrence,
@@ -1434,7 +1446,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
-    private void fillFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
+    protected void fillFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1445,7 +1457,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillLookupFieldAfterScopeLabelIfPresent(
+    protected void fillLookupFieldAfterScopeLabelIfPresent(
             Locator scope,
             String rowLabel,
             int occurrence,
@@ -1469,7 +1481,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, value);
     }
 
-    private void fillLookupFieldInRow(String rowLabel, String value, String... suggestionHints) {
+    protected void fillLookupFieldInRow(String rowLabel, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1485,7 +1497,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillFieldInRowByIndexIfPresent(String rowLabel, int occurrence, String value) {
+    protected void fillFieldInRowByIndexIfPresent(String rowLabel, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1496,7 +1508,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillLookupFieldInRowByIndex(String rowLabel, int occurrence, String value, String... suggestionHints) {
+    protected void fillLookupFieldInRowByIndex(String rowLabel, int occurrence, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1504,7 +1516,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints.length == 0 ? new String[] { value } : suggestionHints);
     }
 
-    private void fillFieldInChargeRow(String rowLabel, String columnLabel, String value) {
+    protected void fillFieldInChargeRow(String rowLabel, String columnLabel, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1512,7 +1524,7 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
-    private void fillLookupFieldInChargeRow(String rowLabel, String columnLabel, String value, String... suggestionHints) {
+    protected void fillLookupFieldInChargeRow(String rowLabel, String columnLabel, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
         }
@@ -1520,11 +1532,11 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints.length == 0 ? new String[] { value } : suggestionHints);
     }
 
-    private void focusAndType(Locator field, String value, boolean selectSuggestion) {
+    protected void focusAndType(Locator field, String value, boolean selectSuggestion) {
         focusAndType(field, value, selectSuggestion, value);
     }
 
-    private void focusAndType(Locator field, String value, boolean selectSuggestion, String... suggestionHints) {
+    protected void focusAndType(Locator field, String value, boolean selectSuggestion, String... suggestionHints) {
         closeTransientOverlays();
         field.scrollIntoViewIfNeeded();
 
@@ -1747,7 +1759,7 @@ public class IptDeclarationPage {
         return false;
     }
 
-    private String readRenderedFieldValue(Locator field) {
+    protected String readRenderedFieldValue(Locator field) {
         try {
             return String.valueOf(field.evaluate("""
                     element => {
@@ -1870,7 +1882,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private boolean waitForAnyRenderedFieldValue(Locator field, int timeoutMs, String... expectedValues) {
+    protected boolean waitForAnyRenderedFieldValue(Locator field, int timeoutMs, String... expectedValues) {
         List<String> candidates = new ArrayList<>();
         if (expectedValues != null) {
             for (String expectedValue : expectedValues) {
@@ -2292,7 +2304,7 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Unable to resolve field at occurrence " + occurrence + " in section " + sectionTitle);
     }
 
-    private Locator resolveNthFieldInSectionOrNull(String sectionTitle, int occurrence) {
+    protected Locator resolveNthFieldInSectionOrNull(String sectionTitle, int occurrence) {
         waitForFormControls();
         Locator section = resolveSection(sectionTitle);
         Locator fields = section.locator("input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']");
@@ -2365,7 +2377,7 @@ public class IptDeclarationPage {
         return firstVisible(nestedInput);
     }
 
-    private Locator resolveFirstFieldInRow(String rowLabel) {
+    protected Locator resolveFirstFieldInRow(String rowLabel) {
         return resolveEditableFieldInRowByExactText(rowLabel, 0);
     }
 
@@ -2530,7 +2542,7 @@ public class IptDeclarationPage {
         throw new IllegalStateException("No editable field found in row: " + rowLabel + " at occurrence " + occurrence);
     }
 
-    private Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
+    protected Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
         Locator visibleRow = firstVisible(row);
         if (visibleRow == null) {
             return null;
@@ -3051,7 +3063,7 @@ public class IptDeclarationPage {
         return false;
     }
 
-    private Locator resolveFieldByLabelOrNull(String label, int occurrence) {
+    protected Locator resolveFieldByLabelOrNull(String label, int occurrence) {
         waitForFormControls();
         String escapedLabel = toXpathLiteral(label);
         String controlQuery = "self::input or self::textarea or self::select or @role='combobox' or @role='textbox'";
@@ -3091,7 +3103,7 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private Locator resolveFieldByLabelInSectionOrNull(String sectionTitle, String label, int occurrence) {
+    protected Locator resolveFieldByLabelInSectionOrNull(String sectionTitle, String label, int occurrence) {
         waitForFormControls();
         Locator section = resolveSection(sectionTitle);
         String escapedLabel = toXpathLiteral(label);
@@ -3202,7 +3214,7 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private Locator resolveSection(String sectionTitle) {
+    protected Locator resolveSection(String sectionTitle) {
         waitForFormControls();
         String escapedTitle = toXpathLiteral(sectionTitle);
         Locator section = page.locator(
@@ -3216,7 +3228,7 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Section container was not visible: " + sectionTitle);
     }
 
-    private Locator firstVisible(Locator locator) {
+    protected Locator firstVisible(Locator locator) {
         int count = locator.count();
         for (int index = 0; index < count; index++) {
             Locator candidate = locator.nth(index);
@@ -3227,7 +3239,7 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private Locator lastVisible(Locator locator) {
+    protected Locator lastVisible(Locator locator) {
         int count = locator.count();
         for (int index = count - 1; index >= 0; index--) {
             Locator candidate = locator.nth(index);
@@ -3238,20 +3250,20 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private void saveDraft() {
+    protected void saveDraft() {
         clickActionButton("SAVE DRAFT", "Save Draft");
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
         closeTransientOverlays();
         page.waitForTimeout(300);
     }
 
-    private void goToNextSection() {
+    protected void goToNextSection() {
         clickActionButton("NEXT", "Next");
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
         closeTransientOverlays();
     }
 
-    private void openSection(String sectionName) {
+    protected void openSection(String sectionName) {
         closeTransientOverlays();
         Locator tabs = page.locator(
                 "[role='tab'], button, a, span, div");
@@ -3643,7 +3655,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private boolean isMissingOrEmpty(JsonNode node) {
+    protected boolean isMissingOrEmpty(JsonNode node) {
         return node == null || node.isMissingNode() || node.isNull()
                 || (node.isTextual() && normalize(node.asText()).isBlank())
                 || (node.isArray() && node.isEmpty())
@@ -3663,7 +3675,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void setCheckboxByLabel(String label, boolean checked) {
+    protected void setCheckboxByLabel(String label, boolean checked) {
         Locator visibleCheckbox = resolveCheckboxByLabel(label);
         if (visibleCheckbox == null) {
             return;
@@ -3782,7 +3794,7 @@ public class IptDeclarationPage {
     }
 
 
-    private String text(JsonNode node, String... fieldNames) {
+    protected String text(JsonNode node, String... fieldNames) {
         for (String fieldName : fieldNames) {
             JsonNode valueNode = node.path(fieldName);
             if (!valueNode.isMissingNode() && !valueNode.isNull()) {
@@ -3795,14 +3807,14 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private JsonNode firstArrayItem(JsonNode node) {
+    protected JsonNode firstArrayItem(JsonNode node) {
         if (node != null && node.isArray() && node.size() > 0) {
             return node.get(0);
         }
         return MissingNode.getInstance();
     }
 
-    private String firstNonBlank(String... values) {
+    protected String firstNonBlank(String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) {
                 return value.trim();
@@ -3845,7 +3857,7 @@ public class IptDeclarationPage {
         };
     }
 
-    private String formatUiDate(String value) {
+    protected String formatUiDate(String value) {
         if (value == null || value.isBlank()) {
             return value;
         }
@@ -3868,7 +3880,7 @@ public class IptDeclarationPage {
         return parsedDate == null ? "" : parsedDate.toString();
     }
 
-    private String normalizeNumericForEntry(String value) {
+    protected String normalizeNumericForEntry(String value) {
         if (value == null || value.isBlank()) {
             return value;
         }
@@ -3919,7 +3931,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private String normalize(String value) {
+    protected String normalize(String value) {
         return value == null ? "" : value.replaceAll("\\s+", " ").trim();
     }
 

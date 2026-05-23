@@ -10,7 +10,7 @@ public class LoginTest extends BaseTest {
 
     private static final String LOGIN_URL = System.getProperty(
             "tradenix.login.url",
-            "http://ec2-52-74-80-143.ap-southeast-1.compute.amazonaws.com:9000/auth/login");
+            "http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard");
     private static final String ADMIN_USERNAME = System.getProperty("tradenix.admin.username", "prasanna");
     private static final String ADMIN_PASSWORD = System.getProperty("tradenix.admin.password", "123456");
     private static final String USER_USERNAME = System.getProperty("tradenix.user.username", "mohan");
