@@ -21,7 +21,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
     private static final String LOGIN_URL = System.getProperty(
             "tradenix.login.url",
-            "http://ec2-52-74-80-143.ap-southeast-1.compute.amazonaws.com:9000/auth/login");
+            "http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard");
     private static final String USER_USERNAME = System.getProperty("tradenix.user.username", "mohan");
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "12345678");
     private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
@@ -31,9 +31,14 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private static final String TEST_DATA_RESOURCE = System.getProperty(
             "tradenix.ipt.test.data",
             "data/ipt-declaration-test-case-1.json");
+    private static final String REPORT_ARTIFACT_PREFIX = "ipt-batch-submit";
 
     @Test
     void submitIptDeclarationTestCase1UsingJsonData() {
+        System.setProperty("tradenix.ipt.test.data", TEST_DATA_RESOURCE);
+        System.setProperty("tradenix.report.artifact.prefix", REPORT_ARTIFACT_PREFIX);
+        deleteExistingArtifacts(REPORT_ARTIFACT_PREFIX);
+
         JsonNode testData = loadTestData(TEST_DATA_RESOURCE);
 
         LoginPage loginPage = new LoginPage(page);
@@ -88,9 +93,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             try {
                 iptDeclarationPage.populateDraftFrom(declaration);
                 iptDeclarationPage.submitDeclaration();
-                Path diagnosticsPath = Paths.get("target", "ipt-batch-submit-validation-" + (index + 1) + ".json");
+                Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
-                        Paths.get("target", "ipt-batch-submit-" + (index + 1) + ".png"),
+                        Paths.get("target", REPORT_ARTIFACT_PREFIX + "-" + (index + 1) + ".png"),
                         diagnosticsPath,
                         iptDeclarationPage);
                 openDeclarationListWithRelogin(loginPage, declarationsPage);
@@ -98,9 +103,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                         diagnosticsPath,
                         declarationsPage.readDeclarationListEntry(messageReference));
             } catch (Exception exception) {
-                Path diagnosticsPath = Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".json");
+                Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
-                        Paths.get("target", "ipt-batch-submit-failure-" + (index + 1) + ".png"),
+                        Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-" + (index + 1) + ".png"),
                         diagnosticsPath,
                         iptDeclarationPage);
                 try {
@@ -196,5 +201,19 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
         page.waitForURL("**/dashboard");
+    }
+
+    private void deleteExistingArtifacts(String artifactPrefix) {
+        try (java.util.stream.Stream<Path> files = Files.list(Paths.get("target"))) {
+            files.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().startsWith(artifactPrefix))
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (Exception ignored) {
+                        }
+                    });
+        } catch (Exception ignored) {
+        }
     }
 }

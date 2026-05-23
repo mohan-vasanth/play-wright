@@ -1,0 +1,221 @@
+[
+ {
+    "type": "OUTDEC",
+    
+        "type": "OUT",
+        "header": {
+            "messageReference": "TDX2605230070",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260523",
+                "sequenceNumeric": "1069"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "OUTDEC",
+            "declarationType": "40",
+            "declarationIndicator": true
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "receiptLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            }
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "arrivalDate": "20260508",
+                "loadingPort": "SGSIN"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "SQ0001",
+                        "transportIdentifier": "NA"
+                    },
+                    "mawboucroblNumber": "12345"
+                },
+                "departureDate": "20260508",
+                "dischargePort": "IDJKT",
+                "finalDestinationCountry": "ID"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "exporterParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198003808K"
+                    },
+                    "partyName": {
+                        "name": "ARMSTRONG INDUSTRIAL CORP"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD1"
+                        ]
+                    },
+                    "countryCode": "SG"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "NAME1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD2",
+                            "ADD3"
+                        ]
+                    },
+                    "cityName": "SAMPLECITY",
+                    "countrySubentityCode": "21312",
+                    "countrySubentity": "SAA",
+                    "postalZone": "21312",
+                    "countryCode": "SG"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "unitPriceTermType": "FOB",
+                "supplierManufacturerParty": {
+                    "adValoremIndicator": false,
+                    "preferentialDutyRateIndicator": false
+                },
+                "freightCharge": {
+                    "includeOtherTaxableCharge": false
+                },
+                "insuranceCharge": {
+                    "amount": {
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1",
+                    "chargePercent": "1",
+                    "includeOtherTaxableCharge": false
+                },
+                "gst": 9
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "totalInvoiceCifValue": "0.00",
+            "totalCifFobValue": "1000.00",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "1000.000",
+                "unitCode": "KGM"
+            }
+        },
+        "formMetaData": {
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "additionalRecipientIdIsActive": false,
+            "transportEquipmentIsActive": false,
+            "certificateIsActive": false,
+            "declarationIndicator": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "unitPrices": [],
+            "editUnitPrice": [],
+            "shippingMarksIsActive": [],
+            "itemPackingIsActive": [],
+            "tariffLotIdentificationIsActive": [],
+            "itemCoIsActive": []
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "39073090",
+                "goodsDescription": "EPOXIDE RESINS IN OTHER PRIMARY FORMS",
+                "originCountry": "SG",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "A1234",
+                "outHawbHucrHblNumber": "A1234",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1",
+                        "unitCode": "TNE"
+                    },
+                    "hsQuantity": {
+                        "value": "1",
+                        "unitCode": "TNE"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "1000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "1000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemCifFobValueSgd": "1000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxAmount": "0"
+                    }
+                },
+                "hsImportCa": "-",
+                "hsExportCa": "-",
+                "hsTranshipmentCa": "-"
+            }
+        ]
+    
+}
+]

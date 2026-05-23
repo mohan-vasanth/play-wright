@@ -1,0 +1,6 @@
+{
+  "toastText": "Tradenix OUT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2605230099 URN ID 202535359H Sequence Number 1098 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice (V) Items (I) CPC (C) Summary (Y) Summary Number of Invoices Number of Items * Sum of Invoice Amount 1000.00 SGD Sum of Item Amount 1000.00 SGD Total Invoice CIF Value Total CIF/FOB Value * Package & Weight Total Outer Pack Value 1 UOM PKG Total Gross Weight Value 1000 UOM KGM Cross Reference ID Transport Details Inward Transport Mode Road Arrival Date 20260508 Outward Transport Mode Air Departure Date 20260508 Remarks Remarks Internal Remarks Customer Remarks Declaration Indicator I/We declare that all the particulars in this Application are true and correct. PREVIOUS NEXT SAVE DRAFT SUBMIT DECLARATION Validation Failed: Please fill in all required fields before submitting: Please fill in all required fields. Invalid fields: header.additionalRecipientId[0]",
+  "invalidElements": [
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-118\",\"type\":\"date\",\"ariaInvalid\":\"\",\"classes\":\"ng-pristine ng-invalid clr-input ng-star-inserted ng-touched\"}"
+  ]
+}

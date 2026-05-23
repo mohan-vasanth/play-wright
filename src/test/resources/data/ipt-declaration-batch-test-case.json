@@ -1,27 +1,18 @@
 [
-{
+    {
     "type": "IPTDEC",
     
         "header": {
-            "messageReference": "TDX2605220161",
+            "messageReference": "TDX2605210054",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260522",
-                "sequenceNumeric": "1160"
+                "date": "20260521",
+                "sequenceNumeric": "1054"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "IPTDEC",
             "declarationType": "12",
-            "declarationIndicator": true,
-            "bankerGuaranteeCode": "I",
-            "previousPermitNumber": "ID6E108656D",
-            "additionalRecipientIdIsActive": true,
-            "additionalRecipientId": [
-                "JKJKJ9999"
-            ],
-            "remarks": {
-                "freeText": "ADATA TEST CASE"
-            }
+            "declarationIndicator": true
         },
         "licence": [
             {
@@ -38,22 +29,17 @@
                 "locationCode": "O",
                 "locationName": "OTHERS"
             },
-            "supplyIndicator": true,
-            "blanketStartDate": "20260522",
             "transportEquipmentIsActive": false
         },
         "transport": {
             "inwardTransport": {
                 "transportMeans": {
                     "transportMode": {
-                        "modeCode": "1",
-                        "conveyanceReferenceNumber": "JKKJLO999",
-                        "transportIdentifier": "FFFFF"
-                    },
-                    "mawboucroblNumber": "FVFDVDF2211"
+                        "modeCode": "3"
+                    }
                 },
-                "arrivalDate": "20260528",
-                "loadingPort": "AEKHL"
+                "arrivalDate": "20260526",
+                "loadingPort": "MYJHB"
             }
         },
         "party": {
@@ -87,14 +73,6 @@
                 "partyName": {
                     "name": "ADATACOMPANY PTE LTD"
                 }
-            },
-            "inwardCarrierAgentParty": {
-                "partyIdentification": {
-                    "id": "T23RF0027H"
-                },
-                "partyName": {
-                    "name": "NAMSUNG SHIPPING CO., LTD"
-                }
             }
         },
         "invoice": [
@@ -127,21 +105,21 @@
             "totalInvoiceCifValue": "10000",
             "totalCifFobValue": "10000",
             "totalOuterPack": {
-                "value": "10",
+                "value": "1",
                 "unitCode": "LTR"
             },
             "totalGrossWeight": {
-                "value": "10",
-                "unitCode": "TNE"
+                "value": "1",
+                "unitCode": "KGM"
             },
             "totalTariff": {
-                "totalGoodsAndServicesTaxAmount": "9.63",
+                "totalGoodsAndServicesTaxAmount": "900.63",
                 "totalExciseDutyAmount": "7.04",
-                "totalAmountPayable": "16.67"
+                "totalAmountPayable": "907.67"
             }
         },
         "formMetaData": {
-            "additionalRecipientIdIsActive": true,
+            "additionalRecipientIdIsActive": false,
             "licenceIsActive": true,
             "supportingDocumentIsActive": false,
             "transportEquipmentIsActive": false,
@@ -156,13 +134,13 @@
                 false
             ],
             "shippingMarksIsActive": [
-                true
+                false
             ],
             "itemPackingIsActive": [
                 true
             ],
             "tariffLotIdentificationIsActive": [
-                true
+                false
             ]
         },
         "item": [
@@ -172,8 +150,7 @@
                 "goodsDescription": "WINE OF FRESH GRAPES OF ALCOHOLIC STRENGTH NOT EXCEEDING 15% VOL IN CONTAINERS OF 2L OR LESS (LTR)",
                 "originCountry": "AU",
                 "brandName": "ABC",
-                "modelDescription": "BMW",
-                "dangerousGoodsIndicator": true,
+                "dangerousGoodsIndicator": false,
                 "inHawbHucrHblNumber": "INHAWB22042111",
                 "itemInvoiceNumber": "001",
                 "itemQuantity": {
@@ -197,21 +174,12 @@
                 },
                 "transactionValue": {
                     "itemCIFFOBValue": "10000",
-                    "lastSellingPriceValue": "100",
                     "unitPriceValue": {
                         "amount": {
                             "value": "10000",
                             "currencyID": "SGD"
                         },
                         "exchangeRate": "1"
-                    },
-                    "optionalItemCharge": {
-                        "amount": {
-                            "value": "100",
-                            "currencyID": "SGD"
-                        },
-                        "exchangeRate": "1",
-                        "transactionValue": "100"
                     }
                 },
                 "itemCalculation": {
@@ -220,50 +188,25 @@
                 "tariff": {
                     "goodsAndServicesTax": {
                         "goodsAndServicesTaxPercent": "9",
-                        "goodsAndServicesTaxAmount": "9.63"
+                        "goodsAndServicesTaxAmount": "900.63"
                     },
                     "exciseDuty": {
                         "dutyRate": "88",
                         "dutyRateUnit": "LPA",
                         "dutyAmount": "7.04"
-                    },
-                    "preferentialCode": "PRI"
+                    }
                 },
                 "packingDescription": {
                     "outerPackQuantity": {
                         "value": "1",
                         "unitCode": "LTR"
-                    },
-                    "inPackQuantity": {
-                        "value": "1",
-                        "unitCode": "BAL"
-                    },
-                    "innerPackQuantity": {
-                        "value": "1",
-                        "unitCode": "BAG"
-                    },
-                    "inmostPackQuantity": {
-                        "value": "1",
-                        "unitCode": "BAG"
                     }
                 },
-                "lotIdentification": {
-                    "currentLotNumber": "23233",
-                    "previousLotNumber": "22222",
-                    "marking": "HW"
-                },
-                "shippingMarksInformation": [
-                    {
-                        "shippingMarks": [
-                            "opalminds"
-                        ]
-                    }
-                ],
                 "cascProduct": [
                     {
                         "cascProductCode": "ZBP0BA0QVDG",
                         "cascProductQuantity": {
-                            "value": "1",
+                            "value": "1.0000",
                             "unitCode": "LTR"
                         },
                         "additionalCascIdentification": [
@@ -278,6 +221,4 @@
         "type": "IPT"
     
 }
-
-
 ]

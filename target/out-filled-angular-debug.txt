@@ -1,0 +1,73 @@
+{
+  "hasNg": true,
+  "componentType": "_TransportModeLookupComponent",
+  "keys": [
+    "selectOptionLabel",
+    "selectOptionItem",
+    "label",
+    "required",
+    "disabled",
+    "placeholder",
+    "helperText",
+    "highlightRequired",
+    "showCodeLabel",
+    "showBothLabel",
+    "inputElement",
+    "dropdown",
+    "codeInput",
+    "elementRef",
+    "_commonAccessReference",
+    "allOptions",
+    "_value",
+    "inputDisplayValue",
+    "searchTerm",
+    "searchCodeTermModal",
+    "searchDescriptionTermModal",
+    "highlightedIndex",
+    "showSearchModal",
+    "pageSize",
+    "currentPage",
+    "onChange",
+    "onTouched",
+    "filteredOptions",
+    "filteredByCarOptions",
+    "filteredOptionsModal",
+    "paginatedOptionsModal",
+    "displayValue",
+    "__ngContext__"
+  ],
+  "sampleOptions": [
+    {
+      "code": "1",
+      "description": "Sea"
+    },
+    {
+      "code": "2",
+      "description": "Rail"
+    },
+    {
+      "code": "3",
+      "description": "Road"
+    },
+    {
+      "code": "4",
+      "description": "Air"
+    },
+    {
+      "code": "5",
+      "description": "Mail"
+    },
+    {
+      "code": "6",
+      "description": "Multi-modal (Not in use)"
+    },
+    {
+      "code": "7",
+      "description": "Pipeline"
+    },
+    {
+      "code": "N",
+      "description": "Not required"
+    }
+  ]
+}
