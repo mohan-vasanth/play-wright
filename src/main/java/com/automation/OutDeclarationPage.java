@@ -7,6 +7,7 @@ import com.microsoft.playwright.Page;
 public class OutDeclarationPage extends IptDeclarationPage {
 
     private boolean summaryDraftSaved;
+    private boolean additionalRecipientsRequested;
 
     public OutDeclarationPage(Page page) {
         super(page);
@@ -22,6 +23,9 @@ public class OutDeclarationPage extends IptDeclarationPage {
     @Override
     public void submitDeclaration() {
         openSection("Summary (Y)");
+        if (!additionalRecipientsRequested) {
+            ensureAdditionalRecipientsInactive();
+        }
         if (!summaryDraftSaved) {
             saveDraftAndWaitForCompletion();
         } else {
@@ -63,6 +67,10 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 "5",
                 "OTHER",
                 "Other");
+        setHiddenComponentValue(
+                "app-cargo-type-lookup[formcontrolname='cargoPackingType']",
+                "Cargo Type",
+                text(cargo, "cargoPackingType"));
         fillLookupFieldInSection("Declaration Info", "Inward Transport Mode",
                 text(inwardTransportMode, "modeCode"),
                 text(inwardTransportMode, "modeCode"),
@@ -79,18 +87,34 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 "4 - Air",
                 "AIR",
                 "Air");
+        setHiddenComponentValue(
+                "app-transport-mode-lookup[formcontrolname='modeCode']",
+                "Outward Transport Mode",
+                text(outwardTransportMode, "modeCode"));
         fillLookupFieldInSection("Declaration Info", "Release Location",
                 text(releaseLocation, "locationCode"),
                 text(releaseLocation, "locationCode"),
                 text(releaseLocation, "locationName"));
+        setHiddenComponentValue(
+                "app-location-lookup[formcontrolname='locationCode']",
+                "Release Location",
+                text(releaseLocation, "locationCode"));
         fillLookupFieldInSection("Declaration Info", "Receipt Location",
                 text(receiptLocation, "locationCode"),
                 text(receiptLocation, "locationCode"),
                 text(receiptLocation, "locationName"));
+        setHiddenComponentValue(
+                "app-location-lookup[formcontrolname='locationCode']",
+                "Receipt Location",
+                text(receiptLocation, "locationCode"));
         fillLookupFieldInSectionIfPresent("Declaration Info", "Storage Location",
                 text(cargo.path("storageLocation"), "locationCode"),
                 text(cargo.path("storageLocation"), "locationCode"),
                 text(cargo.path("storageLocation"), "locationName"));
+        setHiddenComponentValue(
+                "app-location-lookup[formcontrolname='locationCode']",
+                "Storage Location",
+                text(cargo.path("storageLocation"), "locationCode"));
 
         fillFieldInSectionIfPresent("Prev Permit Number", "Previous Permit Number", text(header, "previousPermitNumber"));
         fillFieldInSectionIfPresent("Checks", "Blanket Start Date", formatUiDate(text(cargo, "blanketStartDate")));
@@ -121,6 +145,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillTransportInfo(JsonNode data) {
+        JsonNode cargo = data.path("cargo");
         JsonNode summary = data.path("summary");
         JsonNode totalOuterPack = summary.path("totalOuterPack");
         JsonNode totalGrossWeight = summary.path("totalGrossWeight");
@@ -130,6 +155,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         JsonNode outwardTransport = data.path("transport").path("outwardTransport");
         JsonNode outwardTransportMeans = outwardTransport.path("transportMeans");
         JsonNode outwardTransportMode = outwardTransportMeans.path("transportMode");
+        JsonNode additionalVesselInformation = outwardTransport.path("additionalVesselInformation");
 
         fillFieldInSection("Cargo Details", "Total Package", text(totalOuterPack, "value"));
         fillNthLookupFieldInSection("Cargo Details", 1,
@@ -156,6 +182,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Inward Transport Means",
                     inwardTransportIdentifier,
                     "Transport Identifier",
+                    "Aircraft Registration Number",
                     "Inward Vehicle/Vessel Registration Number",
                     "Vehicle/Vessel Registration Number",
                     "Inward Aircraft Registration Number",
@@ -169,6 +196,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             syncVisibleTextComponentValue("transportIdentifier",
                     inwardTransportIdentifier,
                     "Transport Identifier",
+                    "Aircraft Registration Number",
                     "Inward Vehicle/Vessel Registration Number",
                     "Vehicle/Vessel Registration Number",
                     "Inward Aircraft Registration Number",
@@ -185,6 +213,10 @@ public class OutDeclarationPage extends IptDeclarationPage {
             fillDateFieldInSectionIfPresent("Inward Transport Means", "Arrival Date", formatUiDate(text(inwardTransport, "arrivalDate")));
             fillLookupFieldIfPresent("Loading Port",
                     text(inwardTransport, "loadingPort"),
+                    text(inwardTransport, "loadingPort"));
+            setHiddenComponentValue(
+                    "app-loading-port-lookup[formcontrolname='loadingPort']",
+                    "Loading Port",
                     text(inwardTransport, "loadingPort"));
         }
 
@@ -203,6 +235,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Outward Transport Means",
                     text(outwardTransportMode, "transportIdentifier"),
                     "Transport Identifier",
+                    "Aircraft Registration Number",
                     "Outward Vehicle/Vessel Registration Number",
                     "Vehicle/Vessel Registration Number",
                     "Outward Aircraft Registration Number",
@@ -221,9 +254,212 @@ public class OutDeclarationPage extends IptDeclarationPage {
             fillLookupFieldInSectionIfPresent("Outward Transport Means", "Discharge Port",
                     text(outwardTransport, "dischargePort"),
                     text(outwardTransport, "dischargePort"));
+            setHiddenComponentValue(
+                    "app-loading-port-lookup[formcontrolname='dischargePort']",
+                    "Discharge Port",
+                    text(outwardTransport, "dischargePort"));
             fillLookupFieldInSectionIfPresent("Outward Transport Means", "Country of Final Destination",
                     text(outwardTransport, "finalDestinationCountry"),
                     text(outwardTransport, "finalDestinationCountry"));
+            setHiddenComponentValue(
+                "app-country-code-lookup[formcontrolname='finalDestinationCountry']",
+                "Country of Final Destination",
+                text(outwardTransport, "finalDestinationCountry"));
+        }
+
+        fillAdditionalVesselInformation(additionalVesselInformation);
+        fillTransportEquipmentDetails(cargo);
+    }
+
+    private void fillAdditionalVesselInformation(JsonNode additionalVesselInformation) {
+        if (additionalVesselInformation == null
+                || additionalVesselInformation.isMissingNode()
+                || additionalVesselInformation.isNull()) {
+            return;
+        }
+
+        Locator additionalVesselSection = resolveSectionOrNull("Additional Vessel Information");
+        if (additionalVesselSection == null) {
+            return;
+        }
+
+        String vesselType = text(additionalVesselInformation, "vesselType");
+        String netRegisterTonnage = text(additionalVesselInformation, "netRegisterTonnage");
+        String loadingNextPort = text(additionalVesselInformation, "loadingNextPort");
+        String loadingFinalPort = text(additionalVesselInformation, "loadingFinalPort");
+        String vesselNationality = firstNonBlank(
+                text(additionalVesselInformation, "vesselNationality"),
+                text(additionalVesselInformation, "vesselNationalality"));
+        JsonNode towingVessel = additionalVesselInformation.path("towingVessel");
+
+        fillLookupFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Vessel Type",
+                vesselType,
+                vesselType);
+        setHiddenComponentValue(
+                "[formcontrolname='vesselType']",
+                "Vessel Type",
+                vesselType);
+
+        fillFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Towing Vessel Voyage Number",
+                text(towingVessel, "vesselID"));
+        syncVisibleTextComponentValue(
+                "vesselID",
+                text(towingVessel, "vesselID"),
+                "Towing Vessel Voyage Number");
+
+        fillLookupFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Next Port of Call",
+                loadingNextPort,
+                loadingNextPort);
+        setHiddenComponentValue(
+                "[formcontrolname='loadingNextPort']",
+                "Next Port of Call",
+                loadingNextPort);
+
+        fillFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Net Register Tonnage",
+                netRegisterTonnage);
+        syncVisibleTextComponentValue(
+                "netRegisterTonnage",
+                netRegisterTonnage,
+                "Net Register Tonnage");
+
+        fillFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Towing Vessel Name",
+                text(towingVessel, "vesselName"));
+        syncVisibleTextComponentValue(
+                "vesselName",
+                text(towingVessel, "vesselName"),
+                "Towing Vessel Name");
+
+        fillLookupFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Final Port of Call",
+                loadingFinalPort,
+                loadingFinalPort);
+        setHiddenComponentValue(
+                "[formcontrolname='loadingFinalPort']",
+                "Final Port of Call",
+                loadingFinalPort);
+
+        fillFieldInSectionIfPresent(
+                "Additional Vessel Information",
+                "Vessel Nationality",
+                vesselNationality);
+        syncVisibleTextComponentValue(
+                "vesselNationality",
+                vesselNationality,
+                "Vessel Nationality");
+    }
+
+    private void fillTransportEquipmentDetails(JsonNode cargo) {
+        JsonNode transportEquipment = firstArrayItem(cargo.path("transportEquipment"));
+        if (transportEquipment == null
+                || transportEquipment.isMissingNode()
+                || transportEquipment.isNull()) {
+            return;
+        }
+
+        Locator containerDetailsSection = resolveContainerDetailsSectionOrNull();
+        if (containerDetailsSection == null) {
+            return;
+        }
+
+        Locator firstRow = resolveContainerDetailsRowOrNull(containerDetailsSection, "1");
+        if (firstRow == null) {
+            clickContainerAddButtonIfPresent(containerDetailsSection);
+            page.waitForTimeout(300);
+            firstRow = resolveContainerDetailsRowOrNull(containerDetailsSection, "1");
+        }
+        if (firstRow == null) {
+            firstRow = containerDetailsSection;
+        }
+
+        String containerNumber = normalize(text(transportEquipment, "equipmentID"));
+        String sizeTypeCode = text(transportEquipment, "sizeTypeCode");
+        String equipmentWeight = text(transportEquipment, "equipmentWeightMeasureNumeric");
+        String sealNumber = text(transportEquipment.path("transportEquipmentSeal"), "sealID");
+
+        fillNthFieldInScopeIfPresent(firstRow, 0, containerNumber);
+        syncVisibleTextComponentValue("equipmentID", containerNumber, "Container Number");
+
+        fillNthLookupFieldInScopeIfPresent(firstRow, 1, sizeTypeCode, sizeTypeCode);
+        setHiddenComponentValue("[formcontrolname='sizeTypeCode']", "Size / Type", sizeTypeCode);
+
+        fillNthFieldInScopeIfPresent(firstRow, 2, equipmentWeight);
+        syncVisibleTextComponentValue("equipmentWeightMeasureNumeric", equipmentWeight, "Weight (TNE)");
+
+        fillNthFieldInScopeIfPresent(firstRow, 3, sealNumber);
+        syncVisibleTextComponentValue("sealID", sealNumber, "Seal Number");
+    }
+
+    private Locator resolveContainerDetailsSectionOrNull() {
+        try {
+            Locator section = page.locator(
+                    "xpath=(//*[contains(normalize-space(translate(., '*', '')), 'Container Details')])[last()]"
+                            + "/ancestor::*[.//*[normalize-space(translate(., '*', ''))='Container Number']"
+                            + " and .//*[normalize-space(translate(., '*', ''))='Size / Type']"
+                            + " and .//*[contains(normalize-space(translate(., '*', '')), 'Weight (TNE)')]"
+                            + " and .//*[normalize-space(translate(., '*', ''))='Seal Number']"
+                            + " and (.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button)][1]");
+            return firstVisible(section);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private Locator resolveContainerDetailsRowOrNull(Locator containerDetailsSection, String sequenceNumber) {
+        Locator visibleScope = firstVisible(containerDetailsSection);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        String sequenceLiteral = toXpathLiteral(sequenceNumber);
+        Locator numberedRow = visibleScope.locator(
+                "xpath=(.//*[normalize-space(.)=" + sequenceLiteral + "]"
+                        + "[not(ancestor::*[self::thead or @role='columnheader'])]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1])[last()]");
+        Locator visibleNumberedRow = firstVisible(numberedRow);
+        if (visibleNumberedRow != null) {
+            return visibleNumberedRow;
+        }
+
+        Locator bodyRow = visibleScope.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))='Container Number']"
+                        + "/ancestor::*[self::table or @role='table' or contains(@class, 'table')][1]"
+                        + "//*[self::tr or @role='row'][.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']])[1]");
+        return firstVisible(bodyRow);
+    }
+
+    private void clickContainerAddButtonIfPresent(Locator containerDetailsSection) {
+        Locator visibleScope = firstVisible(containerDetailsSection);
+        if (visibleScope == null) {
+            return;
+        }
+
+        Locator buttons = visibleScope.locator("button, [role='button'], input[type='button'], input[type='submit'], a");
+        int count = buttons.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = buttons.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            String text = normalize(candidate.innerText()).toUpperCase();
+            String ariaLabel = normalize(candidate.getAttribute("aria-label")).toUpperCase();
+            String title = normalize(candidate.getAttribute("title")).toUpperCase();
+            String value = normalize(candidate.getAttribute("value")).toUpperCase();
+            if ("ADD".equals(text) || "ADD".equals(ariaLabel) || "ADD".equals(title) || "ADD".equals(value)) {
+                candidate.scrollIntoViewIfNeeded();
+                candidate.click(new Locator.ClickOptions().setForce(true));
+                return;
+            }
         }
     }
 
@@ -275,7 +511,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         fillNthLookupFieldInScopeIfPresent(card, 0, firstNonBlank(id, name), firstNonBlank(id, name), name);
-        fillNthFieldInScopeIfPresent(card, 1, id);
+        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
         fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, arrayText(addressLines, 0));
@@ -348,6 +584,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         JsonNode itemQuantity = item.path("itemQuantity");
         JsonNode transactionValue = item.path("transactionValue");
         JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
+        JsonNode lotIdentification = item.path("lotIdentification");
 
         fillFieldIfPresent("Inward HAWB", text(item, "inHawbHucrHblNumber"));
         fillFieldIfPresent("Outward HAWB", text(item, "outHawbHucrHblNumber"));
@@ -382,11 +619,19 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillFieldIfPresent("Item Unit Value",
                 normalizeNumericForEntry(text(unitPriceValue.path("amount"), "value")));
         fillItemValues(transactionValue);
+        fillLotIdentification(item, lotIdentification);
     }
 
     private void fillAdditionalRecipientsFromJson(JsonNode header, JsonNode formMetaData) {
-        if (formMetaData == null || !formMetaData.path("additionalRecipientIdIsActive").asBoolean(false)) {
-            ensureAdditionalRecipientsInactive();
+        additionalRecipientsRequested = false;
+        setCheckboxByLabel("Additional Recipients", false);
+        syncCheckboxValue(false, "Additional Recipients");
+        page.waitForTimeout(200);
+        ensureAdditionalRecipientsInactive();
+
+        boolean featureEnabled = formMetaData != null
+                && formMetaData.path("additionalRecipientIdIsActive").asBoolean(false);
+        if (!featureEnabled) {
             return;
         }
 
@@ -400,7 +645,9 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
+        additionalRecipientsRequested = true;
         setCheckboxByLabel("Additional Recipients", true);
+        syncCheckboxValue(true, "Additional Recipients");
         page.waitForTimeout(300);
 
         Locator additionalRecipientsSection = firstVisible(page.locator(
@@ -441,20 +688,14 @@ public class OutDeclarationPage extends IptDeclarationPage {
                             element.dispatchEvent(new Event('blur', { bubbles: true }));
                         };
 
-                        const checkbox = Array.from(document.querySelectorAll("input[type='checkbox'][formcontrolname='additionalRecipientIdIsActive']"))
-                            .find(isVisible);
-                        if (checkbox) {
-                            checkbox.checked = false;
-                            checkbox.removeAttribute('checked');
-                            checkbox.setAttribute('aria-checked', 'false');
-                            dispatch(checkbox);
-                        }
-
-                        const componentHost = checkbox?.closest("[formcontrolname='additionalRecipientIdIsActive'], clr-checkbox-wrapper, label, div");
-                        const component = componentHost && typeof window.ng !== 'undefined' && typeof window.ng.getComponent === 'function'
-                            ? window.ng.getComponent(componentHost)
-                            : null;
-                        if (component) {
+                        const syncComponent = host => {
+                            if (!host || typeof window.ng === 'undefined' || typeof window.ng.getComponent !== 'function') {
+                                return;
+                            }
+                            const component = window.ng.getComponent(host);
+                            if (!component) {
+                                return;
+                            }
                             if ('checked' in component) {
                                 component.checked = false;
                             }
@@ -464,13 +705,33 @@ public class OutDeclarationPage extends IptDeclarationPage {
                             if ('_value' in component) {
                                 component._value = false;
                             }
+                            if (component.formControl && typeof component.formControl.setValue === 'function') {
+                                component.formControl.setValue(false);
+                            }
+                            if (typeof component.writeValue === 'function') {
+                                component.writeValue(false);
+                            }
                             if (typeof component.onChange === 'function') {
                                 component.onChange(false);
                             }
                             if (typeof component.onTouched === 'function') {
                                 component.onTouched();
                             }
-                        }
+                        };
+
+                        Array.from(document.querySelectorAll("input[type='checkbox'][formcontrolname='additionalRecipientIdIsActive']"))
+                            .forEach(checkbox => {
+                                checkbox.checked = false;
+                                checkbox.defaultChecked = false;
+                                checkbox.removeAttribute('checked');
+                                checkbox.setAttribute('aria-checked', 'false');
+                                dispatch(checkbox);
+                                let current = checkbox;
+                                for (let depth = 0; current && depth < 5; depth += 1) {
+                                    syncComponent(current);
+                                    current = current.parentElement;
+                                }
+                            });
 
                         const additionalRecipientFields = document.querySelectorAll(
                             "[formcontrolname='additionalRecipientId'], input[formcontrolname='additionalRecipientId'], textarea[formcontrolname='additionalRecipientId']"
@@ -481,6 +742,9 @@ public class OutDeclarationPage extends IptDeclarationPage {
                             }
                             dispatch(field);
                         });
+
+                        const toggles = Array.from(document.querySelectorAll("input[type='checkbox'][formcontrolname='additionalRecipientIdIsActive']"));
+                        return toggles.every(toggle => toggle.checked === false);
                     }
                     """);
             page.waitForTimeout(200);
