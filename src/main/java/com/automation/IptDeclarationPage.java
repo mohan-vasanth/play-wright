@@ -266,6 +266,10 @@ public class IptDeclarationPage {
     }
 
     private void fillAdditionalRecipients(JsonNode header, JsonNode formMetaData) {
+        setCheckboxByLabel("Additional Recipients", false);
+        page.waitForTimeout(200);
+
+        // Only proceed if the feature is explicitly enabled in JSON
         if (formMetaData == null || !formMetaData.path("additionalRecipientIdIsActive").asBoolean(false)) {
             return;
         }

@@ -63,6 +63,7 @@ public class LoginPage {
     public void loginAsUser(String user, String pass, String forwarderLabel, String departmentLabel) {
         page.locator(USER_TAB).evaluate("element => element.click()");
         page.locator(USERNAME).fill(user);
+        page.locator(LOAD_USER_DETAILS_BUTTON).waitFor(new com.microsoft.playwright.Locator.WaitForOptions().setState(com.microsoft.playwright.options.WaitForSelectorState.VISIBLE));
         page.locator(LOAD_USER_DETAILS_BUTTON).click();
 
         selectUserOption(FORWARDER, forwarderLabel, "Forwarder");
@@ -75,7 +76,11 @@ public class LoginPage {
 
     private void selectUserOption(String selector, String requestedLabel, String fieldName) {
         page.waitForFunction(
-                "selector => { const select = document.querySelector(selector); return !!select && !select.disabled && select.options.length > 1; }",
+                "selector => { const select = document.querySelector(selector); return !!select && !select.disabled; }",
+                selector);
+
+        page.waitForFunction(
+                "selector => { const select = document.querySelector(selector); return !!select && Array.from(select.options || []).length > 0; }",
                 selector);
 
         String optionValue = page.locator(selector).evaluate(
