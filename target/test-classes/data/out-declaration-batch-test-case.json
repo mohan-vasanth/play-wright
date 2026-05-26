@@ -5,433 +5,61 @@
     
         "type": "OUT",
         "header": {
-            "messageReference": "TDX2605230070",
+            "messageReference": "TDX2605260012",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260523",
-                "sequenceNumeric": "1069"
+                "date": "20260526",
+                "sequenceNumeric": "1011"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "OUTDEC",
             "declarationType": "40",
-            "declarationIndicator": true
-        },
-        "cargo": {
-            "cargoPackingType": "5",
-            "releaseLocation": {
-                "locationCode": "O",
-                "locationName": "OTHERS"
-            },
-            "receiptLocation": {
-                "locationCode": "CZ",
-                "locationName": "CHANGI FTZ"
-            }
-        },
-        "transport": {
-            "inwardTransport": {
-                "transportMeans": {
-                    "transportMode": {
-                        "modeCode": "3"
-                    }
-                },
-                "arrivalDate": "20260508",
-                "loadingPort": "SGSIN"
-            },
-            "outwardTransport": {
-                "transportMeans": {
-                    "transportMode": {
-                        "modeCode": "4",
-                        "conveyanceReferenceNumber": "SQ0001",
-                        "transportIdentifier": "NA"
-                    },
-                    "mawboucroblNumber": "12345"
-                },
-                "departureDate": "20260508",
-                "dischargePort": "IDJKT",
-                "finalDestinationCountry": "ID"
-            }
-        },
-        "party": {
-            "declarantParty": {
-                "personInformation": {
-                    "codeValue": "S8562791J",
-                    "name": "NAMASIVAYAM GUNESPARAN"
-                },
-                "telephone": "81189066"
-            },
-            "exporterParty": {
-                "partyDetail": {
-                    "partyIdentification": {
-                        "id": "198003808K"
-                    },
-                    "partyName": {
-                        "name": "ARMSTRONG INDUSTRIAL CORP"
-                    }
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "ADD1"
-                        ]
-                    },
-                    "countryCode": "SG"
-                }
-            },
-            "declaringAgentParty": {
-                "partyIdentification": {
-                    "id": "202535359H"
-                },
-                "partyName": {
-                    "name": "ADATA PVT LMT"
-                }
-            },
-            "outwardCarrierAgentParty": {
-                "partyIdentification": {
-                    "id": "197702772D"
-                },
-                "partyName": {
-                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
-                }
-            },
-            "consigneeParty": {
-                "partyName": {
-                    "name": "NAME1"
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "ADD2",
-                            "ADD3"
-                        ]
-                    },
-                    "cityName": "SAMPLECITY",
-                    "countrySubentityCode": "21312",
-                    "countrySubentity": "SAA",
-                    "postalZone": "21312",
-                    "countryCode": "SG"
-                }
-            },
-            "freightForwarderParty": {
-                "partyIdentification": {
-                    "id": "202535359H"
-                },
-                "partyName": {
-                    "name": "ADATACOMPANY PTE LTD"
-                }
-            }
-        },
-        "invoice": [
-            {
-                "unitPriceTermType": "FOB",
-                "supplierManufacturerParty": {
-                    "adValoremIndicator": false,
-                    "preferentialDutyRateIndicator": false
-                },
-                "freightCharge": {
-                    "includeOtherTaxableCharge": false
-                },
-                "insuranceCharge": {
-                    "amount": {
-                        "currencyID": "SGD"
-                    },
-                    "exchangeRate": "1",
-                    "chargePercent": "1",
-                    "includeOtherTaxableCharge": false
-                },
-                "gst": 9
-            }
-        ],
-        "summary": {
-            "numberOfInvoices": "1",
-            "numberOfItems": "1",
-            "totalInvoiceCifValue": "0.00",
-            "totalCifFobValue": "1000.00",
-            "totalOuterPack": {
-                "value": "1",
-                "unitCode": "PKG"
-            },
-            "totalGrossWeight": {
-                "value": "1000.000",
-                "unitCode": "KGM"
-            }
-        },
-        "formMetaData": {
-            "licenceIsActive": false,
-            "supportingDocumentIsActive": false,
-            "additionalRecipientIdIsActive": false,
-            "transportEquipmentIsActive": false,
-            "certificateIsActive": false,
-            "declarationIndicator": false,
-            "aeoIsActive": false,
-            "cwcIsActive": false,
-            "seastoreIsActive": false,
-            "stsIsActive": false,
-            "stsAndCwcIsActive": false,
-            "internationalPermitExchangeIsActive": false,
-            "unitPrices": [],
-            "editUnitPrice": [],
-            "shippingMarksIsActive": [],
-            "itemPackingIsActive": [],
-            "tariffLotIdentificationIsActive": [],
-            "itemCoIsActive": []
-        },
-        "item": [
-            {
-                "itemSequenceNumeric": "1",
-                "itemHarmonizedSystemCode": "39073090",
-                "goodsDescription": "EPOXIDE RESINS IN OTHER PRIMARY FORMS",
-                "originCountry": "SG",
-                "dangerousGoodsIndicator": false,
-                "inHawbHucrHblNumber": "A1234",
-                "outHawbHucrHblNumber": "A1234",
-                "itemQuantity": {
-                    "harmonizedSystemQuantity": {
-                        "value": "1",
-                        "unitCode": "TNE"
-                    },
-                    "hsQuantity": {
-                        "value": "1",
-                        "unitCode": "TNE"
-                    }
-                },
-                "transactionValue": {
-                    "itemCIFFOBValue": "1000",
-                    "unitPriceValue": {
-                        "amount": {
-                            "value": "1000",
-                            "currencyID": "SGD"
-                        },
-                        "exchangeRate": "1"
-                    }
-                },
-                "itemCalculation": {
-                    "itemCifFobValueSgd": "1000"
-                },
-                "tariff": {
-                    "goodsAndServicesTax": {
-                        "goodsAndServicesTaxAmount": "0"
-                    }
-                },
-                "hsImportCa": "-",
-                "hsExportCa": "-",
-                "hsTranshipmentCa": "-"
-            }
-        ]
-    
-},
-{
-    "type": "OUTDEC",
-    
-        "type": "OUT",
-        "header": {
-            "messageReference": "TDX2605250070",
-            "uniqueReferenceNumber": {
-                "id": "202535359H",
-                "date": "20260525",
-                "sequenceNumeric": "1070"
-            },
-            "declarantId": "ADAT.ADAT001",
-            "commonAccessReference": "OUTDEC",
-            "declarationType": "40",
-            "declarationIndicator": true
-        },
-        "cargo": {
-            "cargoPackingType": "5",
-            "releaseLocation": {
-                "locationCode": "CZ",
-                "locationName": "CHANGI FTZ"
-            },
-            "receiptLocation": {
-                "locationCode": "THQ",
-                "locationName": "TUAS HQ"
-            }
-        },
-        "transport": {
-            "inwardTransport": {
-                "transportMeans": {
-                    "transportMode": {
-                        "modeCode": "3"
-                    }
-                },
-                "arrivalDate": "20260525",
-                "loadingPort": "SGSIN"
-            },
-            "outwardTransport": {
-                "transportMeans": {
-                    "transportMode": {
-                        "modeCode": "3",
-                        "transportIdentifier": "NA"
-                    }
-                },
-                "departureDate": "20260528",
-                "dischargePort": "MYJHB",
-                "finalDestinationCountry": "IN"
-            }
-        },
-        "party": {
-            "declarantParty": {
-                "personInformation": {
-                    "codeValue": "S8562791J",
-                    "name": "NAMASIVAYAM GUNESPARAN"
-                },
-                "telephone": "81189066"
-            },
-            "exporterParty": {
-                "partyDetail": {
-                    "partyIdentification": {
-                        "id": "198003808K"
-                    },
-                    "partyName": {
-                        "name": "ARMSTRONG INDUSTRIAL CORP"
-                    }
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "TOLLGATE",
-                            "LALGUDI"
-                        ]
-                    },
-                    "cityName": "TRICHY",
-                    "postalZone": "620001",
-                    "countryCode": "IN"
-                }
-            },
-            "declaringAgentParty": {
-                "partyIdentification": {
-                    "id": "202535359H"
-                },
-                "partyName": {
-                    "name": "ADATA PVT LMT"
-                }
-            },
-            "consigneeParty": {
-                "partyName": {
-                    "name": "TESTING FOR CONSIGNEE"
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "ADD1",
-                            "ADD2"
-                        ]
-                    },
-                    "cityName": "SAMPLECITY",
-                    "postalZone": "21312",
-                    "countryCode": "SG"
-                }
-            }
-        },
-        "invoice": [
-            {
-                "unitPriceTermType": "FOB",
-                "supplierManufacturerParty": {
-                    "adValoremIndicator": false,
-                    "preferentialDutyRateIndicator": false
-                },
-                "freightCharge": {
-                    "includeOtherTaxableCharge": false
-                },
-                "insuranceCharge": {
-                    "amount": {
-                        "currencyID": "SGD"
-                    },
-                    "exchangeRate": "1",
-                    "chargePercent": "1",
-                    "includeOtherTaxableCharge": false
-                },
-                "gst": 9
-            }
-        ],
-        "summary": {
-            "numberOfInvoices": "1",
-            "numberOfItems": "1",
-            "totalInvoiceCifValue": "0.00",
-            "totalCifFobValue": "4364.30",
-            "totalOuterPack": {
-                "value": "1",
-                "unitCode": "PKG"
-            },
-            "totalGrossWeight": {
-                "value": "100",
-                "unitCode": "KGM"
-            }
-        },
-        "formMetaData": {
-            "licenceIsActive": false,
-            "supportingDocumentIsActive": false,
-            "additionalRecipientIdIsActive": false,
-            "transportEquipmentIsActive": false,
-            "certificateIsActive": false,
-            "declarationIndicator": false,
-            "aeoIsActive": false,
-            "cwcIsActive": false,
-            "seastoreIsActive": false,
-            "stsIsActive": false,
-            "stsAndCwcIsActive": false,
-            "internationalPermitExchangeIsActive": false,
-            "unitPrices": [],
-            "editUnitPrice": [],
-            "shippingMarksIsActive": [],
-            "itemPackingIsActive": [],
-            "tariffLotIdentificationIsActive": [],
-            "itemCoIsActive": []
-        },
-        "item": [
-            {
-                "itemSequenceNumeric": "1",
-                "itemHarmonizedSystemCode": "39269099",
-                "goodsDescription": "OTHER ARTICLES OF PLASTICS & ARTICLES OF OTHER MATERIALS OF 3901 TO 3914 (KGM)",
-                "originCountry": "SG",
-                "dangerousGoodsIndicator": false,
-                "itemQuantity": {
-                    "harmonizedSystemQuantity": {
-                        "value": "80",
-                        "unitCode": "KGM"
-                    },
-                    "hsQuantity": {
-                        "value": "80",
-                        "unitCode": "KGM"
-                    }
-                },
-                "transactionValue": {
-                    "itemCIFFOBValue": "4364.3",
-                    "unitPriceValue": {
-                        "amount": {
-                            "value": "1000",
-                            "currencyID": "TWD"
-                        },
-                        "exchangeRate": "4.3643"
-                    }
-                },
-                "itemCalculation": {
-                    "itemCifFobValueSgd": "4364.3"
-                },
-                "tariff": {
-                    "goodsAndServicesTax": {
-                        "goodsAndServicesTaxAmount": "0"
-                    }
-                }
-            }
-        ]
-    },
-	{
-    "type": "OUTDEC",
-
-        "type": "OUT",
-        "header": {
-            "messageReference": "TDX2605250073",
-            "uniqueReferenceNumber": {
-                "id": "202535359H",
-                "date": "20260525",
-                "sequenceNumeric": "1073"
-            },
-            "declarantId": "ADAT.ADAT001",
-            "commonAccessReference": "OUTDEC",
-            "declarationType": "20",
             "declarationIndicator": true,
-            "previousPermitNumber": "II6D120094Y"
+            "bankerGuaranteeCode": "I",
+            "previousPermitNumber": "II6D120094Y",
+            "remarks": {
+                "freeText": "ADATA "
+            },
+            "additionalRecipientId": [
+                "CDWEDSDDED"
+            ]
         },
+        "certificate": {
+            "applicationProductType": "NH",
+            "gspDonorCountry": "CL",
+            "entryYear": "1111",
+            "preferenceContentPercent": "11",
+            "currencyCode": "USD",
+            "certificateDetail": [
+                {
+                    "certificateType": "1",
+                    "copiesNumeric": "11"
+                },
+                {
+                    "certificateType": "2",
+                    "copiesNumeric": "11"
+                }
+            ],
+            "additionalCertificateDetails": [
+                "ARAVINTH",
+                "SARAN",
+                "SUDHAKAR",
+                "KALAI",
+                "PRABHA"
+            ],
+            "transportDetails": [
+                "RAFIQ",
+                "PRASANA",
+                "MOHAN",
+                "KAVIYA",
+                "BARANI"
+            ]
+        },
+        "licence": [
+            {
+                "referenceID": "HJK99999999"
+            }
+        ],
         "cargo": {
             "cargoPackingType": "9",
             "releaseLocation": {
@@ -442,6 +70,10 @@
                 "locationCode": "JZ",
                 "locationName": "JURONG FTZ"
             },
+            "storageLocation": {
+                "locationCode": "AZ"
+            },
+            "blanketStartDate": "20260526",
             "transportEquipment": [
                 {
                     "sequenceNumeric": "1",
@@ -455,10 +87,21 @@
             ]
         },
         "transport": {
-            "outwardTransport": {
+            "inwardTransport": {
                 "transportMeans": {
                     "transportMode": {
                         "modeCode": "1",
+                        "conveyanceReferenceNumber": "7654ET",
+                        "transportIdentifier": "EVERGREEN V.123D"
+                    },
+                    "mawboucroblNumber": "FGT556"
+                },
+                "loadingPort": "AEAJM"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "2",
                         "conveyanceReferenceNumber": "7654ER",
                         "transportIdentifier": "EVERGREEN V.123W"
                     },
@@ -470,6 +113,7 @@
                 "additionalVesselInformation": {
                     "vesselType": "CV",
                     "netRegisterTonnage": "75",
+                    "vesselNationality": "NA",
                     "loadingNextPort": "IDJKT",
                     "loadingFinalPort": "AUSYD",
                     "towingVessel": {
@@ -507,10 +151,18 @@
             },
             "importerParty": {
                 "partyIdentification": {
-                    "id": "199702110H"
+                    "id": "198804008Z"
                 },
                 "partyName": {
-                    "name": "A*STAR RESEARCH ENTITIES"
+                    "name": "MARKEM IMAJE SIGAPORE PTE LTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "200604002G"
+                },
+                "partyName": {
+                    "name": "ALPINE SHIPPING PTE. LTD"
                 }
             },
             "outwardCarrierAgentParty": {
@@ -533,8 +185,6 @@
                         ]
                     },
                     "cityName": "SAMPLECITY",
-                    "countrySubentityCode": "21312",
-                    "countrySubentity": "SAA",
                     "postalZone": "21312",
                     "countryCode": "SG"
                 }
@@ -546,20 +196,73 @@
                 "partyName": {
                     "name": "ADATACOMPANY PTE LTD"
                 }
+            },
+            "manufacturerParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198003808K"
+                    },
+                    "partyName": {
+                        "name": "ARMSTRONG INDUSTRIAL CORP"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD1",
+                            "ADD2"
+                        ]
+                    },
+                    "cityName": "TRICHY",
+                    "countrySubentityCode": "TN",
+                    "countrySubentity": "TAMILNADU",
+                    "postalZone": "620001",
+                    "countryCode": "IN"
+                }
+            },
+            "endUserParty": {
+                "partyIdentification": {
+                    "id": "A2343232A"
+                },
+                "partyName": {
+                    "name": "TESTING ENDUSER 1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADDRESS 1",
+                            "ADDRESS 2"
+                        ]
+                    },
+                    "cityName": "ENDCITY",
+                    "countrySubentityCode": "12312",
+                    "countrySubentity": "ENDPROVIDER",
+                    "postalZone": "SGD",
+                    "countryCode": "SG"
+                }
             }
         },
         "invoice": [
             {
+                "invoiceNumber": "1",
                 "unitPriceTermType": "FOB",
                 "supplierManufacturerParty": {
                     "adValoremIndicator": false,
                     "preferentialDutyRateIndicator": false
+                },
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "1745720",
+                        "currencyID": "TWD"
+                    },
+                    "exchangeRate": "4.3643"
                 },
                 "freightCharge": {
                     "includeOtherTaxableCharge": false
                 },
                 "insuranceCharge": {
                     "amount": {
+                        "value": "76188.46",
                         "currencyID": "SGD"
                     },
                     "exchangeRate": "1",
@@ -572,21 +275,21 @@
         "summary": {
             "numberOfInvoices": "1",
             "numberOfItems": "1",
-            "totalInvoiceCifValue": "0.00",
+            "totalInvoiceCifValue": "1745720.00",
             "totalCifFobValue": "1745720.00",
             "totalOuterPack": {
                 "value": "1",
                 "unitCode": "CTN"
             },
             "totalGrossWeight": {
-                "value": "0.500",
+                "value": "0.5",
                 "unitCode": "TNE"
             }
         },
         "formMetaData": {
-            "licenceIsActive": false,
+            "licenceIsActive": true,
             "supportingDocumentIsActive": false,
-            "additionalRecipientIdIsActive": false,
+            "additionalRecipientIdIsActive": true,
             "transportEquipmentIsActive": false,
             "certificateIsActive": false,
             "declarationIndicator": false,
@@ -603,7 +306,7 @@
                 false
             ],
             "shippingMarksIsActive": [
-                false
+                true
             ],
             "itemPackingIsActive": [
                 true
@@ -612,60 +315,139 @@
                 true
             ],
             "itemCoIsActive": [
-                false
+                true
             ]
         },
         "item": [
             {
                 "itemSequenceNumeric": "1",
-                "itemHarmonizedSystemCode": "65050020",
-                "goodsDescription": "HAIR-NETS (NMB)",
+                "itemHarmonizedSystemCode": "22029100",
+                "goodsDescription": "NON-ALCOHOLIC BEER (LTR)",
                 "originCountry": "KR",
-                "dangerousGoodsIndicator": false,
+                "brandName": "UNBRANDED",
+                "modelDescription": "BMW",
+                "dangerousGoodsIndicator": true,
                 "inHawbHucrHblNumber": "Q32424",
                 "outHawbHucrHblNumber": "Q32424",
                 "itemQuantity": {
                     "harmonizedSystemQuantity": {
                         "value": "80",
-                        "unitCode": "NMB"
+                        "unitCode": "LTR"
                     },
                     "totalDutiableQuantity": {
-                        "value": "80",
-                        "unitCode": "NMB"
+                        "value": "119267280",
+                        "unitCode": "LTR"
                     },
                     "dutiableQuantity": {
                         "value": "80",
-                        "unitCode": "NMB"
+                        "unitCode": "LTR"
                     },
                     "hsQuantity": {
                         "value": "80",
-                        "unitCode": "NMB"
+                        "unitCode": "LTR"
                     }
                 },
                 "transactionValue": {
                     "itemCIFFOBValue": "1745720",
+                    "lastSellingPriceValue": "155555.00",
                     "unitPriceValue": {
                         "amount": {
                             "value": "400000",
                             "currencyID": "TWD"
                         },
                         "exchangeRate": "4.3643"
+                    },
+                    "optionalItemCharge": {
+                        "amount": {
+                            "value": "11111.00",
+                            "currencyID": "USD"
+                        },
+                        "exchangeRate": "1.3553",
+                        "transactionValue": "150.587383"
                     }
                 },
                 "itemCalculation": {
                     "itemCifFobValueSgd": "1745720"
                 },
                 "tariff": {
+                    "preferentialCode": "PRI",
                     "goodsAndServicesTax": {
                         "goodsAndServicesTaxAmount": "0"
                     }
                 },
                 "lotIdentification": {
-                    "currentLotNumber": "PSB001"
-                }
+                    "currentLotNumber": "PSB001",
+                    "previousLotNumber": "NNNNN",
+                    "marking": "HW"
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "NGGGG"
+                        ]
+                    }
+                ],
+                "cascProduct": [
+                    {
+                        "cascProductCode": "ZBP0ABA0000",
+                        "cascProductQuantity": {
+                            "value": "80",
+                            "unitCode": "LTR"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "AUHHHHH"
+                            }
+                        ]
+                    }
+                ],
+                "packingDescription": {
+                    "outerPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAG"
+                    },
+                    "inPackQuantity": {
+                        "value": "111",
+                        "unitCode": "BAL"
+                    },
+                    "innerPackQuantity": {
+                        "value": "111",
+                        "unitCode": "BAR"
+                    },
+                    "inmostPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAL"
+                    }
+                },
+                "itemCertificate": {
+                    "itemCertificateQuantity": {
+                        "value": "111.0000",
+                        "unitCode": "BAG"
+                    },
+                    "itemValue": "111.00",
+                    "manufacturingCostDate": "20260526",
+                    "textileCategoryCode": "SEFD",
+                    "textileQuotaQuantity": {
+                        "value": "1.8888",
+                        "unitCode": "BAG"
+                    },
+                    "itemInvoiceNumber": "555",
+                    "itemInvoiceDate": "20260527",
+                    "originCriterion": [
+                        "ADD1",
+                        "ADD2",
+                        "ADD3"
+                    ],
+                    "harmonizedSystemCode": "4444444444",
+                    "contentPercent": "22"
+                },
+                "hsImportCa": "PFO",
+                "hsExportCa": "-",
+                "hsTranshipmentCa": "-"
             }
         ]
-    }
+    
+}
 
 
 

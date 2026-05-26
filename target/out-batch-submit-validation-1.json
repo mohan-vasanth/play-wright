@@ -1,4 +1,8 @@
 {
-  "toastText": "",
-  "invalidElements": []
+  "toastText": "Tradenix OUT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2605260022 URN ID 202535359H Sequence Number 1023 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice (V) Items (I) CPC (C) Summary (Y) Summary Number of Invoices Number of Items * Sum of Invoice Amount 1745720.00 TWD Sum of Item Amount 400000.00 TWD Total Invoice CIF Value Total CIF/FOB Value * Package & Weight Total Outer Pack Value 1 UOM CTN Total Gross Weight Value 0.5 UOM TNE Cross Reference ID Transport Details Inward Transport Mode Sea Arrival Date -- Outward Transport Mode Rail Departure Date 20260525 Remarks Remarks Internal Remarks Customer Remarks Declaration Indicator I/We declare that all the particulars in this Application are true and correct. PREVIOUS NEXT SAVE DRAFT SUBMIT DECLARATION Validation Failed: Please fill in all required fields before submitting: Please fill in all required fields. Invalid fields: header.additionalRecipientId[0], transport.inwardTransport.transportMeans.mawboucroblNumber, transport.inwardTransport.arrivalDate Inward Arrival Date is required for DRT declarations Inward Vehicle/Vessel Registration Number is required for Sea transport Inward MAWB/OUCR/OBL Number is required for Maritime/Air transport",
+  "invalidElements": [
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-150\",\"type\":\"text\",\"ariaInvalid\":\"\",\"classes\":\"clr-input ng-untouched ng-pristine ng-invalid\"}",
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-118\",\"type\":\"date\",\"ariaInvalid\":\"\",\"classes\":\"ng-pristine ng-invalid clr-input ng-star-inserted ng-touched\"}",
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-114\",\"type\":\"date\",\"ariaInvalid\":\"\",\"classes\":\"clr-input\"}"
+  ]
 }

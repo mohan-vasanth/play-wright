@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.automation.playwright_framework.IptDeclarationTestCase1Test
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 376.8 s -- in com.automation.playwright_framework.IptDeclarationTestCase1Test
