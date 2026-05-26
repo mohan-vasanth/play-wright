@@ -963,7 +963,7 @@ public class IptDeclarationPage {
         goToNextSection();
     }
 
-    private void fillLicense(String licenseValue) {
+    protected void fillLicense(String licenseValue) {
         if (licenseValue == null || licenseValue.isBlank()) {
             return;
         }

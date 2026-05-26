@@ -49,6 +49,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     private void fillShipmentInfo(JsonNode data) {
         JsonNode header = data.path("header");
         JsonNode cargo = data.path("cargo");
+        JsonNode certificate = data.path("certificate");
+        JsonNode license = firstArrayItem(data.path("licence"));
         JsonNode releaseLocation = cargo.path("releaseLocation");
         JsonNode receiptLocation = cargo.path("receiptLocation");
         JsonNode inwardTransportMode = data.path("transport")
@@ -132,13 +134,16 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         String coType = firstNonBlank(
                 text(header.path("certificateOfOrigin"), "coType"),
-                text(data.path("certificateOfOrigin"), "coType"));
+                text(data.path("certificateOfOrigin"), "coType"),
+                text(certificate, "applicationProductType"));
         if (coType != null && !coType.isBlank()) {
             fillLookupFieldInSectionIfPresent("Certificate of Origin", "CO Type", coType, coType);
+            setHiddenComponentValue(
+                    "app-application-product-type-lookup[formcontrolname='applicationProductType']",
+                    "CO Type",
+                    coType);
         }
-        if (data.path("formMetaData").path("licenceIsActive").asBoolean(false)) {
-            setCheckboxByLabel("License", true);
-        }
+        fillLicense(text(license, "referenceID"));
         if (data.path("formMetaData").path("supportingDocumentIsActive").asBoolean(false)) {
             setCheckboxByLabel("Document", true);
         }
@@ -640,11 +645,6 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        String additionalRecipientId = normalize(additionalRecipientIds.get(0).asText());
-        if (additionalRecipientId == null || additionalRecipientId.isBlank()) {
-            return;
-        }
-
         additionalRecipientsRequested = true;
         setCheckboxByLabel("Additional Recipients", true);
         syncCheckboxValue(true, "Additional Recipients");
@@ -659,21 +659,28 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         Locator addButton = firstVisible(additionalRecipientsSection.locator(
                 "button, [role='button'], input[type='button'], input[type='submit'], a"));
-        if (addButton != null) {
-            String buttonText = normalize(addButton.innerText());
-            if (buttonText.contains("ADD")) {
-                addButton.click(new Locator.ClickOptions().setForce(true));
-                page.waitForTimeout(300);
+        for (int index = 0; index < additionalRecipientIds.size(); index++) {
+            String additionalRecipientId = normalize(additionalRecipientIds.get(index).asText());
+            if (additionalRecipientId == null || additionalRecipientId.isBlank()) {
+                continue;
             }
-        }
 
-        Locator input = firstVisible(additionalRecipientsSection.locator(
-                "input:not([type='checkbox']):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"));
-        if (input == null) {
-            return;
-        }
+            if (index > 0 && addButton != null) {
+                String buttonText = normalize(addButton.innerText());
+                if (buttonText.contains("ADD")) {
+                    addButton.click(new Locator.ClickOptions().setForce(true));
+                    page.waitForTimeout(300);
+                }
+            }
 
-        focusAndType(input, additionalRecipientId, false);
+            Locator input = lastVisible(additionalRecipientsSection.locator(
+                    "input:not([type='checkbox']):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"));
+            if (input == null) {
+                return;
+            }
+
+            focusAndType(input, additionalRecipientId, false);
+        }
     }
 
     private void ensureAdditionalRecipientsInactive() {
