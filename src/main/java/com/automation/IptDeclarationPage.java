@@ -26,6 +26,8 @@ public class IptDeclarationPage {
 
     private static final DateTimeFormatter UI_DATE_FORMAT =
             DateTimeFormatter.ofPattern("dd-MM-uuuu").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter UI_SLASH_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
     private static final DateTimeFormatter SOURCE_DDMMYYYY_FORMAT =
             DateTimeFormatter.ofPattern("ddMMuuuu").withResolverStyle(ResolverStyle.STRICT);
     private static final DateTimeFormatter SOURCE_YYYYMMDD_FORMAT =
@@ -40,6 +42,7 @@ public class IptDeclarationPage {
     private static final int UI_POST_SUBMIT_WAIT_MS = 3000;
 
     protected final Page page;
+    private boolean summaryDraftSaved;
 
     public IptDeclarationPage(Page page) {
         this.page = page;
@@ -53,6 +56,7 @@ public class IptDeclarationPage {
     }
 
     public void populateDraftFrom(JsonNode data) {
+        summaryDraftSaved = false;
         fillSectionAndAdvance("Shipment Info (S)", () -> fillShipmentInfo(data));
         fillSectionAndAdvance("Transport Info (T)", () -> fillTransportInfo(data));
         fillSectionAndAdvance("Party Info (P)", () -> fillPartyInfo(data));
@@ -62,8 +66,15 @@ public class IptDeclarationPage {
     }
 
     public void submitDeclaration() {
-        advanceToSubmitDeclarationIfNecessary();
-        clickSubmitDeclarationWithDelay(UI_SUBMIT_CLICK_WAIT_MS);
+        openSection("Summary (Y)");
+        if (!summaryDraftSaved) {
+            saveDraftAndWaitForCompletion();
+        } else {
+            waitForPostSaveReadyState(15000);
+        }
+        waitForActionButtonEnabled("SUBMIT DECLARATION", 15000);
+        clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
+        page.waitForTimeout(5000);
     }
 
     public void openInvoiceInfoSection() {
@@ -591,8 +602,6 @@ public class IptDeclarationPage {
         }
         fillItemQuantityDetails(itemQuantity);
         JsonNode transactionValue = item.path("transactionValue");
-        fillField("Item Unit Value", normalizeNumericForEntry(
-                text(transactionValue.path("unitPriceValue").path("amount"), "value")));
         fillItemValues(transactionValue);
         fillLotIdentification(item, lotIdentification);
         fillShippingMarks(shippingMarksInformation);
@@ -650,6 +659,18 @@ public class IptDeclarationPage {
         }
 
         Locator itemValuesSection = resolveSection("Item Values");
+        JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
+        fillFieldAfterScopeLabelIfPresent(
+                itemValuesSection,
+                "Item Value",
+                0,
+                normalizeNumericForEntry(text(unitPriceValue.path("amount"), "value")));
+        fillLookupFieldAfterScopeLabelIfPresent(
+                itemValuesSection,
+                "Item Value",
+                1,
+                text(unitPriceValue.path("amount"), "currencyID"),
+                text(unitPriceValue.path("amount"), "currencyID"));
         JsonNode optionalItemCharge = transactionValue.path("optionalItemCharge");
         fillFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
@@ -892,9 +913,9 @@ public class IptDeclarationPage {
         openSection("Summary (Y)");
         fillFieldInSectionIfPresent("Remarks", "Remarks", text(data.path("header").path("remarks"), "freeText"));
         if (data.path("header").path("declarationIndicator").asBoolean(false)) {
-            setCheckboxByLabel("Declaration Indicator", true);
+            setDeclarationIndicatorInSummary(true);
         }
-        saveDraft();
+        saveDraftAndWaitForCompletion();
     }
 
     private boolean shouldSubmitDeclaration(JsonNode data) {
@@ -3322,6 +3343,157 @@ public class IptDeclarationPage {
         page.waitForTimeout(UI_POST_SUBMIT_WAIT_MS);
     }
 
+    private void saveDraftAndWaitForCompletion() {
+        waitForActionButtonEnabled("SAVE DRAFT", 15000);
+        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForPostSaveReadyState(15000);
+        summaryDraftSaved = true;
+    }
+
+    private void waitForPostSaveReadyState(int timeoutMs) {
+        int stableChecks = 0;
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean ready = (Boolean) page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const isEnabled = element => {
+                            const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                            const disabled = element.disabled === true || element.hasAttribute('disabled');
+                            return !disabled && ariaDisabled !== 'TRUE';
+                        };
+                        const findExactButton = expected => Array.from(document.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible)
+                            .reverse()
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                const ariaLabel = normalize(element.getAttribute('aria-label'));
+                                const value = normalize(element.getAttribute('value'));
+                                return text === expected || ariaLabel === expected || value === expected;
+                            });
+
+                        const saveButton = findExactButton('SAVE DRAFT');
+                        const submitButton = findExactButton('SUBMIT DECLARATION');
+                        return !!saveButton && isEnabled(saveButton) && !!submitButton && isEnabled(submitButton);
+                    }
+                    """);
+            if (Boolean.TRUE.equals(ready)) {
+                stableChecks++;
+                if (stableChecks >= 2) {
+                    return;
+                }
+            } else {
+                stableChecks = 0;
+            }
+            page.waitForTimeout(250);
+        }
+        throw new IllegalStateException("Page did not return to ready state after saving draft.");
+    }
+
+    private void waitForActionButtonEnabled(String buttonText, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean enabled = (Boolean) page.evaluate("""
+                    expected => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const isEnabled = element => {
+                            const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                            const disabled = element.disabled === true || element.hasAttribute('disabled');
+                            return !disabled && ariaDisabled !== 'TRUE';
+                        };
+                        const target = Array.from(document.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible)
+                            .reverse()
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                const ariaLabel = normalize(element.getAttribute('aria-label'));
+                                const value = normalize(element.getAttribute('value'));
+                                return text === expected || ariaLabel === expected || value === expected;
+                            });
+                        return !!target && isEnabled(target);
+                    }
+                    """, buttonText.trim().toUpperCase());
+            if (Boolean.TRUE.equals(enabled)) {
+                return;
+            }
+            page.waitForTimeout(250);
+        }
+        throw new IllegalStateException("Action button was not enabled: " + buttonText);
+    }
+
+    private void clickActionButtonExactWithRetry(String buttonText, int attempts) {
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            closeTransientOverlays();
+            if (clickExactActionButtonIfVisible(buttonText)) {
+                return;
+            }
+            page.waitForTimeout(500);
+        }
+        throw new IllegalStateException("Action button was not clickable: " + buttonText);
+    }
+
+    private boolean clickExactActionButtonIfVisible(String buttonText) {
+        String expected = buttonText.trim().toUpperCase();
+        return Boolean.TRUE.equals(page.evaluate("""
+                expected => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const isEnabled = element => {
+                        const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                        const disabled = element.disabled === true || element.hasAttribute('disabled');
+                        return !disabled && ariaDisabled !== 'TRUE';
+                    };
+                    const target = Array.from(document.querySelectorAll(
+                            "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                        .filter(isVisible)
+                        .reverse()
+                        .find(element => {
+                            const text = normalize(element.innerText || element.textContent);
+                            const ariaLabel = normalize(element.getAttribute('aria-label'));
+                            const value = normalize(element.getAttribute('value'));
+                            return (text === expected || ariaLabel === expected || value === expected) && isEnabled(element);
+                        });
+                    if (!target) {
+                        return false;
+                    }
+                    target.scrollIntoView({ block: 'center' });
+                    target.click();
+                    return true;
+                }
+                """, expected));
+    }
+
     private void advanceToSubmitDeclarationIfNecessary() {
         Locator submitButton = resolveSubmitDeclarationButtonOrNull();
         if (submitButton != null) {
@@ -3686,10 +3858,81 @@ public class IptDeclarationPage {
         }
 
         visibleCheckbox.scrollIntoViewIfNeeded();
-        boolean selected = "true".equalsIgnoreCase(normalize(visibleCheckbox.getAttribute("aria-checked")))
-                || Boolean.TRUE.equals(visibleCheckbox.evaluate("element => element.checked === true"));
+        boolean selected = isCheckboxSelected(visibleCheckbox);
         if (selected != checked) {
             visibleCheckbox.click(new Locator.ClickOptions().setForce(true));
+        }
+        if (isCheckboxSelected(visibleCheckbox) != checked) {
+            clickContainerByLabelIfPresent(label);
+        }
+        if (isCheckboxSelected(visibleCheckbox) != checked) {
+            forceCheckboxValue(checked, label);
+        }
+    }
+
+    private void setDeclarationIndicatorInSummary(boolean checked) {
+        Locator declarationSummarySection = resolveSection("Declaration Summary");
+        Locator checkbox = firstVisible(declarationSummarySection.locator("input[type='checkbox'], [role='checkbox']"));
+        if (checkbox == null) {
+            throw new IllegalStateException("Declaration indicator checkbox was not visible in Declaration Summary.");
+        }
+
+        checkbox.scrollIntoViewIfNeeded();
+        if (isCheckboxSelected(checkbox) != checked) {
+            checkbox.click(new Locator.ClickOptions().setForce(true));
+        }
+        if (isCheckboxSelected(checkbox) != checked) {
+            clickContainerByLabelIfPresent("I/We declare that all particulars in this application are true and correct.");
+        }
+        if (isCheckboxSelected(checkbox) != checked) {
+            forceCheckboxValue(checked,
+                    "I/We declare that all particulars in this application are true and correct.",
+                    "Declaration Indicator");
+        }
+        if (isCheckboxSelected(checkbox) != checked) {
+            throw new IllegalStateException("Declaration indicator checkbox did not reach expected state: " + checked);
+        }
+    }
+
+    private boolean isCheckboxSelected(Locator checkbox) {
+        return "true".equalsIgnoreCase(normalize(checkbox.getAttribute("aria-checked")))
+                || Boolean.TRUE.equals(checkbox.evaluate("element => element.checked === true"));
+    }
+
+    protected void forceCheckboxValue(boolean checked, String... labelHints) {
+        try {
+            page.evaluate("""
+                    args => {
+                        const normalize = input => (input || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const hints = (args.labelHints || []).map(normalize).filter(Boolean);
+                        const label = Array.from(document.querySelectorAll('label, span, div, p'))
+                            .filter(isVisible)
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                return hints.some(hint => text.includes(hint));
+                            });
+                        if (!label) {
+                            return false;
+                        }
+
+                        const checkbox = label.closest('div, label, section, form')?.querySelector('input[type="checkbox"]')
+                            || label.parentElement?.querySelector('input[type="checkbox"]')
+                            || document.querySelector('input[type="checkbox"][formcontrolname="declarationIndicator"]');
+                        if (!checkbox) {
+                            return false;
+                        }
+
+                        checkbox.checked = !!args.checked;
+                        checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        checkbox.dispatchEvent(new Event('blur', { bubbles: true }));
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "checked", checked,
+                    "labelHints", labelHints));
+        } catch (Exception ignored) {
         }
     }
 
@@ -3880,7 +4123,7 @@ public class IptDeclarationPage {
         if (value == null || value.isBlank()) {
             return "";
         }
-        LocalDate parsedDate = parseDate(value.trim(), UI_DATE_FORMAT);
+        LocalDate parsedDate = parseFlexibleDateValue(value);
         return parsedDate == null ? "" : parsedDate.toString();
     }
 
@@ -3926,7 +4169,38 @@ public class IptDeclarationPage {
         String normalized = value.trim();
         if (!normalized.isBlank()) {
             candidates.add(normalized);
+            LocalDate parsedDate = parseFlexibleDateValue(normalized);
+            if (parsedDate != null) {
+                candidates.add(parsedDate.format(UI_DATE_FORMAT));
+                candidates.add(parsedDate.format(UI_SLASH_DATE_FORMAT));
+                candidates.add(parsedDate.toString());
+            }
         }
+    }
+
+    private LocalDate parseFlexibleDateValue(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        String separatorNormalized = normalized.replace('/', '-').replace('.', '-');
+        LocalDate parsedUiDate = parseDate(separatorNormalized, UI_DATE_FORMAT);
+        if (parsedUiDate != null) {
+            return parsedUiDate;
+        }
+
+        LocalDate parsedIsoDate = parseDate(separatorNormalized, DateTimeFormatter.ISO_LOCAL_DATE);
+        if (parsedIsoDate != null) {
+            return parsedIsoDate;
+        }
+
+        String digitsOnly = normalized.replaceAll("\\D", "");
+        if (digitsOnly.length() == 8) {
+            return tryParseDate(digitsOnly);
+        }
+
+        return null;
     }
 
     private void pauseUi(int timeoutMs) {

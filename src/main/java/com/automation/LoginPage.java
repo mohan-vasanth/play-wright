@@ -74,6 +74,38 @@ public class LoginPage {
         page.locator(LOGIN_BUTTON).click();
     }
 
+    public void waitForAuthenticatedState() {
+        page.waitForFunction(
+                """
+                selector => {
+                    const path = window.location.pathname || '';
+                    if (path.includes('/auth/login')) {
+                        return false;
+                    }
+
+                    const input = document.querySelector(selector);
+                    const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    if (input && isVisible(input)) {
+                        return false;
+                    }
+
+                    return Array.from(document.querySelectorAll('a, button, [role="button"], nav'))
+                        .some(element => {
+                            if (!isVisible(element)) {
+                                return false;
+                            }
+                            const text = (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                            return text.includes('DECLARATIONS')
+                                    || text.includes('DASHBOARD')
+                                    || text.includes('NEW DECLARATION')
+                                    || text.includes('LOGOUT');
+                        });
+                }
+                """,
+                USERNAME);
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+    }
+
     private void selectUserOption(String selector, String requestedLabel, String fieldName) {
         page.waitForFunction(
                 "selector => { const select = document.querySelector(selector); return !!select && !select.disabled; }",

@@ -33,7 +33,7 @@ public class DeclarationNavigationTest extends BaseTest {
 
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
-        page.waitForURL("**/dashboard");
+        loginPage.waitForAuthenticatedState();
 
         declarationsPage.autoAcceptUnsavedChanges();
 
