@@ -20,10 +20,23 @@ class IptDeclarationPageDateFormatTest {
         assertEquals("13-05-2026", formatUiDate("13-05-2026"));
     }
 
+    @Test
+    void convertsSlashFormattedUiDateToHtmlDateValue() throws Exception {
+        assertEquals("2026-05-13", toHtmlDateValue("13/05/2026"));
+    }
+
     private String formatUiDate(String value)
             throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         IptDeclarationPage page = new IptDeclarationPage(null);
         Method method = IptDeclarationPage.class.getDeclaredMethod("formatUiDate", String.class);
+        method.setAccessible(true);
+        return (String) method.invoke(page, value);
+    }
+
+    private String toHtmlDateValue(String value)
+            throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        IptDeclarationPage page = new IptDeclarationPage(null);
+        Method method = IptDeclarationPage.class.getDeclaredMethod("toHtmlDateValue", String.class);
         method.setAccessible(true);
         return (String) method.invoke(page, value);
     }

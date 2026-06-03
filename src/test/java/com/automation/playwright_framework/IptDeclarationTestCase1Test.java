@@ -47,7 +47,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
-        page.waitForURL("**/dashboard");
+        loginPage.waitForAuthenticatedState();
 
         declarationsPage.autoAcceptUnsavedChanges();
         openDeclarationListWithRelogin(loginPage, declarationsPage);
@@ -200,7 +200,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         }
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
-        page.waitForURL("**/dashboard");
+        loginPage.waitForAuthenticatedState();
     }
 
     private void deleteExistingArtifacts(String artifactPrefix) {

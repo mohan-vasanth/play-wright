@@ -2,6 +2,7 @@ package com.automation.playwright_framework;
 
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import com.google.gson.Gson;
@@ -28,13 +29,18 @@ public class UserApiTest {
     private static final String USER_TENANTS_API_URL = System.getProperty(
             "tradenix.user.tenants.api.url",
             "http://ec2-52-74-80-143.ap-southeast-1.compute.amazonaws.com:9000/api/auth/users/tenants");
-    private static final String ADMIN_USERNAME = System.getProperty("tradenix.admin.username", "prasanna");
-    private static final String ADMIN_PASSWORD = System.getProperty("tradenix.admin.password", "123456");
+    private static final String ADMIN_USERNAME = System.getProperty("tradenix.admin.username");
+    private static final String ADMIN_PASSWORD = System.getProperty("tradenix.admin.password");
     private static final String USER_USERNAME = System.getProperty("tradenix.user.username", "heisenberg");
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "123456789");
 
     @Test
     public void adminLoginApiReturnsSuccess() {
+        Assumptions.assumeTrue(
+                ADMIN_USERNAME != null && !ADMIN_USERNAME.isBlank()
+                        && ADMIN_PASSWORD != null && !ADMIN_PASSWORD.isBlank(),
+                "Admin API login test requires tradenix.admin.username and tradenix.admin.password.");
+
         RestAssured
                 .given()
                 .contentType(ContentType.JSON)

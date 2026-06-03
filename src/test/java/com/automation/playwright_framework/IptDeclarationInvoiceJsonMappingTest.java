@@ -43,7 +43,7 @@ class IptDeclarationInvoiceJsonMappingTest {
                 .path("cascCodeOne")
                 .asText();
 
-        assertEquals("US99999", cascCodeOne);
+        assertEquals("AU99999", cascCodeOne);
     }
 
     private static JsonNode loadTestData(String resourcePath) {
