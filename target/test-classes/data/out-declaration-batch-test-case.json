@@ -1,15 +1,16 @@
 [
 
- {
+
+{
     "type": "OUTDEC",
     
         "type": "OUT",
         "header": {
-            "messageReference": "TDX2605260012",
+            "messageReference": "TDX2606030066",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260526",
-                "sequenceNumeric": "1011"
+                "date": "20260603",
+                "sequenceNumeric": "1065"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "OUTDEC",
@@ -18,7 +19,7 @@
             "bankerGuaranteeCode": "I",
             "previousPermitNumber": "II6D120094Y",
             "remarks": {
-                "freeText": "ADATA "
+                "freeText": "ADATA"
             },
             "additionalRecipientId": [
                 "CDWEDSDDED"
@@ -27,31 +28,33 @@
         "certificate": {
             "applicationProductType": "NH",
             "gspDonorCountry": "CL",
-            "entryYear": "1111",
-            "preferenceContentPercent": "11",
+            "entryYear": 1111,
+            "preferenceContentPercent": 11,
             "currencyCode": "USD",
             "certificateDetail": [
                 {
+                    "sequenceNumeric": 1,
                     "certificateType": "1",
-                    "copiesNumeric": "11"
+                    "copiesNumeric": 11
                 },
                 {
+                    "sequenceNumeric": 2,
                     "certificateType": "2",
-                    "copiesNumeric": "11"
+                    "copiesNumeric": 11
                 }
             ],
             "additionalCertificateDetails": [
-                "ARAVINTH",
-                "SARAN",
-                "SUDHAKAR",
-                "KALAI",
-                "PRABHA"
+                "A",
+                "S",
+                "S",
+                "K",
+                "P"
             ],
             "transportDetails": [
-                "RAFIQ",
-                "PRASANA",
+                "R",
+                "P",
                 "MOHAN",
-                "KAVIYA",
+                "K",
                 "BARANI"
             ]
         },
@@ -94,8 +97,9 @@
                         "conveyanceReferenceNumber": "7654ET",
                         "transportIdentifier": "EVERGREEN V.123D"
                     },
-                    "mawboucroblNumber": "FGT556"
+                    "mawboucroblNumber": "XCVSCFSCFSCFS"
                 },
+                "arrivalDate": "20260605",
                 "loadingPort": "AEAJM"
             },
             "outwardTransport": {
@@ -109,18 +113,7 @@
                 },
                 "departureDate": "20260525",
                 "dischargePort": "IDJKT",
-                "finalDestinationCountry": "ID",
-                "additionalVesselInformation": {
-                    "vesselType": "CV",
-                    "netRegisterTonnage": "75",
-                    "vesselNationality": "NA",
-                    "loadingNextPort": "IDJKT",
-                    "loadingFinalPort": "AUSYD",
-                    "towingVessel": {
-                        "vesselID": "7654ER",
-                        "vesselName": "GAFDRSE"
-                    }
-                }
+                "finalDestinationCountry": "ID"
             }
         },
         "party": {
@@ -137,8 +130,18 @@
                         "id": "198700002E"
                     },
                     "partyName": {
-                        "name": "FORESPAND FOOD ENTER PRISE PTE LTD FORESPAND FOOD ENTER PRISE"
+                        "name": "FORESPAND FOOD ENTER PRISE PTE LTD"
                     }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "FD",
+                            "HGE"
+                        ]
+                    },
+                    "cityName": "SGD",
+                    "countryCode": "SG"
                 }
             },
             "declaringAgentParty": {
@@ -174,19 +177,24 @@
                 }
             },
             "consigneeParty": {
+                "partyIdentification": {
+                    "id": "A24324A11"
+                },
                 "partyName": {
-                    "name": "NAME1"
+                    "name": "AK INFRA STRCUTURE PVT LTD"
                 },
                 "address": {
                     "addressLine": {
                         "line": [
-                            "ADD2",
-                            "ADD3"
+                            "TAMILNADU",
+                            "CHENNAI"
                         ]
                     },
-                    "cityName": "SAMPLECITY",
-                    "postalZone": "21312",
-                    "countryCode": "SG"
+                    "cityName": "TIRUCHIRAPPALLI",
+                    "countrySubentityCode": "TAMILNADU",
+                    "countrySubentity": "SDA",
+                    "postalZone": "620009",
+                    "countryCode": "IN"
                 }
             },
             "freightForwarderParty": {
@@ -221,9 +229,6 @@
                 }
             },
             "endUserParty": {
-                "partyIdentification": {
-                    "id": "A2343232A"
-                },
                 "partyName": {
                     "name": "TESTING ENDUSER 1"
                 },
@@ -316,6 +321,9 @@
             ],
             "itemCoIsActive": [
                 true
+            ],
+            "otherQuantityFieldIsActive": [
+                false
             ]
         },
         "item": [
@@ -349,21 +357,12 @@
                 },
                 "transactionValue": {
                     "itemCIFFOBValue": "1745720",
-                    "lastSellingPriceValue": "155555.00",
                     "unitPriceValue": {
                         "amount": {
                             "value": "400000",
                             "currencyID": "TWD"
                         },
                         "exchangeRate": "4.3643"
-                    },
-                    "optionalItemCharge": {
-                        "amount": {
-                            "value": "11111.00",
-                            "currencyID": "USD"
-                        },
-                        "exchangeRate": "1.3553",
-                        "transactionValue": "150.587383"
                     }
                 },
                 "itemCalculation": {
@@ -391,7 +390,7 @@
                     {
                         "cascProductCode": "ZBP0ABA0000",
                         "cascProductQuantity": {
-                            "value": "80",
+                            "value": "80.0000",
                             "unitCode": "LTR"
                         },
                         "additionalCascIdentification": [
@@ -401,49 +400,34 @@
                         ]
                     }
                 ],
-                "packingDescription": {
-                    "outerPackQuantity": {
-                        "value": "11",
-                        "unitCode": "BAG"
-                    },
-                    "inPackQuantity": {
-                        "value": "111",
-                        "unitCode": "BAL"
-                    },
-                    "innerPackQuantity": {
-                        "value": "111",
-                        "unitCode": "BAR"
-                    },
-                    "inmostPackQuantity": {
-                        "value": "11",
-                        "unitCode": "BAL"
-                    }
-                },
                 "itemCertificate": {
                     "itemCertificateQuantity": {
-                        "value": "111.0000",
-                        "unitCode": "BAG"
+                        "value": "80",
+                        "unitCode": "LTR"
                     },
-                    "itemValue": "111.00",
-                    "manufacturingCostDate": "20260526",
-                    "textileCategoryCode": "SEFD",
-                    "textileQuotaQuantity": {
-                        "value": "1.8888",
-                        "unitCode": "BAG"
-                    },
-                    "itemInvoiceNumber": "555",
-                    "itemInvoiceDate": "20260527",
-                    "originCriterion": [
-                        "ADD1",
-                        "ADD2",
-                        "ADD3"
+                    "itemValue": "11.00",
+                    "itemCertificateDescription": [
+                        {
+                            "line": [
+                                "NON-ALCOHOLIC BEER (LTR)"
+                            ]
+                        }
                     ],
-                    "harmonizedSystemCode": "4444444444",
-                    "contentPercent": "22"
-                },
-                "hsImportCa": "PFO",
-                "hsExportCa": "-",
-                "hsTranshipmentCa": "-"
+                    "manufacturingCostDate": "20260604",
+                    "textileCategoryCode": "DD",
+                    "textileQuotaQuantity": {
+                        "value": "11.0000",
+                        "unitCode": "BAG"
+                    },
+                    "itemInvoiceNumber": "DCC",
+                    "itemInvoiceDate": "20260604",
+                    "originCriterion": [
+                        "GGG",
+                        "DCD",
+                        "DCDC"
+                    ],
+                    "harmonizedSystemCode": "22029100"
+                }
             }
         ]
     

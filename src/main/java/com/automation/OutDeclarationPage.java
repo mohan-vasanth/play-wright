@@ -3,6 +3,7 @@ package com.automation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
 
 public class OutDeclarationPage extends IptDeclarationPage {
 
@@ -37,6 +38,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     public void populateDraftFrom(JsonNode data) {
+        summaryDraftSaved = false;
+        additionalRecipientsRequested = false;
         fillSectionAndAdvance("Shipment Info (S)", () -> fillShipmentInfo(data));
         fillSectionAndAdvance("Transport Info (T)", () -> fillTransportInfo(data));
         fillSectionAndAdvance("Party Info (P)", () -> fillPartyInfo(data));
@@ -142,10 +145,76 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "app-application-product-type-lookup[formcontrolname='applicationProductType']",
                     "CO Type",
                     coType);
+            fillCertificateOfOrigin(certificate);
         }
         fillLicense(text(license, "referenceID"));
         if (data.path("formMetaData").path("supportingDocumentIsActive").asBoolean(false)) {
             setCheckboxByLabel("Document", true);
+        }
+    }
+
+    private void fillCertificateOfOrigin(JsonNode certificate) {
+        if (certificate == null || certificate.isMissingNode() || certificate.isNull()) {
+            return;
+        }
+
+        String gspDonorCountry = text(certificate, "gspDonorCountry");
+        fillLookupFieldInSectionIfPresent("Certificate of Origin", "GSP Donor Country",
+                gspDonorCountry,
+                gspDonorCountry);
+        setHiddenComponentValue(
+                "app-country-code-lookup[formcontrolname='gspDonorCountry'], [formcontrolname='gspDonorCountry']",
+                "GSP Donor Country",
+                gspDonorCountry);
+
+        fillFieldInSectionIfPresent("Certificate of Origin", "Entry Year", text(certificate, "entryYear"));
+        fillFieldInSectionIfPresent("Certificate of Origin", "Preference Content Percent",
+                text(certificate, "preferenceContentPercent"));
+
+        String currencyCode = text(certificate, "currencyCode");
+        fillLookupFieldInSectionIfPresent("Certificate of Origin", "Currency",
+                currencyCode,
+                currencyCode);
+        setHiddenComponentValue(
+                "app-currency-code-lookup[formcontrolname='currencyCode'], [formcontrolname='currencyCode']",
+                "Currency",
+                currencyCode);
+
+        fillCertificateDetail(certificate.path("certificateDetail"), 0, "Certificate Detail #1");
+        fillCertificateDetail(certificate.path("certificateDetail"), 1, "Certificate Detail #2");
+        fillRepeatedCertificateText(certificate.path("additionalCertificateDetails"), "Additional Info");
+        fillRepeatedCertificateText(certificate.path("transportDetails"), "Transport Detail");
+    }
+
+    private void fillCertificateDetail(JsonNode certificateDetails, int index, String labelPrefix) {
+        if (!certificateDetails.isArray() || index >= certificateDetails.size()) {
+            return;
+        }
+
+        JsonNode detail = certificateDetails.get(index);
+        if (detail == null || detail.isMissingNode() || detail.isNull()) {
+            return;
+        }
+
+        String certificateType = text(detail, "certificateType");
+        fillLookupFieldInSectionIfPresent("Certificate of Origin", labelPrefix + " - Type",
+                certificateType,
+                certificateType);
+        fillFieldInSectionIfPresent("Certificate of Origin", labelPrefix + " - Copies",
+                text(detail, "copiesNumeric"));
+    }
+
+    private void fillRepeatedCertificateText(JsonNode values, String labelPrefix) {
+        if (!values.isArray()) {
+            return;
+        }
+
+        for (int index = 0; index < values.size(); index++) {
+            String value = normalize(nodeText(values.get(index)));
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            fillFieldInSectionIfPresent("Certificate of Origin", labelPrefix + " #" + (index + 1), value);
         }
     }
 
@@ -174,7 +243,9 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (resolveSectionOrNull("Inward Transport Means") != null) {
             String inwardConveyanceReferenceNumber = text(inwardTransportMode, "conveyanceReferenceNumber");
             String inwardTransportIdentifier = text(inwardTransportMode, "transportIdentifier");
-            String inwardBillOfLadingNumber = text(inwardTransport, "mawboucroblNumber");
+            String inwardBillOfLadingNumber = firstNonBlank(
+                    text(inwardTransportMeans, "mawboucroblNumber"),
+                    text(inwardTransport, "mawboucroblNumber"));
 
             fillFieldInSectionIfPresent(
                     "Inward Transport Means",
@@ -471,36 +542,61 @@ public class OutDeclarationPage extends IptDeclarationPage {
     private void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
 
+        fillPartyLookupRow("Importer", party.path("importerParty"));
+        fillPartyLookupRow("Inward Carrier", party.path("inwardCarrierAgentParty"));
+        fillPartyLookupRow("Freight Forwarder", party.path("freightForwarderParty"));
+        fillPartyLookupRow("Outward Carrier", party.path("outwardCarrierAgentParty"));
+        fillPartyLookupRow("Declaring Agent", party.path("declaringAgentParty"));
+
+        fillLookupPartyComponent("app-importer-lookup[formcontrolname='name']",
+                text(partyIdentityNode(party.path("importerParty")).path("partyName"), "name"),
+                text(partyIdentityNode(party.path("importerParty")).path("partyIdentification"), "id"));
         fillLookupPartyComponent("app-inward-carrier-lookup[formcontrolname='name']",
-                text(party.path("inwardCarrierAgentParty").path("partyName"), "name"),
-                text(party.path("inwardCarrierAgentParty").path("partyIdentification"), "id"));
+                text(partyIdentityNode(party.path("inwardCarrierAgentParty")).path("partyName"), "name"),
+                text(partyIdentityNode(party.path("inwardCarrierAgentParty")).path("partyIdentification"), "id"));
         fillLookupPartyComponent("app-freight-forwarder-lookup[formcontrolname='name']",
-                text(party.path("freightForwarderParty").path("partyName"), "name"),
-                text(party.path("freightForwarderParty").path("partyIdentification"), "id"));
+                text(partyIdentityNode(party.path("freightForwarderParty")).path("partyName"), "name"),
+                text(partyIdentityNode(party.path("freightForwarderParty")).path("partyIdentification"), "id"));
         fillLookupPartyComponent("app-outward-carrier-agent-lookup[formcontrolname='name']",
-                text(party.path("outwardCarrierAgentParty").path("partyName"), "name"),
-                text(party.path("outwardCarrierAgentParty").path("partyIdentification"), "id"));
+                text(partyIdentityNode(party.path("outwardCarrierAgentParty")).path("partyName"), "name"),
+                text(partyIdentityNode(party.path("outwardCarrierAgentParty")).path("partyIdentification"), "id"));
 
         fillPartyCard(
                 "Exporter",
-                party.path("exporterParty").path("partyDetail").path("partyName").path("name"),
-                party.path("exporterParty").path("partyDetail").path("partyIdentification").path("id"),
+                partyIdentityNode(party.path("exporterParty")).path("partyName").path("name"),
+                partyIdentityNode(party.path("exporterParty")).path("partyIdentification").path("id"),
                 party.path("exporterParty").path("address"));
         fillPartyCard(
                 "Consignee",
-                party.path("consigneeParty").path("partyName").path("name"),
-                party.path("consigneeParty").path("partyIdentification").path("id"),
+                partyIdentityNode(party.path("consigneeParty")).path("partyName").path("name"),
+                partyIdentityNode(party.path("consigneeParty")).path("partyIdentification").path("id"),
                 party.path("consigneeParty").path("address"));
         fillPartyCard(
                 "End User",
-                party.path("endUserParty").path("partyName").path("name"),
-                party.path("endUserParty").path("partyIdentification").path("id"),
+                partyIdentityNode(party.path("endUserParty")).path("partyName").path("name"),
+                partyIdentityNode(party.path("endUserParty")).path("partyIdentification").path("id"),
                 party.path("endUserParty").path("address"));
         fillPartyCard(
                 "Manufacturer",
-                party.path("manufacturerParty").path("partyName").path("name"),
-                party.path("manufacturerParty").path("partyIdentification").path("id"),
+                partyIdentityNode(party.path("manufacturerParty")).path("partyName").path("name"),
+                partyIdentityNode(party.path("manufacturerParty")).path("partyIdentification").path("id"),
                 party.path("manufacturerParty").path("address"));
+    }
+
+    private void fillPartyLookupRow(String rowLabel, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        fillLookupPartyRow(
+                rowLabel,
+                text(identityNode.path("partyName"), "name"),
+                text(identityNode.path("partyIdentification"), "id"));
+    }
+
+    private JsonNode partyIdentityNode(JsonNode partyNode) {
+        JsonNode partyDetail = partyNode.path("partyDetail");
+        if (!isMissingOrEmpty(partyDetail)) {
+            return partyDetail;
+        }
+        return partyNode;
     }
 
     private void fillPartyCard(String title, JsonNode nameNode, JsonNode idNode, JsonNode addressNode) {
@@ -519,11 +615,17 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
+        String addressLine1 = arrayText(addressLines, 0);
+        String addressLine2 = arrayText(addressLines, 1);
+        String city = text(addressNode, "cityName");
+        String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
+        String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city);
+
+        fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
         fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, arrayText(addressLines, 0));
         fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, arrayText(addressLines, 1));
-        fillFieldAfterScopeLabelIfPresent(card, "City", 0, text(addressNode, "cityName"));
-        fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0,
-                firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode")));
+        fillFieldAfterScopeLabelIfPresent(card, "City", 0, city);
+        fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0, postalCode);
         fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0,
                 text(addressNode, "countryCode"),
                 text(addressNode, "countryCode"));
@@ -533,12 +635,16 @@ public class OutDeclarationPage extends IptDeclarationPage {
         JsonNode invoice = firstArrayItem(data.path("invoice"));
         JsonNode item = firstArrayItem(data.path("item"));
         JsonNode unitPriceValue = item.path("transactionValue").path("unitPriceValue");
+        JsonNode supplierManufacturerParty = invoice.path("supplierManufacturerParty");
 
         fillField("Invoice Number", firstNonBlank(text(invoice, "invoiceNumber"), "1"));
         fillDateField("Invoice Date", formatUiDate(text(invoice, "invoiceDate")));
         fillInvoiceTermType(text(invoice, "unitPriceTermType"));
 
-        String supplierManufacturerName = text(invoice.path("supplierManufacturerParty"), "name");
+        String supplierManufacturerName = firstNonBlank(
+                text(supplierManufacturerParty, "name"),
+                text(supplierManufacturerParty.path("partyName"), "name"),
+                text(partyIdentityNode(supplierManufacturerParty).path("partyName"), "name"));
         if (supplierManufacturerName != null && !supplierManufacturerName.isBlank()) {
             fillSupplierManufacturerName(supplierManufacturerName);
         }
@@ -551,6 +657,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 text(data.path("summary"), "totalCifFobValue"),
                 text(item.path("transactionValue"), "itemCIFFOBValue"));
         fillLookupFieldInChargeRowIfPresent("A. Total Invoice", "Currency", invoiceCurrency, invoiceCurrency);
+        fillFieldInChargeRowIfPresent("A. Total Invoice", "Exchange Rate",
+                normalizeNumericForEntry(text(invoice.path("totalInvoiceValue"), "exchangeRate")));
         fillFieldInChargeRowIfPresent("A. Total Invoice", "Amount", normalizeNumericForEntry(invoiceAmount));
 
         JsonNode freightCharge = invoice.path("freightCharge");
@@ -580,17 +688,25 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         String gst = nodeText(invoice.path("gst"));
         if (gst != null && !gst.isBlank()) {
-            fillLookupFieldInRowByIndex("K. GST", 0, gst, gst, gst + "%");
+            fillLookupFieldInRowByIndexIfPresent("K. GST", 0, gst, gst, gst + "%");
         }
     }
 
     private void fillItemInfo(JsonNode data) {
+        JsonNode invoice = firstArrayItem(data.path("invoice"));
         JsonNode item = firstArrayItem(data.path("item"));
         JsonNode itemQuantity = item.path("itemQuantity");
+        JsonNode packingDescription = item.path("packingDescription");
         JsonNode transactionValue = item.path("transactionValue");
         JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
         JsonNode lotIdentification = item.path("lotIdentification");
+        JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
+        JsonNode cascProduct = firstArrayItem(item.path("cascProduct"));
+        JsonNode itemCertificate = item.path("itemCertificate");
 
+        fillLookupFieldIfPresent("Invoice Number",
+                firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")),
+                firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")));
         fillFieldIfPresent("Inward HAWB", text(item, "inHawbHucrHblNumber"));
         fillFieldIfPresent("Outward HAWB", text(item, "outHawbHucrHblNumber"));
         fillLookupFieldIfPresent("Currency",
@@ -598,7 +714,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 text(unitPriceValue.path("amount"), "currencyID"));
         fillFieldIfPresent("Exchange Rate", normalizeNumericForEntry(text(unitPriceValue, "exchangeRate")));
         fillItemHsCode(text(item, "itemHarmonizedSystemCode"));
-        fillFieldIfPresent("Description", text(item, "goodsDescription"));
+        fillFirstPresentField(text(item, "goodsDescription"), "Goods Description", "Description");
         fillLookupFieldIfPresent("COO",
                 text(item, "originCountry"),
                 text(item, "originCountry"));
@@ -614,9 +730,13 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (data.path("formMetaData").path("itemPackingIsActive").path(0).asBoolean(false)) {
             setCheckboxByLabel("Item Packing", true);
         }
+        if (!isMissingOrEmpty(packingDescription)) {
+            fillPackingDescription(packingDescription);
+        }
 
         Locator itemQuantitySection = resolveSection("Item Quantity");
         fillQuantityRowInScope(itemQuantitySection, "Dutiable Quantity", itemQuantity.path("dutiableQuantity"));
+        fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Qty", itemQuantity.path("totalDutiableQuantity"));
         fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Quantity", itemQuantity.path("totalDutiableQuantity"));
         fillQuantityRowInScope(itemQuantitySection, "HS Quantity",
                 firstNonBlankNode(itemQuantity.path("hsQuantity"), itemQuantity.path("harmonizedSystemQuantity")));
@@ -625,6 +745,122 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 normalizeNumericForEntry(text(unitPriceValue.path("amount"), "value")));
         fillItemValues(transactionValue);
         fillLotIdentification(item, lotIdentification);
+        fillShippingMarks(shippingMarksInformation);
+        fillCascDetails(cascProduct);
+        fillItemCertificate(itemCertificate, data.path("formMetaData"));
+        fillLookupFieldIfPresentByLabels(text(item, "hsImportCa"), "HS Import CA", "HS CA");
+        fillLookupFieldIfPresentByLabels(text(item, "hsExportCa"), "HS Export CA");
+        fillLookupFieldIfPresentByLabels(text(item, "hsTranshipmentCa"), "HS Transhipment CA");
+    }
+
+    private void fillItemCertificate(JsonNode itemCertificate, JsonNode formMetaData) {
+        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
+        boolean itemCoEnabled = hasItemCertificateData
+                || formMetaData.path("itemCoIsActive").path(0).asBoolean(false);
+        if (!itemCoEnabled) {
+            return;
+        }
+
+        setCheckboxByLabel("Certificate of Origin (CO)", true);
+        page.waitForTimeout(300);
+
+        Locator itemCertificateSection = waitForItemCertificateSectionOrNull(3000);
+        if (itemCertificateSection == null) {
+            throw new IllegalStateException("Certificate of Origin (CO) section did not open in the Item tab.");
+        }
+        if (!hasItemCertificateData) {
+            return;
+        }
+
+        fillQuantityRowInScope(itemCertificateSection, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
+        fillQuantityRowInScope(itemCertificateSection, "Textile Quota Quantity", itemCertificate.path("textileQuotaQuantity"));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Manufacturing Cost Date", 0,
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Certificate Item Value", 0,
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Textile Category Code", 0,
+                text(itemCertificate, "textileCategoryCode"));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Item Invoice Number", 0, text(itemCertificate, "itemInvoiceNumber"));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Item Invoice Date", 0,
+                formatUiDate(text(itemCertificate, "itemInvoiceDate")));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "HS Code", 0, text(itemCertificate, "harmonizedSystemCode"));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Content Percent (%)", 0,
+                normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 1", 0, arrayText(itemCertificate.path("originCriterion"), 0));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 2", 0, arrayText(itemCertificate.path("originCriterion"), 1));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 3", 0, arrayText(itemCertificate.path("originCriterion"), 2));
+        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Certificate Item Description", 0,
+                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
+    }
+
+    private Locator waitForItemCertificateSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolveItemCertificateSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator resolveItemCertificateSectionOrNull() {
+        String sectionTitle = toXpathLiteral("Certificate of Origin (CO)");
+        return firstVisible(page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')"
+                        + " or contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')"
+                        + " or contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
+    }
+
+    private String itemCertificateDescriptionText(JsonNode itemCertificateDescription) {
+        if (itemCertificateDescription == null || !itemCertificateDescription.isArray()) {
+            return null;
+        }
+
+        java.util.List<String> lines = new java.util.ArrayList<>();
+        for (JsonNode descriptionNode : itemCertificateDescription) {
+            JsonNode lineNodes = descriptionNode.path("line");
+            if (lineNodes.isArray()) {
+                for (JsonNode lineNode : lineNodes) {
+                    String line = normalize(lineNode.asText());
+                    if (line != null && !line.isBlank()) {
+                        lines.add(line);
+                    }
+                }
+            } else {
+                String line = normalize(descriptionNode.asText());
+                if (line != null && !line.isBlank()) {
+                    lines.add(line);
+                }
+            }
+        }
+        return lines.isEmpty() ? null : String.join(System.lineSeparator(), lines);
+    }
+
+    private void fillPackingDescription(JsonNode packingDescription) {
+        Locator packingDescriptionSection = resolveSectionOrNull("Packing Description");
+        if (packingDescriptionSection == null) {
+            return;
+        }
+
+        JsonNode outerPackQuantity = packingDescription.path("outerPackQuantity");
+        JsonNode inPackQuantity = packingDescription.path("inPackQuantity");
+        JsonNode innerPackQuantity = packingDescription.path("innerPackQuantity");
+        JsonNode inmostPackQuantity = packingDescription.path("inmostPackQuantity");
+        String defaultPackingUnitCode = firstNonBlank(
+                text(outerPackQuantity, "unitCode"),
+                text(inPackQuantity, "unitCode"),
+                text(innerPackQuantity, "unitCode"),
+                text(inmostPackQuantity, "unitCode"));
+
+        fillQuantityRowInScope(packingDescriptionSection, "Outer Pack Qty", outerPackQuantity, defaultPackingUnitCode);
+        fillQuantityRowInScope(packingDescriptionSection, "In Pack Qty", inPackQuantity, defaultPackingUnitCode);
+        fillQuantityRowInScope(packingDescriptionSection, "Inner Pack Qty", innerPackQuantity, defaultPackingUnitCode);
+        fillQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
     }
 
     private void fillAdditionalRecipientsFromJson(JsonNode header, JsonNode formMetaData) {
@@ -634,52 +870,220 @@ public class OutDeclarationPage extends IptDeclarationPage {
         page.waitForTimeout(200);
         ensureAdditionalRecipientsInactive();
 
-        boolean featureEnabled = formMetaData != null
-                && formMetaData.path("additionalRecipientIdIsActive").asBoolean(false);
-        if (!featureEnabled) {
-            return;
-        }
-
-        JsonNode additionalRecipientIds = header.path("additionalRecipientId");
-        if (additionalRecipientIds == null || !additionalRecipientIds.isArray() || additionalRecipientIds.isEmpty()) {
+        java.util.List<String> additionalRecipientIds = collectAdditionalRecipientIds(header);
+        if (additionalRecipientIds.isEmpty()) {
             return;
         }
 
         additionalRecipientsRequested = true;
         setCheckboxByLabel("Additional Recipients", true);
-        syncCheckboxValue(true, "Additional Recipients");
+        ensureAdditionalRecipientsActive();
         page.waitForTimeout(300);
 
-        Locator additionalRecipientsSection = firstVisible(page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))='Additional Recipients'])[last()]"
-                        + "/ancestor::*[.//button or .//input or .//textarea][1]"));
+        Locator additionalRecipientsSection = waitForAdditionalRecipientsSectionOrNull(3000);
         if (additionalRecipientsSection == null) {
-            return;
+            throw new IllegalStateException("Additional Recipients section did not open after enabling the checkbox.");
         }
 
-        Locator addButton = firstVisible(additionalRecipientsSection.locator(
-                "button, [role='button'], input[type='button'], input[type='submit'], a"));
         for (int index = 0; index < additionalRecipientIds.size(); index++) {
-            String additionalRecipientId = normalize(additionalRecipientIds.get(index).asText());
-            if (additionalRecipientId == null || additionalRecipientId.isBlank()) {
-                continue;
+            String additionalRecipientId = additionalRecipientIds.get(index);
+            if (index > 0 && !clickAdditionalRecipientsAddButton(additionalRecipientsSection)) {
+                throw new IllegalStateException("Additional Recipients ADD button was not clickable.");
             }
+            waitForAdditionalRecipientsRow(additionalRecipientsSection, index + 1, 3000);
 
-            if (index > 0 && addButton != null) {
-                String buttonText = normalize(addButton.innerText());
-                if (buttonText.contains("ADD")) {
-                    addButton.click(new Locator.ClickOptions().setForce(true));
-                    page.waitForTimeout(300);
-                }
-            }
-
-            Locator input = lastVisible(additionalRecipientsSection.locator(
-                    "input:not([type='checkbox']):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"));
+            Locator input = resolveAdditionalRecipientsInputBoxOrNull(additionalRecipientsSection, index + 1);
             if (input == null) {
-                return;
+                throw new IllegalStateException("Additional Recipient input row was not visible for row " + (index + 1));
             }
 
             focusAndType(input, additionalRecipientId, false);
+            if (!waitForAnyRenderedFieldValue(input, 1500, additionalRecipientId)) {
+                throw new IllegalStateException("Additional Recipient value was not rendered. Expected: "
+                        + additionalRecipientId + ", Actual: " + readRenderedFieldValue(input));
+            }
+        }
+    }
+
+    private java.util.List<String> collectAdditionalRecipientIds(JsonNode header) {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        JsonNode additionalRecipientIds = header.path("additionalRecipientId");
+        if (additionalRecipientIds == null || !additionalRecipientIds.isArray()) {
+            return values;
+        }
+
+        for (JsonNode additionalRecipientIdNode : additionalRecipientIds) {
+            String additionalRecipientId = normalize(additionalRecipientIdNode.asText());
+            if (additionalRecipientId != null && !additionalRecipientId.isBlank()) {
+                values.add(additionalRecipientId);
+            }
+        }
+        return values;
+    }
+
+    private Locator resolveAdditionalRecipientsSectionOrNull() {
+        return firstVisible(page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))='Additional Recipients'])[last()]"
+                        + "/ancestor::*[.//*[self::button or @role='button' or self::a]"
+                        + "[contains(normalize-space(translate(., 'abcdefghijklmnopqrstuvwxyz*', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')), 'ADD')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button)][1]"));
+    }
+
+    private Locator waitForAdditionalRecipientsSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolveAdditionalRecipientsSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private boolean clickAdditionalRecipientsAddButton(Locator additionalRecipientsSection) {
+        Locator visibleScope = firstVisible(additionalRecipientsSection);
+        if (visibleScope == null) {
+            return false;
+        }
+
+        Locator addButton = firstVisible(visibleScope.locator(
+                "xpath=(.//*[self::button or @role='button' or self::a]"
+                        + "[contains(normalize-space(translate(., '*', '')), 'ADD')])[last()]"));
+        if (addButton == null) {
+            return false;
+        }
+
+        dismissTransientOverlays();
+        addButton.scrollIntoViewIfNeeded();
+        try {
+            addButton.click(new Locator.ClickOptions().setForce(true));
+            return true;
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            return Boolean.TRUE.equals(addButton.evaluate("""
+                    element => {
+                        element.click();
+                        return true;
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private Locator resolveAdditionalRecipientsInputBoxOrNull(Locator additionalRecipientsSection, int rowNumber) {
+        Locator visibleScope = firstVisible(additionalRecipientsSection);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        String rowNumberText = String.valueOf(rowNumber);
+        Locator formControlField = visibleScope.locator(
+                "xpath=((.//*[normalize-space(.)='" + rowNumberText + "']"
+                        + "[not(ancestor::*[self::thead or @role='columnheader'])])[last()]"
+                        + "/following::*[(self::input or self::textarea) and @formcontrolname='additionalRecipientId'][1])[1]");
+        Locator visibleFormControlField = firstVisible(formControlField);
+        if (visibleFormControlField != null) {
+            return visibleFormControlField;
+        }
+
+        Locator rowField = visibleScope.locator(
+                "xpath=((.//*[normalize-space(.)='" + rowNumberText + "']"
+                        + "[not(ancestor::*[self::thead or @role='columnheader'])])[last()]"
+                        + "/following::*[self::input[not(@type='checkbox')] or self::textarea][1])[1]");
+        Locator visibleRowField = firstVisible(rowField);
+        if (visibleRowField != null) {
+            return visibleRowField;
+        }
+
+        Locator newestField = lastVisible(visibleScope.locator(
+                "input:not([type='checkbox']):not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"));
+        if (newestField != null) {
+            return newestField;
+        }
+        return null;
+    }
+
+    private void ensureAdditionalRecipientsActive() {
+        try {
+            Boolean activated = (Boolean) page.evaluate("""
+                    () => {
+                        const dispatch = element => {
+                            element.dispatchEvent(new Event('input', { bubbles: true }));
+                            element.dispatchEvent(new Event('change', { bubbles: true }));
+                            element.dispatchEvent(new Event('blur', { bubbles: true }));
+                        };
+                        const syncComponent = host => {
+                            if (!host || typeof window.ng === 'undefined' || typeof window.ng.getComponent !== 'function') {
+                                return;
+                            }
+                            const component = window.ng.getComponent(host);
+                            if (!component) {
+                                return;
+                            }
+                            if ('checked' in component) {
+                                component.checked = true;
+                            }
+                            if ('value' in component) {
+                                component.value = true;
+                            }
+                            if ('_value' in component) {
+                                component._value = true;
+                            }
+                            if (component.formControl && typeof component.formControl.setValue === 'function') {
+                                component.formControl.setValue(true);
+                            }
+                            if (typeof component.writeValue === 'function') {
+                                component.writeValue(true);
+                            }
+                            if (typeof component.onChange === 'function') {
+                                component.onChange(true);
+                            }
+                            if (typeof component.onTouched === 'function') {
+                                component.onTouched();
+                            }
+                        };
+
+                        const toggles = Array.from(document.querySelectorAll("input[type='checkbox'][formcontrolname='additionalRecipientIdIsActive']"));
+                        if (toggles.length === 0) {
+                            return false;
+                        }
+
+                        toggles.forEach(checkbox => {
+                            checkbox.checked = true;
+                            checkbox.defaultChecked = true;
+                            checkbox.setAttribute('checked', 'checked');
+                            checkbox.setAttribute('aria-checked', 'true');
+                            dispatch(checkbox);
+                            let current = checkbox;
+                            for (let depth = 0; current && depth < 5; depth += 1) {
+                                syncComponent(current);
+                                current = current.parentElement;
+                            }
+                        });
+
+                        return toggles.every(toggle => toggle.checked === true);
+                    }
+                    """);
+            if (Boolean.TRUE.equals(activated)) {
+                return;
+            }
+        } catch (Exception ignored) {
+        }
+
+        syncCheckboxValueByFormControl(true, "additionalRecipientIdIsActive", "Additional Recipients");
+    }
+
+    private void waitForAdditionalRecipientsRow(Locator additionalRecipientsSection, int rowNumber, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            if (resolveAdditionalRecipientsInputBoxOrNull(additionalRecipientsSection, rowNumber) != null) {
+                return;
+            }
+            page.waitForTimeout(100);
         }
     }
 
@@ -1210,6 +1614,10 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void syncCheckboxValue(boolean checked, String... labelHints) {
+        syncCheckboxValueByFormControl(checked, null, labelHints);
+    }
+
+    private void syncCheckboxValueByFormControl(boolean checked, String formControlName, String... labelHints) {
         try {
             page.evaluate("""
                     args => {
@@ -1228,7 +1636,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
                         const checkbox = label.closest('div, label, section, form')?.querySelector('input[type="checkbox"]')
                             || label.parentElement?.querySelector('input[type="checkbox"]')
-                            || document.querySelector('input[type="checkbox"][formcontrolname="declarationIndicator"]');
+                            || document.querySelector(`input[type="checkbox"][formcontrolname="${args.formControlName || 'declarationIndicator'}"]`);
                         if (!checkbox) {
                             return false;
                         }
@@ -1241,7 +1649,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     }
                     """, java.util.Map.of(
                     "checked", checked,
-                    "labelHints", labelHints));
+                    "labelHints", labelHints,
+                    "formControlName", formControlName));
         } catch (Exception ignored) {
         }
     }
@@ -1279,6 +1688,58 @@ public class OutDeclarationPage extends IptDeclarationPage {
             fillLookupFieldInChargeRow(rowLabel, columnLabel, value, suggestionHints);
         } catch (Exception ignored) {
         }
+    }
+
+    private void dismissTransientOverlays() {
+        try {
+            page.keyboard().press("Escape");
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            page.waitForTimeout(150);
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private void fillFirstPresentField(String value, String... labels) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        for (String label : labels) {
+            Locator field = resolveFieldByLabelOrNull(label, 0);
+            if (field != null) {
+                focusAndType(field, value, false);
+                return;
+            }
+        }
+    }
+
+    private void fillLookupFieldIfPresentByLabels(String value, String... labels) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        for (String label : labels) {
+            Locator field = resolveFieldByLabelOrNull(label, 0);
+            if (field != null) {
+                focusAndType(field, value, true, value);
+                return;
+            }
+        }
+    }
+
+    private String joinNonBlank(String delimiter, String... values) {
+        StringBuilder builder = new StringBuilder();
+        for (String value : values) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            if (builder.length() > 0) {
+                builder.append(delimiter);
+            }
+            builder.append(value.trim());
+        }
+        return builder.length() == 0 ? null : builder.toString();
     }
 
     private String nodeText(JsonNode node) {

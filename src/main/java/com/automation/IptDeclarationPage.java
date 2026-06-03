@@ -1541,6 +1541,17 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints.length == 0 ? new String[] { value } : suggestionHints);
     }
 
+    protected void fillLookupFieldInRowByIndexIfPresent(String rowLabel, int occurrence, String value, String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        Locator field = resolveEditableFieldInRowByContainsOrNull(rowLabel, occurrence);
+        if (field == null) {
+            return;
+        }
+        focusAndType(field, value, true, suggestionHints.length == 0 ? new String[] { value } : suggestionHints);
+    }
+
     protected void fillFieldInChargeRow(String rowLabel, String columnLabel, String value) {
         if (value == null || value.isBlank()) {
             return;

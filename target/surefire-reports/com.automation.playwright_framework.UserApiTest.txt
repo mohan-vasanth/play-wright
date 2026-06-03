@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.automation.playwright_framework.UserApiTest
--------------------------------------------------------------------------------
-Tests run: 2, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 2.060 s -- in com.automation.playwright_framework.UserApiTest
