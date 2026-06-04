@@ -606,12 +606,13 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
+        ensureAccordionExpanded(title, "Country Code");
         Locator card = resolvePartyCard(title);
         if (card == null) {
             return;
         }
 
-        fillNthLookupFieldInScopeIfPresent(card, 0, firstNonBlank(id, name), firstNonBlank(id, name), name);
+        fillNthLookupFieldInScopeIfPresent(card, 0, name, name, id);
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
@@ -622,8 +623,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city);
 
         fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, arrayText(addressLines, 0));
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, arrayText(addressLines, 1));
+        fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, addressLine1);
+        fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, addressLine2);
         fillFieldAfterScopeLabelIfPresent(card, "City", 0, city);
         fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0, postalCode);
         fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0,
@@ -727,10 +728,11 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (item.path("unbrandedIndicator").asBoolean(false)) {
             setCheckboxByLabel("Unbranded", true);
         }
-        if (data.path("formMetaData").path("itemPackingIsActive").path(0).asBoolean(false)) {
+        boolean hasPackingDescription = !isMissingOrEmpty(packingDescription);
+        if (data.path("formMetaData").path("itemPackingIsActive").path(0).asBoolean(false) && hasPackingDescription) {
             setCheckboxByLabel("Item Packing", true);
         }
-        if (!isMissingOrEmpty(packingDescription)) {
+        if (hasPackingDescription) {
             fillPackingDescription(packingDescription);
         }
 
@@ -842,6 +844,12 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillPackingDescription(JsonNode packingDescription) {
+        ensureAccordionExpanded(
+                "Packing Description",
+                "Outer Pack Qty",
+                "In Pack Qty",
+                "Inner Pack Qty",
+                "Inmost Pack Qty");
         Locator packingDescriptionSection = resolveSectionOrNull("Packing Description");
         if (packingDescriptionSection == null) {
             return;
@@ -1219,16 +1227,24 @@ public class OutDeclarationPage extends IptDeclarationPage {
         openSection("Summary (Y)");
 
         JsonNode summary = data.path("summary");
-        fillFieldIfPresent("Number of Invoices", text(summary, "numberOfInvoices"));
-        fillFieldIfPresent("Number of Items", text(summary, "numberOfItems"));
-        fillFieldIfPresent("Total Invoice CIF Value", normalizeNumericForEntry(text(summary, "totalInvoiceCifValue")));
-        fillFieldIfPresent("Total CIF/FOB Value", normalizeNumericForEntry(text(summary, "totalCifFobValue")));
-        fillFieldIfPresent("Cross Reference ID",
+        Locator declarationSummaryCard = resolveSummaryCard(
+                "Declaration Summary",
+                "Total Package",
+                "Total Gross Weight",
+                "Cross Reference ID");
+        fillFieldAfterScopeLabelIfPresent(declarationSummaryCard, "Cross Reference ID", 0,
                 firstNonBlank(text(data.path("header"), "crossReferenceId"), text(summary, "crossReferenceId")));
 
-        fillFieldIfPresent("Remarks", text(data.path("header").path("remarks"), "freeText"));
-        fillFieldIfPresent("Internal Remarks", text(data.path("header").path("remarks"), "internalText"));
-        fillFieldIfPresent("Customer Remarks", text(data.path("header").path("remarks"), "customerText"));
+        Locator remarksCard = resolveSummaryCard(
+                "Remarks",
+                "Internal Remarks",
+                "Customer Remarks");
+        fillFieldAfterScopeLabelIfPresent(remarksCard, "Remarks", 0,
+                text(data.path("header").path("remarks"), "freeText"));
+        fillFieldAfterScopeLabelIfPresent(remarksCard, "Internal Remarks", 0,
+                text(data.path("header").path("remarks"), "internalText"));
+        fillFieldAfterScopeLabelIfPresent(remarksCard, "Customer Remarks", 0,
+                text(data.path("header").path("remarks"), "customerText"));
 
         if (data.path("header").path("declarationIndicator").asBoolean(false)) {
             setCheckboxByLabel("Declaration Indicator", true);
@@ -1239,6 +1255,24 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         saveDraftAndWaitForCompletion();
+    }
+
+    private Locator resolveSummaryCard(String title, String... expectedTexts) {
+        String escapedTitle = toXpathLiteral(title);
+        StringBuilder xpath = new StringBuilder(
+                "(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[");
+        for (int index = 0; index < expectedTexts.length; index++) {
+            if (index > 0) {
+                xpath.append(" and ");
+            }
+            xpath.append(".//*[contains(normalize-space(translate(., '*', '')), ")
+                    .append(toXpathLiteral(expectedTexts[index]))
+                    .append(")]");
+        }
+        xpath.append("][1]");
+        Locator locator = page.locator("xpath=" + xpath);
+        return firstVisible(locator);
     }
 
     private void waitForActionButtonEnabled(String buttonText, int timeoutMs) {
@@ -1438,8 +1472,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillLookupPartyComponent(String selector, String partyName, String partyId) {
-        String searchValue = firstNonBlank(partyName, partyId);
-        if (searchValue == null || searchValue.isBlank()) {
+        if (partyName == null || partyName.isBlank()) {
+            clearLookupPartyComponent(selector);
             return;
         }
 
@@ -1453,7 +1487,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        focusAndType(field, searchValue, true, firstNonBlank(partyId, partyName), partyName, partyId);
+        focusAndType(field, partyName, true, partyName, partyId);
     }
 
     private void setHiddenComponentValue(String selector, String labelText, String value) {
@@ -1520,8 +1554,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillLookupPartyRow(String rowLabel, String partyName, String partyId) {
-        String searchValue = firstNonBlank(partyName, partyId);
-        if (searchValue == null || searchValue.isBlank()) {
+        if (partyName == null || partyName.isBlank()) {
+            clearLookupPartyRow(rowLabel);
             return;
         }
 
@@ -1535,11 +1569,100 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        focusAndType(nameField, searchValue, true, firstNonBlank(partyId, partyName), partyName, partyId);
+        focusAndType(nameField, partyName, true, partyName, partyId);
         Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
         if (idField != null && partyId != null && !partyId.isBlank() && !waitForAnyRenderedFieldValue(idField, 500, partyId)) {
             focusAndType(idField, partyId, false);
         }
+    }
+
+    private void clearLookupPartyComponent(String selector) {
+        Locator component = firstVisible(page.locator(selector));
+        if (component == null) {
+            return;
+        }
+
+        Locator field = firstVisible(component.locator(
+                "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']"));
+        if (field == null) {
+            return;
+        }
+
+        clearLookupLikeField(field);
+    }
+
+    private void clearLookupPartyRow(String rowLabel) {
+        Locator row = resolvePartyTableRow(rowLabel);
+        if (row == null) {
+            return;
+        }
+
+        Locator nameField = resolveVisibleEditableFieldInRowOrNull(row, 0);
+        if (nameField != null) {
+            clearLookupLikeField(nameField);
+        }
+
+        Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
+        if (idField != null) {
+            clearLookupLikeField(idField);
+        }
+    }
+
+    private void clearLookupLikeField(Locator field) {
+        try {
+            page.keyboard().press("Escape");
+        } catch (Exception ignored) {
+        }
+        page.waitForTimeout(150);
+        field.scrollIntoViewIfNeeded();
+
+        try {
+            field.evaluate("""
+                    element => {
+                        const isVisible = candidate => {
+                            if (!candidate) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(candidate);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        };
+                        const container = element.closest('.ng-select, [role="combobox"], [class*="select"], [class*="combobox"]')
+                            || element.parentElement;
+                        const clearAction = container?.querySelector(
+                            '.ng-clear-wrapper, .ng-clear, .ng-value-icon, [aria-label*="clear" i], [title*="clear" i]');
+                        if (isVisible(clearAction)) {
+                            clearAction.click();
+                        }
+                        if ('value' in element) {
+                            element.value = '';
+                        }
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        element.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                    """);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            field.click(new Locator.ClickOptions().setForce(true));
+            field.fill("");
+        } catch (Exception ignored) {
+            try {
+                page.keyboard().press("Control+A");
+                page.keyboard().press("Backspace");
+            } catch (Exception ignoredAgain) {
+            }
+        }
+
+        try {
+            page.keyboard().press("Tab");
+        } catch (Exception ignored) {
+        }
+        page.waitForTimeout(150);
     }
 
     private void syncVisibleTextComponentValue(String formControlName, String value, String... labelHints) {

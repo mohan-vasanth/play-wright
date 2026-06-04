@@ -1,0 +1,47 @@
+-------------------------------------------------------------------------------
+Test set: com.automation.playwright_framework.OutDeclarationRemarksVerificationTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 282.3 s <<< FAILURE! -- in com.automation.playwright_framework.OutDeclarationRemarksVerificationTest
+com.automation.playwright_framework.OutDeclarationRemarksVerificationTest.remarksFieldRemainsEmptyWhenJsonOmitsRemarks -- Time elapsed: 282.1 s <<< ERROR!
+com.microsoft.playwright.TimeoutError: 
+Error {
+  message='Timeout 15000ms exceeded.
+  name='TimeoutError
+  stack='TimeoutError: Timeout 15000ms exceeded.
+    at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\progress.js:76:26)
+    at Frame.click (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\frames.js:959:23)
+    at FrameDispatcher.click (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\frameDispatcher.js:117:30)
+    at FrameDispatcher._handleCommand (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\dispatcher.js:88:40)
+    at DispatcherConnection.dispatch (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\dispatcher.js:309:39)
+}
+Call log:
+-   - waiting for locator("a:has-text('Summary (Y)'), a:has-text('Summary')").first()
+
+	at com.microsoft.playwright.impl.WaitableResult.get(WaitableResult.java:52)
+	at com.microsoft.playwright.impl.ChannelOwner.runUntil(ChannelOwner.java:138)
+	at com.microsoft.playwright.impl.Connection.sendMessage(Connection.java:131)
+	at com.microsoft.playwright.impl.ChannelOwner.sendMessage(ChannelOwner.java:124)
+	at com.microsoft.playwright.impl.FrameImpl.clickImpl(FrameImpl.java:241)
+	at com.microsoft.playwright.impl.FrameImpl.click(FrameImpl.java:232)
+	at com.microsoft.playwright.impl.LocatorImpl.click(LocatorImpl.java:164)
+	at com.microsoft.playwright.Locator.click(Locator.java:2500)
+	at com.automation.playwright_framework.OutDeclarationRemarksVerificationTest.openSummaryTab(OutDeclarationRemarksVerificationTest.java:65)
+	at com.automation.playwright_framework.OutDeclarationRemarksVerificationTest.remarksFieldRemainsEmptyWhenJsonOmitsRemarks(OutDeclarationRemarksVerificationTest.java:56)
+Caused by: com.microsoft.playwright.TimeoutError: Error {
+  message='Timeout 15000ms exceeded.
+  name='TimeoutError
+  stack='TimeoutError: Timeout 15000ms exceeded.
+    at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\progress.js:76:26)
+    at Frame.click (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\frames.js:959:23)
+    at FrameDispatcher.click (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\frameDispatcher.js:117:30)
+    at FrameDispatcher._handleCommand (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\dispatcher.js:88:40)
+    at DispatcherConnection.dispatch (C:\Users\mabis\AppData\Local\Temp\playwright-java-4950940142134192590\package\lib\server\dispatchers\dispatcher.js:309:39)
+}
+Call log:
+-   - waiting for locator("a:has-text('Summary (Y)'), a:has-text('Summary')").first()
+
+	at com.microsoft.playwright.impl.Connection.dispatch(Connection.java:257)
+	at com.microsoft.playwright.impl.Connection.processOneMessage(Connection.java:214)
+	at com.microsoft.playwright.impl.ChannelOwner.runUntil(ChannelOwner.java:136)
+	... 8 more
+

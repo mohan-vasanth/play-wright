@@ -423,7 +423,7 @@ public class IptDeclarationPage {
         field.scrollIntoViewIfNeeded();
         field.click(new Locator.ClickOptions().setForce(true));
         String[] selectionHints = partySelectionHints(partyName, partyId);
-        String[] searchCandidates = partySearchCandidates(partyName, partyId);
+        String[] searchCandidates = partySearchCandidates(partyName);
 
         boolean matched = false;
         for (String searchCandidate : searchCandidates) {
@@ -454,7 +454,6 @@ public class IptDeclarationPage {
     private boolean waitForPartyFieldValue(Locator field, String expectedName, int timeoutMs) {
         List<String> expectedValues = new ArrayList<>();
         appendCandidate(expectedValues, expectedName);
-        appendCandidate(expectedValues, deduplicateRepeatedPartyName(expectedName));
         return waitForAnyRenderedFieldValue(field, timeoutMs, expectedValues.toArray(String[]::new));
     }
 
@@ -610,6 +609,12 @@ public class IptDeclarationPage {
     }
 
     private void fillPackingDescription(JsonNode packingDescription) {
+        ensureAccordionExpanded(
+                "Packing Description",
+                "Outer Pack Qty",
+                "In Pack Qty",
+                "Inner Pack Qty",
+                "Inmost Pack Qty");
         Locator packingDescriptionSection = resolvePackingDescriptionSection();
         JsonNode outerPackQuantity = packingDescription.path("outerPackQuantity");
         JsonNode inPackQuantity = packingDescription.path("inPackQuantity");
@@ -658,7 +663,7 @@ public class IptDeclarationPage {
             return;
         }
 
-        Locator itemValuesSection = resolveSection("Item Values");
+        Locator itemValuesSection = resolveItemValuesSection();
         JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
         fillFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
@@ -688,6 +693,34 @@ public class IptDeclarationPage {
                 "Last Selling Price",
                 0,
                 normalizeNumericForEntry(text(transactionValue, "lastSellingPriceValue")));
+    }
+
+    private Locator resolveItemValuesSection() {
+        waitForFormControls();
+        String[] titles = new String[] { "Item Values", "Item Quantity & value", "Item Quantity & Value" };
+        for (String title : titles) {
+            String escapedTitle = toXpathLiteral(title);
+            Locator section = page.locator(
+                    "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                            + "/ancestor::*[(.//*[contains(normalize-space(translate(., '*', '')), 'Item Value')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Optional Charges')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Item CIF/FOB Value (SGD)')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Last Selling Price')])"
+                            + " and (.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]");
+            Locator visibleSection = firstVisible(section);
+            if (visibleSection != null) {
+                return visibleSection;
+            }
+
+            Locator titledContainer = page.locator(
+                    "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                            + "/ancestor::*[.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
+            Locator visibleTitledContainer = firstVisible(titledContainer);
+            if (visibleTitledContainer != null) {
+                return visibleTitledContainer;
+            }
+        }
+        throw new IllegalStateException("Item Values section was not visible.");
     }
 
     protected void fillLotIdentification(JsonNode item, JsonNode lotIdentification) {
@@ -733,11 +766,27 @@ public class IptDeclarationPage {
     }
 
     protected void fillShippingMarks(JsonNode shippingMarksInformation) {
-        JsonNode shippingMarks = firstArrayItem(shippingMarksInformation.path("shippingMarks"));
-        String shippingMark = shippingMarks == null || shippingMarks.isMissingNode() || shippingMarks.isNull()
-                ? null
-                : normalize(shippingMarks.asText());
-        if (shippingMark == null || shippingMark.isBlank()) {
+        List<String> shippingMarks = new ArrayList<>();
+        JsonNode shippingMarksNode = shippingMarksInformation.path("shippingMarks");
+        if (shippingMarksNode.isArray()) {
+            for (JsonNode shippingMark : shippingMarksNode) {
+                String value = shippingMark == null || shippingMark.isMissingNode() || shippingMark.isNull()
+                        ? null
+                        : normalize(shippingMark.asText());
+                if (value != null && !value.isBlank()) {
+                    shippingMarks.add(value);
+                }
+            }
+        } else {
+            String value = shippingMarksNode == null || shippingMarksNode.isMissingNode() || shippingMarksNode.isNull()
+                    ? null
+                    : normalize(shippingMarksNode.asText());
+            if (value != null && !value.isBlank()) {
+                shippingMarks.add(value);
+            }
+        }
+
+        if (shippingMarks.isEmpty()) {
             return;
         }
 
@@ -745,40 +794,45 @@ public class IptDeclarationPage {
         pauseUi(UI_ACTION_PAUSE_MS);
 
         Locator shippingMarksSection = resolveShippingMarksSection();
-        Locator field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
+        Locator field = resolveShippingMarksInputBoxOrNull(shippingMarksSection, 0);
         if (field == null && clickButtonInScopeIfVisible(shippingMarksSection, "ADD GROUP")) {
             pauseUi(UI_ACTION_PAUSE_MS);
-            field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
-        }
-        if (field == null && clickButtonInScopeIfVisible(shippingMarksSection, "ADD LINE")) {
-            pauseUi(UI_ACTION_PAUSE_MS);
-            field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
+            field = resolveShippingMarksInputBoxOrNull(shippingMarksSection, 0);
         }
 
-        if (field != null) {
-            focusAndType(field, shippingMark, false);
-            return;
-        }
+        for (int index = 0; index < shippingMarks.size(); index++) {
+            if (index > 0) {
+                clickButtonInScope(shippingMarksSection, "ADD LINE");
+                pauseUi(UI_ACTION_PAUSE_MS);
+            }
 
-        Locator target = resolveShippingMarksActivatorOrNull(shippingMarksSection);
-        if (target == null) {
-            target = firstVisible(shippingMarksSection);
-        }
-        if (target == null) {
-            throw new IllegalStateException("Shipping Marks Line 1 input was not visible.");
-        }
+            field = waitForShippingMarksInputBoxOrNull(shippingMarksSection, index, 3000);
+            if (field == null && index == 0) {
+                Locator target = resolveShippingMarksActivatorOrNull(shippingMarksSection);
+                if (target == null) {
+                    target = firstVisible(shippingMarksSection);
+                }
+                if (target != null) {
+                    closeTransientOverlays();
+                    target.scrollIntoViewIfNeeded();
+                    target.click(new Locator.ClickOptions().setForce(true));
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                    field = waitForShippingMarksInputBoxOrNull(shippingMarksSection, index, 3000);
+                }
+            }
 
-        closeTransientOverlays();
-        target.scrollIntoViewIfNeeded();
-        target.click(new Locator.ClickOptions().setForce(true));
-        pauseUi(UI_ACTION_PAUSE_MS);
-        field = resolveShippingMarksInputBoxOrNull(shippingMarksSection);
-        if (field != null) {
-            focusAndType(field, shippingMark, false);
-            return;
-        }
+            if (field != null) {
+                focusAndType(field, shippingMarks.get(index), false);
+                continue;
+            }
 
-        typeIntoFocusedEditor(shippingMark);
+            if (index == 0) {
+                typeIntoFocusedEditor(shippingMarks.get(index));
+                continue;
+            }
+
+            throw new IllegalStateException("Shipping Marks Line " + (index + 1) + " input was not visible.");
+        }
     }
 
     protected void fillCascDetails(JsonNode cascProduct) {
@@ -808,6 +862,15 @@ public class IptDeclarationPage {
             focusAndType(uomField, quantityUom, true, quantityUom);
         }
 
+        String endUseDescription = text(cascProduct.path("endUseDescription"), "endUseLine");
+        if (endUseDescription != null && !endUseDescription.isBlank()) {
+            fillFieldAfterScopeLabelIfPresent(
+                    cascSection,
+                    "End User Description (Strategic Goods)",
+                    0,
+                    endUseDescription);
+        }
+
         clickCascCloneButtonIfPresent(cascRow);
 
         JsonNode additionalCascIdentification = firstArrayItem(cascProduct.path("additionalCascIdentification"));
@@ -819,12 +882,42 @@ public class IptDeclarationPage {
         waitForAdditionalCascSection(cascSection, cascRow, 5000);
         clickAdditionalCascAddButton(cascSection);
         pauseUi(UI_ACTION_PAUSE_MS);
+        Locator additionalCascRow = waitForAdditionalCascEntryRow(cascSection, 5000);
+        fillAdditionalCascIdentification(additionalCascRow, additionalCascIdentification);
+    }
 
+    private void fillAdditionalCascIdentification(Locator additionalCascRow, JsonNode additionalCascIdentification) {
         String cascCodeOne = text(additionalCascIdentification, "cascCodeOne");
         if (cascCodeOne != null && !cascCodeOne.isBlank()) {
-            Locator additionalCascRow = waitForAdditionalCascEntryRow(cascSection, 5000);
             fillAdditionalCascCodeOne(additionalCascRow, cascCodeOne);
         }
+
+        fillAdditionalCascCodeField(additionalCascRow, 1, "Code 2", text(additionalCascIdentification, "cascCodeTwo"));
+        fillAdditionalCascCodeField(additionalCascRow, 2, "Code 3", text(additionalCascIdentification, "cascCodeThree"));
+    }
+
+    private void fillAdditionalCascCodeField(Locator additionalCascRow, int fieldOccurrence, String label, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = waitForAdditionalCascEditableFieldOrNull(additionalCascRow, fieldOccurrence, 3000);
+        if (field == null) {
+            throw new IllegalStateException("Additional CASC " + label + " field was not visible.");
+        }
+        focusAndType(field, value, false);
+    }
+
+    private Locator waitForAdditionalCascEditableFieldOrNull(Locator additionalCascRow, int fieldOccurrence, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator field = resolveVisibleEditableFieldInRowOrNull(additionalCascRow, fieldOccurrence);
+            if (field != null) {
+                return field;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
     }
 
     private void fillAdditionalCascCodeOne(Locator additionalCascRow, String value) {
@@ -2230,82 +2323,15 @@ public class IptDeclarationPage {
 
     private String[] partySelectionHints(String partyName, String partyId) {
         List<String> hints = new ArrayList<>();
-        appendCandidate(hints, partyId);
         appendCandidate(hints, partyName);
-        appendCandidate(hints, deduplicateRepeatedPartyName(partyName));
-
-        String normalized = normalize(partyName);
-        if (!normalized.isBlank()) {
-            String[] words = normalized.split(" ");
-            if (words.length >= 2) {
-                appendCandidate(hints, String.join(" ", words[0], words[1]));
-            }
-            if (words.length >= 3) {
-                appendCandidate(hints, String.join(" ", words[0], words[1], words[2]));
-            }
-            if (words.length >= 4) {
-                appendCandidate(hints, String.join(" ", words[0], words[1], words[2], words[3]));
-            }
-        }
-
+        appendCandidate(hints, partyId);
         return hints.toArray(String[]::new);
     }
 
-    private String[] partySearchCandidates(String partyName, String partyId) {
+    private String[] partySearchCandidates(String partyName) {
         List<String> candidates = new ArrayList<>();
-        appendCandidate(candidates, partyId);
         appendCandidate(candidates, partyName);
-        appendCandidate(candidates, deduplicateRepeatedPartyName(partyName));
-
-        String normalized = normalize(partyName);
-        if (!normalized.isBlank()) {
-            String[] words = normalized.split(" ");
-            String condensed = normalized.replaceAll("[^A-Za-z0-9]", "");
-            appendCandidate(candidates, condensed);
-            if (words.length >= 1) {
-                appendCandidate(candidates, words[0]);
-            }
-            if (words.length >= 4) {
-                appendCandidate(candidates, String.join(" ", words[0], words[1], words[2], words[3]));
-            }
-            if (words.length >= 3) {
-                appendCandidate(candidates, String.join(" ", words[0], words[1], words[2]));
-            }
-            if (words.length >= 2) {
-                appendCandidate(candidates, String.join(" ", words[0], words[1]));
-                appendCandidate(candidates, words[0] + words[1]);
-            }
-            String businessStem = normalized
-                    .replaceAll("\\bPTE\\b", "")
-                    .replaceAll("\\bLTD\\b", "")
-                    .replaceAll("\\bLIMITED\\b", "")
-                    .replaceAll("\\bPRIVATE\\b", "")
-                    .replaceAll("\\s+", " ")
-                    .trim();
-            appendCandidate(candidates, businessStem);
-            appendCandidate(candidates, businessStem.replaceAll("[^A-Za-z0-9]", ""));
-        }
-
         return candidates.stream().distinct().toArray(String[]::new);
-    }
-
-    private String deduplicateRepeatedPartyName(String partyName) {
-        String normalized = normalize(partyName);
-        if (normalized.isBlank()) {
-            return normalized;
-        }
-
-        String[] words = normalized.split(" ");
-        if (words.length >= 2 && words.length % 2 == 0) {
-            int midpoint = words.length / 2;
-            String left = String.join(" ", java.util.Arrays.copyOfRange(words, 0, midpoint));
-            String right = String.join(" ", java.util.Arrays.copyOfRange(words, midpoint, words.length));
-            if (left.equalsIgnoreCase(right)) {
-                return left;
-            }
-        }
-
-        return normalized;
     }
 
     private Locator resolveFieldByLabel(String label, int occurrence) {
@@ -2692,12 +2718,12 @@ public class IptDeclarationPage {
             return null;
         }
 
-        String escapedRowLabel = toXpathLiteral(rowLabel);
-        Locator row = visibleScope.locator(
-                "xpath=(.//*[contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")]"
-                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")])])[1]"
-                        + "/ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > 1][1]");
-        return resolveVisibleEditableFieldInRowOrNull(row, occurrence);
+        Locator exactRow = resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, false);
+        if (exactRow != null) {
+            return exactRow;
+        }
+
+        return resolveEditableFieldInScopeRowByContainsOrNull(visibleScope, rowLabel, occurrence);
     }
 
     private Locator resolveEditableFieldAfterScopeLabelOrNull(Locator scope, String rowLabel, int occurrence) {
@@ -2706,18 +2732,64 @@ public class IptDeclarationPage {
             return null;
         }
 
-        String escapedRowLabel = toXpathLiteral(rowLabel);
-        Locator field = visibleScope.locator(
-                "xpath=((.//*[contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")]"
-                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")])])[1]"
-                        + "/following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
-                        + (occurrence + 1) + "])[1]");
-        Locator visibleField = firstVisible(field);
+        Locator visibleField = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        if (visibleField != null) {
+            return visibleField;
+        }
+
+        visibleField = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
         if (visibleField != null) {
             return visibleField;
         }
 
         return resolveEditableFieldInScopeRowOrNull(scope, rowLabel, occurrence);
+    }
+
+    private Locator resolveEditableFieldInScopeRowByLabelOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return null;
+        }
+
+        Locator row = label.locator(
+                "xpath=(ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > "
+                        + occurrence + "][1])");
+        return resolveVisibleEditableFieldInRowOrNull(row, occurrence);
+    }
+
+    private Locator resolveEditableFieldInScopeRowByContainsOrNull(Locator visibleScope, String rowLabel, int occurrence) {
+        return resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, true);
+    }
+
+    private Locator resolveEditableFieldAfterScopeLabelByMatchOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return null;
+        }
+
+        Locator field = label.locator(
+                "xpath=(following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
+                        + (occurrence + 1) + "])[1]");
+        return firstVisible(field);
+    }
+
+    private Locator resolveScopeLabelOrNull(Locator visibleScope, String rowLabel, boolean containsMatch) {
+        String escapedRowLabel = toXpathLiteral(rowLabel);
+        String matchExpression = containsMatch
+                ? "contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")"
+                : "normalize-space(translate(., '*', ''))=" + escapedRowLabel;
+        Locator label = visibleScope.locator(
+                "xpath=(.//*[" + matchExpression + "]"
+                        + "[not(.//*[" + matchExpression + "])])[1]");
+        return firstVisible(label);
     }
 
     private Locator resolveAdditionalRecipientsInputBoxOrNull(
@@ -2816,35 +2888,53 @@ public class IptDeclarationPage {
     }
 
     private Locator resolveShippingMarksInputBoxOrNull(Locator shippingMarksSection) {
+        return resolveShippingMarksInputBoxOrNull(shippingMarksSection, 0);
+    }
+
+    private Locator resolveShippingMarksInputBoxOrNull(Locator shippingMarksSection, int occurrence) {
         Locator visibleScope = firstVisible(shippingMarksSection);
         if (visibleScope == null) {
             return null;
         }
 
-        Locator lineOneField = visibleScope.locator(
-                "xpath=((.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LINE 1')]"
-                        + "[not(.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LINE 1')])])[1]"
-                        + "/following::*[self::input or self::textarea or @role='textbox'][1])[1]");
-        Locator visibleLineOneField = firstVisible(lineOneField);
-        if (visibleLineOneField != null) {
-            return visibleLineOneField;
+        if (occurrence == 0) {
+            Locator lineOneField = visibleScope.locator(
+                    "xpath=((.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LINE 1')]"
+                            + "[not(.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LINE 1')])])[1]"
+                            + "/following::*[self::input or self::textarea or @role='textbox'][1])[1]");
+            Locator visibleLineOneField = firstVisible(lineOneField);
+            if (visibleLineOneField != null) {
+                return visibleLineOneField;
+            }
+
+            Locator placeholderLineOneField = visibleScope.locator(
+                    "input[placeholder*='Line 1'], textarea[placeholder*='Line 1'], input[placeholder*='max 17 chars'], textarea[placeholder*='max 17 chars']");
+            Locator visiblePlaceholderLineOneField = firstVisible(placeholderLineOneField);
+            if (visiblePlaceholderLineOneField != null) {
+                return visiblePlaceholderLineOneField;
+            }
+
+            Locator firstTextbox = visibleScope.locator(
+                    "xpath=(.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'GROUP 1')]"
+                            + "/following::*[self::input or self::textarea or @role='textbox'])[1]");
+            Locator visibleFirstTextbox = firstVisible(firstTextbox);
+            if (visibleFirstTextbox != null) {
+                return visibleFirstTextbox;
+            }
         }
 
-        Locator placeholderLineOneField = visibleScope.locator(
-                "input[placeholder*='Line 1'], textarea[placeholder*='Line 1'], input[placeholder*='max 17 chars'], textarea[placeholder*='max 17 chars']");
-        Locator visiblePlaceholderLineOneField = firstVisible(placeholderLineOneField);
-        if (visiblePlaceholderLineOneField != null) {
-            return visiblePlaceholderLineOneField;
-        }
+        return resolveNthVisibleEditableFieldInScopeOrNull(visibleScope, occurrence);
+    }
 
-        Locator firstTextbox = visibleScope.locator(
-                "xpath=(.//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'GROUP 1')]"
-                        + "/following::*[self::input or self::textarea or @role='textbox'])[1]");
-        Locator visibleFirstTextbox = firstVisible(firstTextbox);
-        if (visibleFirstTextbox != null) {
-            return visibleFirstTextbox;
+    private Locator waitForShippingMarksInputBoxOrNull(Locator shippingMarksSection, int occurrence, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator field = resolveShippingMarksInputBoxOrNull(shippingMarksSection, occurrence);
+            if (field != null) {
+                return field;
+            }
+            page.waitForTimeout(100);
         }
-
         return null;
     }
 
@@ -3264,6 +3354,58 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Section container was not visible: " + sectionTitle);
     }
 
+    protected void ensureAccordionExpanded(String sectionTitle, String... expectedTexts) {
+        waitForFormControls();
+        Locator title = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + toXpathLiteral(sectionTitle) + "])[last()]");
+        Locator visibleTitle = lastVisible(title);
+        if (visibleTitle == null || isAccordionContentVisible(visibleTitle, expectedTexts)) {
+            return;
+        }
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            closeTransientOverlays();
+            try {
+                Boolean clicked = (Boolean) visibleTitle.evaluate("""
+                        element => {
+                            const isVisible = candidate => {
+                                if (!candidate) {
+                                    return false;
+                                }
+                                const style = window.getComputedStyle(candidate);
+                                return !!style
+                                    && style.display !== 'none'
+                                    && style.visibility !== 'hidden'
+                                    && (candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                            };
+                            const candidates = [
+                                element.closest('button, [role="button"], mat-expansion-panel-header, .mat-expansion-panel-header, .accordion-header, .panel-heading, .card-header'),
+                                element.previousElementSibling,
+                                element.parentElement,
+                                element
+                            ].filter((candidate, index, all) =>
+                                candidate && isVisible(candidate) && all.indexOf(candidate) === index);
+                            for (const candidate of candidates) {
+                                candidate.scrollIntoView({ block: 'center' });
+                                candidate.click();
+                                return true;
+                            }
+                            return false;
+                        }
+                        """);
+                if (Boolean.FALSE.equals(clicked)) {
+                    break;
+                }
+            } catch (PlaywrightException ignored) {
+            }
+
+            page.waitForTimeout(250);
+            if (isAccordionContentVisible(visibleTitle, expectedTexts)) {
+                return;
+            }
+        }
+    }
+
     protected Locator firstVisible(Locator locator) {
         int count = locator.count();
         for (int index = 0; index < count; index++) {
@@ -3284,6 +3426,41 @@ public class IptDeclarationPage {
             }
         }
         return null;
+    }
+
+    private boolean isAccordionContentVisible(Locator title, String... expectedTexts) {
+        try {
+            return Boolean.TRUE.equals(title.evaluate("""
+                    (element, texts) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = candidate => {
+                            if (!candidate) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(candidate);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        };
+                        const expected = (texts || []).map(normalize).filter(Boolean);
+                        let current = element;
+                        while (current) {
+                            const text = normalize(current.innerText || current.textContent);
+                            const hasEditableField = !!current.querySelector(
+                                'input, textarea, select, [role="combobox"], [role="textbox"]');
+                            if (isVisible(current) && hasEditableField
+                                    && expected.every(candidate => text.includes(candidate))) {
+                                return true;
+                            }
+                            current = current.parentElement;
+                        }
+                        return false;
+                    }
+                    """, expectedTexts));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     protected void saveDraft() {

@@ -11,6 +11,8 @@ import java.net.URI;
 public class LoginPage {
 
     private final Page page;
+    private static final double USER_DETAILS_TIMEOUT_MS = Double.parseDouble(
+            System.getProperty("tradenix.login.user.details.timeout.ms", "45000"));
     private static final String ADMIN_TAB = "#btn-demo-radio-1";
     private static final String USER_TAB = "#btn-demo-radio-2";
     private static final String USERNAME = "input[formcontrolname='username']";
@@ -64,7 +66,7 @@ public class LoginPage {
         page.locator(USER_TAB).evaluate("element => element.click()");
         page.locator(USERNAME).fill(user);
         page.locator(LOAD_USER_DETAILS_BUTTON).waitFor(new com.microsoft.playwright.Locator.WaitForOptions().setState(com.microsoft.playwright.options.WaitForSelectorState.VISIBLE));
-        page.locator(LOAD_USER_DETAILS_BUTTON).click();
+        triggerLoadUserDetails();
 
         selectUserOption(FORWARDER, forwarderLabel, "Forwarder");
         selectUserOption(DEPARTMENT, departmentLabel, "Department");
@@ -107,13 +109,8 @@ public class LoginPage {
     }
 
     private void selectUserOption(String selector, String requestedLabel, String fieldName) {
-        page.waitForFunction(
-                "selector => { const select = document.querySelector(selector); return !!select && !select.disabled; }",
-                selector);
-
-        page.waitForFunction(
-                "selector => { const select = document.querySelector(selector); return !!select && Array.from(select.options || []).length > 0; }",
-                selector);
+        waitForUserSelectEnabled(selector, fieldName);
+        waitForUserSelectOptions(selector, fieldName);
 
         String optionValue = page.locator(selector).evaluate(
                 """
@@ -155,5 +152,52 @@ public class LoginPage {
         }
 
         page.locator(selector).selectOption(optionValue);
+    }
+
+    private void triggerLoadUserDetails() {
+        page.locator(LOAD_USER_DETAILS_BUTTON).click();
+        page.waitForTimeout(500);
+    }
+
+    private void waitForUserSelectEnabled(String selector, String fieldName) {
+        page.waitForFunction(
+                "selector => { const select = document.querySelector(selector); return !!select && !select.disabled; }",
+                selector,
+                new Page.WaitForFunctionOptions().setTimeout(USER_DETAILS_TIMEOUT_MS));
+
+        boolean enabled = Boolean.TRUE.equals(page.locator(selector).evaluate(
+                "select => !!select && !select.disabled"));
+        if (!enabled) {
+            throw new IllegalStateException(fieldName + " select remained disabled after loading user details.");
+        }
+    }
+
+    private void waitForUserSelectOptions(String selector, String fieldName) {
+        PlaywrightException lastFailure = null;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                page.waitForFunction(
+                        """
+                        selector => {
+                            const select = document.querySelector(selector);
+                            if (!select || select.disabled) {
+                                return false;
+                            }
+                            return Array.from(select.options || []).some(option =>
+                                !!option.value && (option.textContent || '').trim().length > 0);
+                        }
+                        """,
+                        selector,
+                        new Page.WaitForFunctionOptions().setTimeout(USER_DETAILS_TIMEOUT_MS));
+                return;
+            } catch (PlaywrightException exception) {
+                lastFailure = exception;
+                if (attempt < 2 && page.locator(LOAD_USER_DETAILS_BUTTON).isVisible()) {
+                    triggerLoadUserDetails();
+                }
+            }
+        }
+
+        throw new IllegalStateException(fieldName + " options did not load after clicking Load User Details.", lastFailure);
     }
 }
