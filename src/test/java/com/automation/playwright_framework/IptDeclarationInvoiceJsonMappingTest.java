@@ -16,7 +16,7 @@ class IptDeclarationInvoiceJsonMappingTest {
 
     @Test
     void readsSupplierManufacturerNameFromInvoiceNode() {
-        JsonNode testData = loadTestData(TEST_DATA_RESOURCE);
+        JsonNode testData = loadFirstDeclaration(TEST_DATA_RESOURCE);
 
         String supplierManufacturerName = testData
                 .path("invoice")
@@ -30,10 +30,9 @@ class IptDeclarationInvoiceJsonMappingTest {
 
     @Test
     void readsCascCodeOneFromBatchItem() {
-        JsonNode testData = loadTestData("data/ipt-declaration-batch-test-case.json");
+        JsonNode testData = loadFirstDeclaration("data/ipt-declaration-batch-test-case.json");
 
         String cascCodeOne = testData
-                .get(0)
                 .path("item")
                 .get(0)
                 .path("cascProduct")
@@ -46,7 +45,7 @@ class IptDeclarationInvoiceJsonMappingTest {
         assertEquals("AU99999", cascCodeOne);
     }
 
-    private static JsonNode loadTestData(String resourcePath) {
+    private static JsonNode loadFirstDeclaration(String resourcePath) {
         InputStream resourceStream = IptDeclarationInvoiceJsonMappingTest.class.getClassLoader()
                 .getResourceAsStream(resourcePath);
         if (resourceStream == null) {
@@ -56,7 +55,15 @@ class IptDeclarationInvoiceJsonMappingTest {
             if (inputStream == null) {
                 throw new IllegalArgumentException("Resource not found: " + resourcePath);
             }
-            return OBJECT_MAPPER.readTree(inputStream);
+            JsonNode root = OBJECT_MAPPER.readTree(inputStream);
+            if (root.isArray()) {
+                JsonNode firstItem = root.get(0);
+                if (firstItem == null) {
+                    throw new IllegalArgumentException("Resource array is empty: " + resourcePath);
+                }
+                return firstItem;
+            }
+            return root;
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read test data from: " + resourcePath, exception);
         }

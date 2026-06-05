@@ -580,7 +580,7 @@ public class IptDeclarationPage {
         JsonNode packingDescription = item.path("packingDescription");
         JsonNode lotIdentification = item.path("lotIdentification");
         JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
-        JsonNode cascProduct = firstArrayItem(item.path("cascProduct"));
+        JsonNode cascProduct = item.path("cascProduct");
 
         fillLookupFieldIfPresent(
                 "Invoice Number",
@@ -632,16 +632,27 @@ public class IptDeclarationPage {
         fillQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
     }
 
-    private void fillItemQuantityDetails(JsonNode itemQuantity) {
+    protected void fillItemQuantityDetails(JsonNode itemQuantity) {
         Locator itemQuantitySection = resolveItemQuantitySection();
         JsonNode dutiableQuantity = itemQuantity.path("dutiableQuantity");
         JsonNode totalDutiableQuantity = itemQuantity.path("totalDutiableQuantity");
-        JsonNode hsQuantity = itemQuantity.path("hsQuantity");
+        JsonNode hsQuantity = firstNonBlankNode(itemQuantity.path("hsQuantity"), itemQuantity.path("harmonizedSystemQuantity"));
+        boolean hasOtherQtyFields = hasOtherQuantityFields(itemQuantity);
 
+        setCheckboxByLabelIfDifferent("Other Qty Fields", hasOtherQtyFields);
         fillQuantityRowInScope(itemQuantitySection, "Dutiable Quantity", dutiableQuantity);
         fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Qty", totalDutiableQuantity);
+        fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Quantity", totalDutiableQuantity);
         fillQuantityRowInScope(itemQuantitySection, "HS Quantity", hsQuantity);
         fillFieldAfterScopeLabelIfPresent(itemQuantitySection, "Alcohol %", 0, text(itemQuantity, "alcoholPercent"));
+    }
+
+    protected boolean hasOtherQuantityFields(JsonNode itemQuantity) {
+        if (isMissingOrEmpty(itemQuantity)) {
+            return false;
+        }
+        return !isMissingOrEmpty(itemQuantity.path("dutiableQuantity"))
+                || !isMissingOrEmpty(itemQuantity.path("totalDutiableQuantity"));
     }
 
     protected void fillQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode) {
@@ -841,25 +852,50 @@ public class IptDeclarationPage {
         }
 
         Locator cascSection = resolveSection("CASC Details");
-        Locator cascRow = resolvePrimaryCascRow(cascSection);
+        if (cascProduct.isArray()) {
+            for (int index = 0; index < cascProduct.size(); index++) {
+                JsonNode cascProductEntry = cascProduct.get(index);
+                if (isMissingOrEmpty(cascProductEntry)) {
+                    continue;
+                }
+                if (index > 0) {
+                    clickAddCascProductButton(cascSection);
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                }
+                Locator cascRow = waitForCascRow(cascSection, index, 5000);
+                fillSingleCascProduct(cascSection, cascRow, cascProductEntry);
+            }
+            return;
+        }
 
+        Locator cascRow = resolveCascRow(cascSection, 0);
+        fillSingleCascProduct(cascSection, cascRow, cascProduct);
+    }
+
+    private void fillSingleCascProduct(Locator cascSection, Locator cascRow, JsonNode cascProduct) {
         String productCode = text(cascProduct, "cascProductCode");
         if (productCode != null && !productCode.isBlank()) {
-            Locator productCodeField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 0);
+            Locator productCodeField = resolveCascPrimaryEditableField(cascRow, 0);
             focusAndType(productCodeField, productCode, true, productCode);
         }
 
         JsonNode cascQuantity = cascProduct.path("cascProductQuantity");
         String quantityValue = text(cascQuantity, "value");
         if (quantityValue != null && !quantityValue.isBlank()) {
-            Locator quantityField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 1);
+            Locator quantityField = resolveCascPrimaryEditableField(cascRow, 1);
             focusAndType(quantityField, quantityValue, false);
         }
 
         String quantityUom = text(cascQuantity, "unitCode");
         if (quantityUom != null && !quantityUom.isBlank()) {
-            Locator uomField = resolveVisibleEditableFieldInRow(cascRow, "CASC Product", 2);
+            Locator uomField = resolveCascPrimaryEditableField(cascRow, 2);
             focusAndType(uomField, quantityUom, true, quantityUom);
+        }
+
+        Locator cascBlock = resolveCascProductBlock(cascRow);
+        JsonNode additionalCascIdentifications = cascProduct.path("additionalCascIdentification");
+        if (!isMissingOrEmpty(additionalCascIdentifications)) {
+            fillAdditionalCascIdentifications(cascRow, cascBlock, additionalCascIdentifications);
         }
 
         String endUseDescription = text(cascProduct.path("endUseDescription"), "endUseLine");
@@ -870,20 +906,37 @@ public class IptDeclarationPage {
                     0,
                     endUseDescription);
         }
+    }
 
-        clickCascCloneButtonIfPresent(cascRow);
-
-        JsonNode additionalCascIdentification = firstArrayItem(cascProduct.path("additionalCascIdentification"));
-        if (isMissingOrEmpty(additionalCascIdentification)) {
+    private void fillAdditionalCascIdentifications(
+            Locator cascRow,
+            Locator cascBlock,
+            JsonNode additionalCascIdentifications) {
+        if (isMissingOrEmpty(additionalCascIdentifications)) {
             return;
         }
 
-        clickButtonInScope(cascRow, "ADDITIONAL CASC", "ADDITIONAL", "ADDITIONAL CA");
-        waitForAdditionalCascSection(cascSection, cascRow, 5000);
-        clickAdditionalCascAddButton(cascSection);
-        pauseUi(UI_ACTION_PAUSE_MS);
-        Locator additionalCascRow = waitForAdditionalCascEntryRow(cascSection, 5000);
-        fillAdditionalCascIdentification(additionalCascRow, additionalCascIdentification);
+        if (hasButtonInScopeVisible(cascRow, "ADDITIONAL CASC")) {
+            clickButtonInScope(cascRow, "ADDITIONAL CASC", "ADDITIONAL", "ADDITIONAL CA");
+            pauseUi(UI_ACTION_PAUSE_MS);
+            cascBlock = resolveCascProductBlock(cascRow);
+        }
+
+        waitForAdditionalCascSection(cascRow, cascBlock, 5000);
+        for (int index = 0; index < additionalCascIdentifications.size(); index++) {
+            JsonNode additionalCascIdentification = additionalCascIdentifications.get(index);
+            if (isMissingOrEmpty(additionalCascIdentification)) {
+                continue;
+            }
+
+            Locator additionalCascRow = waitForAdditionalCascEntryRow(cascBlock, index, 5000);
+            fillAdditionalCascIdentification(additionalCascRow, additionalCascIdentification);
+
+            if (index < additionalCascIdentifications.size() - 1) {
+                clickAdditionalCascAddButton(cascBlock);
+                pauseUi(UI_ACTION_PAUSE_MS);
+            }
+        }
     }
 
     private void fillAdditionalCascIdentification(Locator additionalCascRow, JsonNode additionalCascIdentification) {
@@ -2604,6 +2657,63 @@ public class IptDeclarationPage {
         throw new IllegalStateException("No editable field found in row: " + rowLabel + " at occurrence " + occurrence);
     }
 
+    private Locator resolveCascPrimaryEditableField(Locator cascRow, int occurrence) {
+        Locator resolved = resolveCascPrimaryEditableFieldOrNull(cascRow, occurrence);
+        if (resolved != null) {
+            return resolved;
+        }
+        return resolveVisibleEditableFieldInRow(cascRow, "CASC Product", occurrence);
+    }
+
+    private Locator resolveCascPrimaryEditableFieldOrNull(Locator cascRow, int occurrence) {
+        Locator visibleRow = firstVisible(cascRow);
+        if (visibleRow == null) {
+            return null;
+        }
+
+        Locator fields = visibleRow.locator(
+                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
+        List<PositionedField> positionedFields = new ArrayList<>();
+        int count = fields.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = fields.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null) {
+                continue;
+            }
+            positionedFields.add(new PositionedField(index, box.x, box.y));
+        }
+
+        if (positionedFields.isEmpty()) {
+            return null;
+        }
+
+        double minY = positionedFields.stream()
+                .mapToDouble(PositionedField::y)
+                .min()
+                .orElse(Double.MAX_VALUE);
+        double primaryRowThreshold = minY + 24.0d;
+
+        List<PositionedField> primaryRowFields = positionedFields.stream()
+                .filter(field -> field.y() <= primaryRowThreshold)
+                .sorted(Comparator.comparingDouble(PositionedField::x).thenComparingDouble(PositionedField::y))
+                .toList();
+        if (occurrence < 0 || occurrence >= primaryRowFields.size()) {
+            return null;
+        }
+
+        return fields.nth(primaryRowFields.get(occurrence).index());
+    }
+
     protected Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
         Locator visibleRow = firstVisible(row);
         if (visibleRow == null) {
@@ -2611,11 +2721,7 @@ public class IptDeclarationPage {
         }
 
         Locator fields = visibleRow.locator(
-                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
-                        + "textarea:not([readonly]):not([disabled]), "
-                        + "select:not([disabled]), "
-                        + "[role='combobox'], "
-                        + "[role='textbox']");
+                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
         int visibleIndex = 0;
         int count = fields.count();
         for (int index = 0; index < count; index++) {
@@ -2630,24 +2736,63 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private Locator resolvePrimaryCascRow(Locator cascSection) {
-        Locator row = cascSection.locator(
-                "xpath=(.//*[self::button or @role='button' or self::a]"
+    private Locator resolveCascRow(Locator cascSection, int occurrence) {
+        Locator rows = cascSection.locator(
+                "xpath=.//*[self::button or @role='button' or self::a]"
                         + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'ADDITIONAL CASC')"
                         + " or contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'CLOSE')]"
-                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1])[1]");
-        Locator visibleRow = firstVisible(row);
-        if (visibleRow != null) {
-            return visibleRow;
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
+        int visibleIndex = 0;
+        int count = rows.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = rows.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            if (visibleIndex++ == occurrence) {
+                return candidate;
+            }
         }
         throw new IllegalStateException("CASC product row was not visible.");
     }
 
-    private void waitForAdditionalCascSection(Locator cascSection, Locator cascRow, int timeoutMs) {
+    private Locator waitForCascRow(Locator cascSection, int occurrence, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            try {
+                Locator cascRow = resolveCascRow(cascSection, occurrence);
+                if (cascRow != null) {
+                    return cascRow;
+                }
+            } catch (Exception ignored) {
+            }
+            page.waitForTimeout(100);
+        }
+        throw new IllegalStateException("CASC product row was not visible for occurrence " + occurrence + ".");
+    }
+
+    private Locator resolveCascProductBlock(Locator cascRow) {
+        Locator visibleRow = firstVisible(cascRow);
+        if (visibleRow == null) {
+            return cascRow;
+        }
+
+        Locator block = visibleRow.locator(
+                "xpath=(ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1])");
+        Locator visibleBlock = firstVisible(block);
+        if (visibleBlock != null) {
+            return visibleBlock;
+        }
+        return cascRow;
+    }
+
+    private void waitForAdditionalCascSection(Locator cascRow, Locator cascBlock, int timeoutMs) {
         long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
         while (System.currentTimeMillis() <= deadline) {
             boolean closeVisible = hasButtonInScopeVisible(cascRow, "CLOSE");
-            if (closeVisible || hasVisibleTextInScope(cascSection, "Code 1")) {
+            if (closeVisible || hasVisibleTextInScope(cascBlock, "Code 1")) {
                 return;
             }
             page.waitForTimeout(100);
@@ -2656,10 +2801,10 @@ public class IptDeclarationPage {
         throw new IllegalStateException("Additional CASC section was not visible.");
     }
 
-    private Locator waitForAdditionalCascEntryRow(Locator cascSection, int timeoutMs) {
+    private Locator waitForAdditionalCascEntryRow(Locator cascBlock, int occurrence, int timeoutMs) {
         long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
         while (System.currentTimeMillis() <= deadline) {
-            Locator entryRow = resolveAdditionalCascEntryRowOrNull(cascSection);
+            Locator entryRow = resolveAdditionalCascEntryRowOrNull(cascBlock, occurrence);
             if (entryRow != null) {
                 return entryRow;
             }
@@ -2675,14 +2820,13 @@ public class IptDeclarationPage {
             return null;
         }
 
-        Locator fields = visibleScope.locator(
-                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
-                        + "textarea:not([readonly]):not([disabled]), "
-                        + "select:not([disabled]), "
-                        + "[role='combobox'], "
-                        + "[role='textbox'], "
-                        + "[contenteditable='true']");
-        return firstVisible(fields);
+        Locator concreteField = firstVisible(visibleScope.locator(concreteEditableSelector()));
+        if (concreteField != null) {
+            return concreteField;
+        }
+
+        Locator wrapperField = visibleScope.locator("[role='combobox'], [role='textbox']");
+        return firstVisible(wrapperField);
     }
 
     private Locator resolveNthVisibleEditableFieldInScopeOrNull(Locator scope, int occurrence) {
@@ -2692,12 +2836,7 @@ public class IptDeclarationPage {
         }
 
         Locator fields = visibleScope.locator(
-                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
-                        + "textarea:not([readonly]):not([disabled]), "
-                        + "select:not([disabled]), "
-                        + "[role='combobox'], "
-                        + "[role='textbox'], "
-                        + "[contenteditable='true']");
+                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
         int visibleIndex = 0;
         int count = fields.count();
         for (int index = 0; index < count; index++) {
@@ -2710,6 +2849,13 @@ public class IptDeclarationPage {
             }
         }
         return null;
+    }
+
+    private String concreteEditableSelector() {
+        return "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                + "textarea:not([readonly]):not([disabled]), "
+                + "select:not([disabled]), "
+                + "[contenteditable='true']";
     }
 
     private Locator resolveEditableFieldInScopeRowOrNull(Locator scope, String rowLabel, int occurrence) {
@@ -2999,50 +3145,75 @@ public class IptDeclarationPage {
 
     private Locator resolveItemQuantitySection() {
         waitForFormControls();
-        Locator section = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))='Item Quantity'])[last()]"
-                        + "/ancestor::*[(.//*[contains(normalize-space(translate(., '*', '')), 'Dutiable Quantity')]"
-                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Total Dutiable Qty')]"
-                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'HS Quantity')]"
-                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Alcohol %')])"
-                        + " and (.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]");
-        Locator visibleSection = firstVisible(section);
-        if (visibleSection != null) {
-            return visibleSection;
-        }
+        String[] titles = new String[] { "Item Quantity", "Item Quantity & value", "Item Quantity & Value" };
+        for (String title : titles) {
+            String escapedTitle = toXpathLiteral(title);
+            Locator section = page.locator(
+                    "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                            + "/ancestor::*[(.//*[contains(normalize-space(translate(., '*', '')), 'Dutiable Quantity')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Total Dutiable Qty')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Total Dutiable Quantity')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'HS Quantity')]"
+                            + " or .//*[contains(normalize-space(translate(., '*', '')), 'Alcohol %')])"
+                            + " and (.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]");
+            Locator visibleSection = firstVisible(section);
+            if (visibleSection != null) {
+                return visibleSection;
+            }
 
-        Locator titledContainer = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))='Item Quantity'])[last()]"
-                        + "/ancestor::*[.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
-        Locator visibleTitledContainer = firstVisible(titledContainer);
-        if (visibleTitledContainer != null) {
-            return visibleTitledContainer;
+            Locator titledContainer = page.locator(
+                    "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                            + "/ancestor::*[.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
+            Locator visibleTitledContainer = firstVisible(titledContainer);
+            if (visibleTitledContainer != null) {
+                return visibleTitledContainer;
+            }
         }
         throw new IllegalStateException("Item Quantity section was not visible.");
     }
 
-    private Locator resolveAdditionalCascEntryRowOrNull(Locator cascSection) {
-        Locator visibleScope = firstVisible(cascSection);
+    private Locator resolveAdditionalCascEntryRowOrNull(Locator cascRow, int occurrence) {
+        Locator visibleScope = firstVisible(cascRow);
         if (visibleScope == null) {
             return null;
         }
 
-        Locator copyRow = visibleScope.locator(
-                "xpath=(.//*[self::button or @role='button' or self::a]"
+        Locator rows = visibleScope.locator(
+                "xpath=.//*[self::button or @role='button' or self::a or self::div or self::span]"
                         + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'COPY')]"
-                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]][1])[1]");
-        Locator visibleCopyRow = firstVisible(copyRow);
-        if (visibleCopyRow != null) {
-            return visibleCopyRow;
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1]");
+        int visibleIndex = 0;
+        int count = rows.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = rows.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            if (visibleIndex++ == occurrence) {
+                return candidate;
+            }
         }
 
-        Locator placeholderRow = visibleScope.locator(
-                "xpath=(.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
+        Locator fallbackRows = visibleScope.locator(
+                "xpath=.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
                         + "[not(self::th)]"
                         + "[not(ancestor::*[self::thead or @role='columnheader'])]"
                         + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
-                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1])[last()]");
-        return firstVisible(placeholderRow);
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1]");
+        visibleIndex = 0;
+        count = fallbackRows.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = fallbackRows.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            if (visibleIndex++ == occurrence) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private Locator resolveAdditionalCascCodeOneActivatorOrNull(Locator additionalCascRow) {
@@ -3056,8 +3227,8 @@ public class IptDeclarationPage {
         return firstVisible(rowCodeOne);
     }
 
-    private void clickAdditionalCascAddButton(Locator cascSection) {
-        Locator visibleSection = firstVisible(cascSection);
+    private void clickAdditionalCascAddButton(Locator cascRow) {
+        Locator visibleSection = firstVisible(cascRow);
         if (visibleSection == null) {
             captureAdditionalCascFailureArtifacts("add-button-scope-not-visible");
             throw new IllegalStateException("CASC Details section was not visible for Additional CASC add.");
@@ -3097,6 +3268,10 @@ public class IptDeclarationPage {
 
         captureAdditionalCascFailureArtifacts("add-button-not-visible");
         throw new IllegalStateException("Additional CASC Add button was not visible.");
+    }
+
+    private void clickAddCascProductButton(Locator cascSection) {
+        clickButtonInScope(cascSection, "ADD CASC PRODUCT");
     }
 
     private boolean hasVisibleTextInScope(Locator scope, String text) {
@@ -4058,6 +4233,21 @@ public class IptDeclarationPage {
         }
     }
 
+    protected void setCheckboxByLabelIfDifferent(String label, boolean checked) {
+        Locator visibleCheckbox = resolveCheckboxByLabel(label);
+        if (visibleCheckbox == null) {
+            return;
+        }
+
+        boolean selected = isCheckboxSelected(visibleCheckbox);
+        if (selected == checked) {
+            return;
+        }
+
+        setCheckboxByLabel(label, checked);
+        pauseUi(UI_ACTION_PAUSE_MS);
+    }
+
     private void setDeclarationIndicatorInSummary(boolean checked) {
         Locator declarationSummarySection = resolveSection("Declaration Summary");
         Locator checkbox = firstVisible(declarationSummarySection.locator("input[type='checkbox'], [role='checkbox']"));
@@ -4256,6 +4446,13 @@ public class IptDeclarationPage {
             }
         }
         return null;
+    }
+
+    protected JsonNode firstNonBlankNode(JsonNode first, JsonNode second) {
+        if (first != null && !first.isMissingNode() && !first.isNull() && !first.asText("").isBlank()) {
+            return first;
+        }
+        return second;
     }
 
     private String[] compactValues(String... values) {
