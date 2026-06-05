@@ -1,9 +1,0 @@
-Unable to capture submit validation diagnostics: Error {
-  message='Target page, context or browser has been closed
-  name='TargetClosedError
-  stack='TargetClosedError: Target page, context or browser has been closed
-    at DispatcherConnection.dispatch (C:\Users\mabis\AppData\Local\Temp\playwright-java-3781676058749878303\package\lib\server\dispatchers\dispatcher.js:243:69)
-    at transport.onmessage (C:\Users\mabis\AppData\Local\Temp\playwright-java-3781676058749878303\package\lib\cli\driver.js:53:59)
-    at Immediate._onImmediate (C:\Users\mabis\AppData\Local\Temp\playwright-java-3781676058749878303\package\lib\server\utils\pipeTransport.js:76:16)
-    at process.processImmediate (node:internal/timers:485:21)
-}

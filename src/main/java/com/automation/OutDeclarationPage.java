@@ -702,7 +702,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
         JsonNode lotIdentification = item.path("lotIdentification");
         JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
-        JsonNode cascProduct = firstArrayItem(item.path("cascProduct"));
+        JsonNode cascProduct = item.path("cascProduct");
         JsonNode itemCertificate = item.path("itemCertificate");
 
         fillLookupFieldIfPresent("Invoice Number",
@@ -736,12 +736,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             fillPackingDescription(packingDescription);
         }
 
-        Locator itemQuantitySection = resolveSection("Item Quantity");
-        fillQuantityRowInScope(itemQuantitySection, "Dutiable Quantity", itemQuantity.path("dutiableQuantity"));
-        fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Qty", itemQuantity.path("totalDutiableQuantity"));
-        fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Quantity", itemQuantity.path("totalDutiableQuantity"));
-        fillQuantityRowInScope(itemQuantitySection, "HS Quantity",
-                firstNonBlankNode(itemQuantity.path("hsQuantity"), itemQuantity.path("harmonizedSystemQuantity")));
+        fillItemQuantityDetails(itemQuantity);
 
         fillFieldIfPresent("Item Unit Value",
                 normalizeNumericForEntry(text(unitPriceValue.path("amount"), "value")));
@@ -1446,13 +1441,6 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (enabled) {
             setCheckboxByLabel(label, true);
         }
-    }
-
-    private JsonNode firstNonBlankNode(JsonNode first, JsonNode second) {
-        if (first != null && !first.isMissingNode() && !first.isNull() && !first.asText("").isBlank()) {
-            return first;
-        }
-        return second;
     }
 
     private Locator resolvePartyCard(String title) {
