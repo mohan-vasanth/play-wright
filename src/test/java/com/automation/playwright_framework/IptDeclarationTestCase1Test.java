@@ -128,9 +128,12 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Path screenshotPath,
             Path diagnosticsPath,
             IptDeclarationPage iptDeclarationPage) {
-        page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
-                .setFullPage(true)
-                .setPath(screenshotPath));
+        try {
+            page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
+                    .setFullPage(true)
+                    .setPath(screenshotPath));
+        } catch (Exception ignored) {
+        }
         try {
             Files.writeString(diagnosticsPath, iptDeclarationPage.captureSubmitValidationDiagnostics());
         } catch (Exception ignored) {

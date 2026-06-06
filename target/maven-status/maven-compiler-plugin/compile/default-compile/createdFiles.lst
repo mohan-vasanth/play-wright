@@ -1,11 +1,13 @@
 com\automation\playwright_framework\TestReportController$BatchMetaInfo.class
 com\automation\OutDeclarationPage.class
+com\automation\OutDeclarationPage$PositionedCpcField.class
 com\automation\playwright_framework\PlaywrightFrameworkApplication.class
 com\automation\LoginPage.class
 com\automation\playwright_framework\TestReportController$BatchArtifactType.class
 com\automation\playwright_framework\TestReportController$BatchSummary.class
 com\automation\playwright_framework\TestReportController.class
 com\automation\DeclarationsPage.class
+com\automation\IptDeclarationPage$PositionedElement.class
 com\automation\playwright_framework\utils.class
 com\automation\playwright_framework\TestReportController$BatchReportSummary.class
 com\automation\DeclarationsPage$DeclarationListEntry.class
