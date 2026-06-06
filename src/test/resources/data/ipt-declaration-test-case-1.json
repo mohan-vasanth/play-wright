@@ -1,13 +1,13 @@
 [
-  {
+ {
     "type": "IPTDEC",
     
         "header": {
-            "messageReference": "TDX2606050079",
+            "messageReference": "TDX2606060015",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260605",
-                "sequenceNumeric": "1078"
+                "date": "20260606",
+                "sequenceNumeric": "1014"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "IPTDEC",
@@ -93,7 +93,7 @@
                     "id": "T23RF0027H"
                 },
                 "partyName": {
-                    "name": "NAMSUNG "
+                    "name": "NAMSUNG"
                 }
             }
         },
@@ -151,8 +151,8 @@
             "stsAndCwcIsActive": false,
             "internationalPermitExchangeIsActive": false,
             "declarationIndicator": false,
-            "internalRemarks": "ADATA ",
-            "customerRemarks": "ADATA TEST  CASE",
+            "internalRemarks": "ADATA TEST CASE 11",
+            "customerRemarks": "ADATA TEST CASE 1111",
             "editUnitPrice": [
                 false
             ],
@@ -169,7 +169,7 @@
                 false
             ],
             "otherQuantityFieldIsActive": [
-                false
+                true
             ]
         },
         "item": [
@@ -180,7 +180,7 @@
                 "originCountry": "AU",
                 "brandName": "ABC",
                 "modelDescription": "BMW",
-                "dangerousGoodsIndicator": true,
+                "dangerousGoodsIndicator": false,
                 "inHawbHucrHblNumber": "INHAWB22042111",
                 "itemInvoiceNumber": "001",
                 "itemQuantity": {
@@ -242,21 +242,21 @@
                 },
                 "motorVehicle": {
                     "engineCapacity": {
-                        "value": "1234679",
+                        "value": "122222",
                         "unitCode": "kW"
                     },
-                    "originalRegistrationDate": "20260612"
+                    "originalRegistrationDate": "20260603"
                 },
                 "lotIdentification": {
                     "currentLotNumber": "23233",
-                    "previousLotNumber": "22222",
+                    "previousLotNumber": "222",
                     "marking": "HW"
                 },
                 "shippingMarksInformation": [
                     {
                         "shippingMarks": [
                             "opalminds",
-                            "opalzora"
+                            "oz"
                         ]
                     }
                 ],
@@ -264,14 +264,14 @@
                     {
                         "cascProductCode": "avn",
                         "cascProductQuantity": {
-                            "value": "1",
+                            "value": "1.0000",
                             "unitCode": "NMB"
                         },
                         "additionalCascIdentification": [
                             {
                                 "cascCodeOne": "safdsafdas",
                                 "cascCodeTwo": "dsfsfas",
-                                "cascCodeThree": "sfcsafsa"
+                                "cascCodeThree": "N"
                             },
                             {
                                 "cascCodeOne": "asdcfsaf",
@@ -283,7 +283,7 @@
                     {
                         "cascProductCode": "sksksks",
                         "cascProductQuantity": {
-                            "value": "1",
+                            "value": "1.0000",
                             "unitCode": "NMB"
                         },
                         "additionalCascIdentification": [
@@ -299,6 +299,7 @@
         ],
         "type": "IPT"
     }
+
 
 
 ]

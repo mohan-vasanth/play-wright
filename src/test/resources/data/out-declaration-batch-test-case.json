@@ -4,61 +4,139 @@
     
         "type": "OUT",
         "header": {
-            "messageReference": "TDX2606050048",
+            "messageReference": "TDX2606060060",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260605",
-                "sequenceNumeric": "1047"
+                "date": "20260606",
+                "sequenceNumeric": "1059"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "OUTDEC",
-            "declarationType": "20",
+            "declarationType": "40",
             "declarationIndicator": true,
-            "previousPermitNumber": "II6D120094Y"
+            "previousPermitNumber": "II6F120162E",
+            "remarks": {
+                "freeText": "ADATA TEST CASE 2"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SSSS",
+                            "processingCodeTwo": "SSSDS",
+                            "processingCodeThree": "SSS"
+                        }
+                    ]
+                },
+                {
+                    "customsProcedureCode": "CWC",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SS",
+                            "processingCodeTwo": "SSS",
+                            "processingCodeThree": "SSS"
+                        }
+                    ]
+                },
+                {
+                    "customsProcedureCode": "SEASTORE",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SSSS",
+                            "processingCodeTwo": "SSSS",
+                            "processingCodeThree": "SSS"
+                        }
+                    ]
+                },
+                {
+                    "customsProcedureCode": "STS",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SDSDS",
+                            "processingCodeTwo": "SSSS",
+                            "processingCodeThree": "SSSS"
+                        }
+                    ]
+                },
+                {
+                    "customsProcedureCode": "STS & CWC",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SSS",
+                            "processingCodeTwo": "SSS",
+                            "processingCodeThree": "SSS"
+                        }
+                    ]
+                },
+                {
+                    "customsProcedureCode": "INTERNATIONAL PERMIT EXCHANGE",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "SSS",
+                            "processingCodeTwo": "SSS",
+                            "processingCodeThree": "SS"
+                        }
+                    ]
+                }
+            ]
         },
         "cargo": {
-            "cargoPackingType": "9",
+            "cargoPackingType": "5",
             "releaseLocation": {
-                "locationCode": "AP017",
-                "locationName": "AP017"
+                "locationCode": "O",
+                "locationName": "OTHERS"
             },
             "receiptLocation": {
-                "locationCode": "JZ",
-                "locationName": "JURONG FTZ"
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
             },
             "transportEquipment": [
                 {
                     "sequenceNumeric": "1",
-                    "equipmentID": "TTNU8792303",
+                    "equipmentID": "TCL890",
                     "sizeTypeCode": "FCL20",
-                    "equipmentWeightMeasureNumeric": "1",
+                    "equipmentWeightMeasureNumeric": "20",
                     "transportEquipmentSeal": {
-                        "sealID": "NA"
+                        "sealID": "SEAL76"
                     }
                 }
             ]
         },
         "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "ZZZ",
+                        "transportIdentifier": "ZZZZZ"
+                    },
+                    "mawboucroblNumber": "XCDSAFS"
+                },
+                "arrivalDate": "20260602",
+                "loadingPort": "AEAJM"
+            },
             "outwardTransport": {
                 "transportMeans": {
                     "transportMode": {
                         "modeCode": "1",
-                        "conveyanceReferenceNumber": "7654ER",
-                        "transportIdentifier": "EVERGREEN V.123W"
+                        "conveyanceReferenceNumber": "OUT1234",
+                        "transportIdentifier": "VESSEL789"
                     },
-                    "mawboucroblNumber": "FGT555"
+                    "mawboucroblNumber": "OBL1234"
                 },
-                "departureDate": "20260610",
-                "dischargePort": "IDJKT",
-                "finalDestinationCountry": "ID",
+                "departureDate": "20260603",
+                "dischargePort": "AUAXL",
+                "finalDestinationCountry": "AU",
                 "additionalVesselInformation": {
                     "vesselType": "CV",
                     "netRegisterTonnage": "75",
-                    "loadingNextPort": "IDJKT",
-                    "loadingFinalPort": "AUSYD",
+                    "vesselNationality": "FF",
+                    "loadingNextPort": "MYMAL",
+                    "loadingFinalPort": "AEAJM",
                     "towingVessel": {
-                        "vesselID": "7654ER",
-                        "vesselName": "GAFDRSE"
+                        "vesselID": "FFFF",
+                        "vesselName": "FFFF"
                     }
                 }
             }
@@ -71,32 +149,28 @@
                 },
                 "telephone": "81189066"
             },
-            "exporterParty": {
-                "partyDetail": {
-                    "partyIdentification": {
-                        "id": "198700002E"
-                    },
-                    "partyName": {
-                        "name": "FORESPAND FOOD ENTER PRISE PTE LTD"
-                    }
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "FD",
-                            "HGE"
-                        ]
-                    },
-                    "cityName": "SGD",
-                    "countryCode": "SG"
-                }
-            },
             "declaringAgentParty": {
                 "partyIdentification": {
                     "id": "202535359H"
                 },
                 "partyName": {
                     "name": "ADATA PVT LMT"
+                }
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "199503677D"
+                },
+                "partyName": {
+                    "name": "VERSUM MATERIALS PTE O/B SILTRONIC SINGAPORE PTE LTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "200604002G"
+                },
+                "partyName": {
+                    "name": "ALPINE SHIPPING PTE. LTD"
                 }
             },
             "outwardCarrierAgentParty": {
@@ -107,49 +181,27 @@
                     "name": "AB SHIPPING PTE LTD"
                 }
             },
-            "consigneeParty": {
-                "partyName": {
-                    "name": "NAME1"
-                },
-                "address": {
-                    "addressLine": {
-                        "line": [
-                            "ADD2 ADD3 SAMPLECITY"
-                        ]
-                    },
-                    "countryCode": "SG"
-                }
-            },
             "freightForwarderParty": {
                 "partyIdentification": {
-                    "id": "202535359H"
+                    "id": "197501452K"
                 },
                 "partyName": {
-                    "name": "ADATACOMPANY PTE LTD"
+                    "name": "KWE-KINTETSU WORLD EXPRESS (S) PTE LTD"
                 }
             }
         },
         "invoice": [
             {
-                "invoiceNumber": "1",
                 "unitPriceTermType": "FOB",
                 "supplierManufacturerParty": {
                     "adValoremIndicator": false,
                     "preferentialDutyRateIndicator": false
-                },
-                "totalInvoiceValue": {
-                    "amount": {
-                        "value": "1745720",
-                        "currencyID": "TWD"
-                    },
-                    "exchangeRate": "4.3643"
                 },
                 "freightCharge": {
                     "includeOtherTaxableCharge": false
                 },
                 "insuranceCharge": {
                     "amount": {
-                        "value": "76188.46",
                         "currencyID": "SGD"
                     },
                     "exchangeRate": "1",
@@ -162,14 +214,14 @@
         "summary": {
             "numberOfInvoices": "1",
             "numberOfItems": "1",
-            "totalInvoiceCifValue": "1745720.00",
-            "totalCifFobValue": "1745720.00",
+            "totalInvoiceCifValue": "0.00",
+            "totalCifFobValue": "77000.00",
             "totalOuterPack": {
                 "value": "1",
-                "unitCode": "CTN"
+                "unitCode": "NMB"
             },
             "totalGrossWeight": {
-                "value": "0.5",
+                "value": "13.5",
                 "unitCode": "TNE"
             }
         },
@@ -180,12 +232,12 @@
             "transportEquipmentIsActive": false,
             "certificateIsActive": false,
             "declarationIndicator": false,
-            "aeoIsActive": false,
-            "cwcIsActive": false,
-            "seastoreIsActive": false,
-            "stsIsActive": false,
-            "stsAndCwcIsActive": false,
-            "internationalPermitExchangeIsActive": false,
+            "aeoIsActive": true,
+            "cwcIsActive": true,
+            "seastoreIsActive": true,
+            "stsIsActive": true,
+            "stsAndCwcIsActive": true,
+            "internationalPermitExchangeIsActive": true,
             "unitPrices": [
                 "0"
             ],
@@ -199,67 +251,62 @@
                 false
             ],
             "tariffLotIdentificationIsActive": [
-                true
+                false
             ],
             "itemCoIsActive": [
                 false
-            ],
-            "otherQuantityFieldIsActive": [
-                true
             ]
         },
         "item": [
             {
                 "itemSequenceNumeric": "1",
-                "itemHarmonizedSystemCode": "65050020",
-                "goodsDescription": "HAIR-NETS (NMB)",
-                "originCountry": "KR",
-                "dangerousGoodsIndicator": false,
-                "inHawbHucrHblNumber": "Q32424",
-                "outHawbHucrHblNumber": "Q32424",
+                "itemHarmonizedSystemCode": "87032363",
+                "goodsDescription": "1 UNIT OF BMW Z55",
+                "originCountry": "MY",
+                "brandName": "UNBRANDED",
+                "modelDescription": "DDDD",
+                "dangerousGoodsIndicator": true,
+                "inHawbHucrHblNumber": "DSD",
+                "outHawbHucrHblNumber": "DDDDD",
                 "itemQuantity": {
                     "harmonizedSystemQuantity": {
-                        "value": "80",
+                        "value": "1",
                         "unitCode": "NMB"
                     },
                     "totalDutiableQuantity": {
-                        "value": "80",
+                        "value": "1",
                         "unitCode": "NMB"
-                    },
-                    "dutiableQuantity": {
-                        "value": "11",
-                        "unitCode": "BAG"
                     },
                     "hsQuantity": {
-                        "value": "80",
+                        "value": "1",
                         "unitCode": "NMB"
-                    },
-                    "alcoholPercent": 55
+                    }
                 },
                 "transactionValue": {
-                    "itemCIFFOBValue": "1745720",
+                    "itemCIFFOBValue": "77000",
                     "unitPriceValue": {
                         "amount": {
-                            "value": "400000",
-                            "currencyID": "TWD"
+                            "value": "77000",
+                            "currencyID": "SGD"
                         },
-                        "exchangeRate": "4.3643"
+                        "exchangeRate": "1"
                     }
                 },
                 "itemCalculation": {
-                    "itemCifFobValueSgd": "1745720"
+                    "itemCifFobValueSgd": "77000"
                 },
                 "tariff": {
                     "goodsAndServicesTax": {
                         "goodsAndServicesTaxAmount": "0"
                     }
                 },
-                "lotIdentification": {
-                    "currentLotNumber": "PSB001"
-                }
+                "hsImportCa": "-",
+                "hsExportCa": "-",
+                "hsTranshipmentCa": "-"
             }
         ]
     }
+
 
 
 ]

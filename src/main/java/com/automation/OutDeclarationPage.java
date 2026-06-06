@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.BoundingBox;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 public class OutDeclarationPage extends IptDeclarationPage {
 
@@ -247,12 +252,18 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     text(inwardTransportMeans, "mawboucroblNumber"),
                     text(inwardTransport, "mawboucroblNumber"));
 
-            fillFieldInSectionIfPresent(
+            fillFieldInSectionByAnyLabelIfPresent(
                     "Inward Transport Means",
-                    "Inward Voyage Number",
-                    inwardConveyanceReferenceNumber);
+                    inwardConveyanceReferenceNumber,
+                    "Inward Flight Number",
+                    "Flight Number",
+                    "Conveyance Reference Number",
+                    "Inward Voyage Number");
             syncVisibleTextComponentValue("conveyanceReferenceNumber",
                     inwardConveyanceReferenceNumber,
+                    "Inward Flight Number",
+                    "Flight Number",
+                    "Conveyance Reference Number",
                     "Inward Voyage Number");
             fillFieldInSectionByAnyLabelIfPresent(
                     "Inward Transport Means",
@@ -278,12 +289,19 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Inward Aircraft Registration Number",
                     "Inward Vessel Name",
                     "Vehicle Licence/Registration Number");
-            fillFieldInSectionIfPresent(
+            fillFieldInSectionByAnyLabelIfPresent(
                     "Inward Transport Means",
+                    inwardBillOfLadingNumber,
+                    "Inward Master Air Waybill",
+                    "Master Air Waybill",
+                    "MAWB/UCR/OBL Number",
                     "Inward Ocean Bill of Lading Number",
-                    inwardBillOfLadingNumber);
+                    "Inward Ocean Bill Of Lading Number");
             syncVisibleTextComponentValue("mawboucroblNumber",
                     inwardBillOfLadingNumber,
+                    "Inward Master Air Waybill",
+                    "Master Air Waybill",
+                    "MAWB/UCR/OBL Number",
                     "Inward Ocean Bill of Lading Number",
                     "Inward Ocean Bill Of Lading Number");
             fillDateFieldInSectionIfPresent("Inward Transport Means", "Arrival Date", formatUiDate(text(inwardTransport, "arrivalDate")));
@@ -729,7 +747,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             setCheckboxByLabel("Unbranded", true);
         }
         boolean hasPackingDescription = !isMissingOrEmpty(packingDescription);
-        if (data.path("formMetaData").path("itemPackingIsActive").path(0).asBoolean(false) && hasPackingDescription) {
+        if (hasPackingDescription || data.path("formMetaData").path("itemPackingIsActive").path(0).asBoolean(false)) {
             setCheckboxByLabel("Item Packing", true);
         }
         if (hasPackingDescription) {
@@ -839,13 +857,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillPackingDescription(JsonNode packingDescription) {
-        ensureAccordionExpanded(
-                "Packing Description",
-                "Outer Pack Qty",
-                "In Pack Qty",
-                "Inner Pack Qty",
-                "Inmost Pack Qty");
-        Locator packingDescriptionSection = resolveSectionOrNull("Packing Description");
+        ensurePackingDescriptionExpanded();
+        Locator packingDescriptionSection = resolvePackingDescriptionSectionOrNull();
         if (packingDescriptionSection == null) {
             return;
         }
@@ -860,10 +873,87 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 text(innerPackQuantity, "unitCode"),
                 text(inmostPackQuantity, "unitCode"));
 
-        fillQuantityRowInScope(packingDescriptionSection, "Outer Pack Qty", outerPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "In Pack Qty", inPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "Inner Pack Qty", innerPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Outer Pack Qty", outerPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "In Pack Qty", inPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Inner Pack Qty", innerPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
+    }
+
+    private void ensurePackingDescriptionExpanded() {
+        String[] titles = new String[] { "Packing Description", "Packing Details" };
+        for (String title : titles) {
+            try {
+                ensureAccordionExpanded(
+                        title,
+                        "Outer Pack Qty",
+                        "In Pack Qty",
+                        "Inner Pack Qty",
+                        "Inmost Pack Qty");
+                if (resolveSectionOrNull(title) != null) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private Locator resolvePackingDescriptionSectionOrNull() {
+        String[] titles = new String[] { "Packing Description", "Packing Details" };
+        for (String title : titles) {
+            Locator section = resolvePackingDescriptionSectionOrNull(title);
+            if (section != null) {
+                return section;
+            }
+        }
+        return null;
+    }
+
+    private Locator resolvePackingDescriptionSectionOrNull(String title) {
+        String escapedTitle = toXpathLiteral(title);
+        return firstVisible(page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[(.//*[contains(normalize-space(translate(., '*', '')), 'Outer Pack Qty')]"
+                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'In Pack Qty')]"
+                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Inner Pack Qty')]"
+                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Inmost Pack Qty')])"
+                        + " and (.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
+    }
+
+    private void fillPackingQuantityRowInScope(
+            Locator packingDescriptionSection,
+            String rowLabel,
+            JsonNode quantityNode,
+            String defaultUnitCode) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return;
+        }
+
+        String value = text(quantityNode, "value");
+        String unitCode = firstNonBlank(text(quantityNode, "unitCode"), defaultUnitCode);
+        Locator valueField = resolvePackingQuantityFieldOrNull(packingDescriptionSection, rowLabel, 0);
+        if (valueField != null && value != null && !value.isBlank()) {
+            focusAndType(valueField, value, false);
+        }
+
+        Locator unitField = resolvePackingQuantityFieldOrNull(packingDescriptionSection, rowLabel, 1);
+        if (unitField != null && unitCode != null && !unitCode.isBlank()) {
+            focusAndType(unitField, unitCode, true, unitCode);
+        }
+    }
+
+    private Locator resolvePackingQuantityFieldOrNull(Locator section, String rowLabel, int occurrence) {
+        Locator visibleSection = firstVisible(section);
+        if (visibleSection == null) {
+            return null;
+        }
+
+        String escapedRowLabel = toXpathLiteral(rowLabel);
+        Locator field = visibleSection.locator(
+                "xpath=((.//*[normalize-space(translate(., '*', ''))=" + escapedRowLabel + "]"
+                        + "[not(.//*[normalize-space(translate(., '*', ''))=" + escapedRowLabel + "])])[1]"
+                        + "/following::*[self::input[not(@type='checkbox')] or self::textarea or self::select or @role='combobox' or @role='textbox']["
+                        + (occurrence + 1) + "])[1]");
+        return firstVisible(field);
     }
 
     private void fillAdditionalRecipientsFromJson(JsonNode header, JsonNode formMetaData) {
@@ -1167,6 +1257,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillCpcInfo(JsonNode data) {
+        JsonNode header = data.path("header");
         JsonNode formMetaData = data.path("formMetaData");
         setCheckboxIfTrue(formMetaData.path("aeoIsActive").asBoolean(false), "AEO");
         setCheckboxIfTrue(formMetaData.path("cwcIsActive").asBoolean(false), "CWC");
@@ -1176,6 +1267,280 @@ public class OutDeclarationPage extends IptDeclarationPage {
         setCheckboxIfTrue(formMetaData.path("internationalPermitExchangeIsActive").asBoolean(false), "INTERNATIONAL PERMIT EXCHANGE");
         setCheckboxIfTrue(formMetaData.path("cnbIsActive").asBoolean(false), "CNB");
         setCheckboxIfTrue(formMetaData.path("deferredPrintingOfCoIsActive").asBoolean(false), "Deferred Printing of CO");
+
+        JsonNode customsProcedureCodeInformation = header.path("customsProcedureCodeInformation");
+        if (customsProcedureCodeInformation.isArray()) {
+            for (JsonNode customsProcedureCodeEntry : customsProcedureCodeInformation) {
+                fillCustomsProcedureCodeEntry(customsProcedureCodeEntry);
+            }
+        }
+    }
+
+    private void fillCustomsProcedureCodeEntry(JsonNode customsProcedureCodeEntry) {
+        if (isMissingOrEmpty(customsProcedureCodeEntry)) {
+            return;
+        }
+
+        String customsProcedureCode = text(customsProcedureCodeEntry, "customsProcedureCode");
+        if (customsProcedureCode == null || customsProcedureCode.isBlank()) {
+            return;
+        }
+
+        ensureCpcSectionExpanded(customsProcedureCode);
+        page.waitForTimeout(300);
+
+        JsonNode cpcProcessingCodes = customsProcedureCodeEntry.path("cpcProcessingCode");
+        if (!cpcProcessingCodes.isArray() || cpcProcessingCodes.isEmpty()) {
+            return;
+        }
+
+        for (int index = 0; index < cpcProcessingCodes.size(); index++) {
+            JsonNode processingCodeRow = cpcProcessingCodes.get(index);
+            if (isMissingOrEmpty(processingCodeRow)) {
+                continue;
+            }
+
+            if (index > 0) {
+                clickCpcAddButton(customsProcedureCode);
+                page.waitForTimeout(300);
+            }
+
+            fillCpcProcessingRow(customsProcedureCode, index, processingCodeRow);
+        }
+    }
+
+    private void fillCpcProcessingRow(String customsProcedureCode, int rowIndex, JsonNode processingCodeRow) {
+        fillCpcProcessingField(customsProcedureCode, rowIndex, "Code 1", text(processingCodeRow, "processingCodeOne"));
+        fillCpcProcessingField(customsProcedureCode, rowIndex, "Code 2", text(processingCodeRow, "processingCodeTwo"));
+        fillCpcProcessingField(customsProcedureCode, rowIndex, "Code 3", text(processingCodeRow, "processingCodeThree"));
+    }
+
+    private void fillCpcProcessingField(String customsProcedureCode, int rowIndex, String label, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = waitForCpcProcessingFieldOrNull(customsProcedureCode, label, rowIndex, 3000);
+        if (field == null) {
+            throw new IllegalStateException("CPC " + label + " field was not visible for section "
+                    + customsProcedureCode + " row " + (rowIndex + 1) + ".");
+        }
+        fillCpcTextField(field, value, label, rowIndex);
+    }
+
+    private void fillCpcTextField(Locator field, String value, String label, int rowIndex) {
+        dismissTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+        field.click(new Locator.ClickOptions().setForce(true));
+
+        try {
+            field.fill("");
+        } catch (PlaywrightException ignored) {
+            page.keyboard().press("Control+A");
+            page.keyboard().press("Backspace");
+        }
+
+        try {
+            field.fill(value);
+        } catch (PlaywrightException ignored) {
+            field.type(value, new Locator.TypeOptions().setDelay(60));
+        }
+
+        page.waitForTimeout(250);
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            try {
+                field.evaluate("""
+                        (element, newValue) => {
+                            element.value = newValue;
+                            element.dispatchEvent(new Event('input', { bubbles: true }));
+                            element.dispatchEvent(new Event('change', { bubbles: true }));
+                            element.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                        """, value);
+            } catch (PlaywrightException ignored) {
+            }
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("CPC " + label + " value was not rendered for row " + (rowIndex + 1)
+                    + ". Expected: " + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+
+        page.keyboard().press("Tab");
+        page.waitForTimeout(150);
+    }
+
+    private void ensureCpcSectionExpanded(String customsProcedureCode) {
+        Locator checkbox = resolveCpcCheckboxOrNull(customsProcedureCode);
+        if (checkbox == null) {
+            setCheckboxByLabel(customsProcedureCode, true);
+            return;
+        }
+
+        checkbox.scrollIntoViewIfNeeded();
+        if (!isCpcCheckboxSelected(checkbox)) {
+            try {
+                checkbox.click(new Locator.ClickOptions().setForce(true));
+            } catch (PlaywrightException ignored) {
+            }
+        }
+        if (!isCpcCheckboxSelected(checkbox)) {
+            clickCpcSectionContainer(customsProcedureCode);
+        }
+        if (!isCpcCheckboxSelected(checkbox)) {
+            forceCheckboxValue(true, customsProcedureCode);
+        }
+        if (!isCpcCheckboxSelected(checkbox)) {
+            throw new IllegalStateException("CPC checkbox did not open section: " + customsProcedureCode);
+        }
+    }
+
+    private Locator resolveCpcCheckboxOrNull(String customsProcedureCode) {
+        String escapedTitle = toXpathLiteral(customsProcedureCode);
+        Locator checkbox = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[.//input[@type='checkbox'] or .//*[@role='checkbox']][1]"
+                        + "//*[self::input[@type='checkbox'] or @role='checkbox']");
+        return firstVisible(checkbox);
+    }
+
+    private void clickCpcSectionContainer(String customsProcedureCode) {
+        String escapedTitle = toXpathLiteral(customsProcedureCode);
+        Locator container = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[.//input[@type='checkbox'] or .//*[@role='checkbox']][1]");
+        Locator visibleContainer = firstVisible(container);
+        if (visibleContainer == null) {
+            return;
+        }
+
+        try {
+            visibleContainer.scrollIntoViewIfNeeded();
+            visibleContainer.click(new Locator.ClickOptions().setForce(true));
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private boolean isCpcCheckboxSelected(Locator checkbox) {
+        try {
+            return "true".equalsIgnoreCase(normalize(checkbox.getAttribute("aria-checked")))
+                    || Boolean.TRUE.equals(checkbox.evaluate("element => element.checked === true"));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private Locator waitForCpcProcessingFieldOrNull(String customsProcedureCode, String label, int rowIndex, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator field = resolveCpcProcessingFieldOrNull(customsProcedureCode, label, rowIndex);
+            if (field != null) {
+                return field;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator resolveCpcProcessingFieldOrNull(String customsProcedureCode, String label, int rowIndex) {
+        if (customsProcedureCode == null || customsProcedureCode.isBlank() || label == null || label.isBlank()) {
+            return null;
+        }
+
+        String escapedTitle = toXpathLiteral(customsProcedureCode);
+        String escapedLabel = toXpathLiteral(label);
+        Locator placeholderFields = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/following::*[self::input or self::textarea or self::select]"
+                        + "[normalize-space(@placeholder)=" + escapedLabel
+                        + " or contains(normalize-space(@aria-label), " + escapedLabel + ")])");
+        Locator visiblePlaceholderField = nthVisibleLocatorByPositionOrNull(placeholderFields, rowIndex);
+        if (visiblePlaceholderField != null) {
+            return visiblePlaceholderField;
+        }
+
+        Integer occurrence = switch (label.trim().toUpperCase()) {
+            case "CODE 1" -> rowIndex * 3;
+            case "CODE 2" -> rowIndex * 3 + 1;
+            case "CODE 3" -> rowIndex * 3 + 2;
+            default -> null;
+        };
+        if (occurrence == null) {
+            return null;
+        }
+
+        Locator allFieldsAfterTitle = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/following::*[self::input[not(@type='checkbox')] or self::textarea or self::select or @role='combobox' or @role='textbox'])");
+        return nthVisibleLocatorByPositionOrNull(allFieldsAfterTitle, occurrence);
+    }
+
+    private void clickCpcAddButton(String customsProcedureCode) {
+        String escapedTitle = toXpathLiteral(customsProcedureCode);
+        Locator addButtons = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/following::*[self::button or @role='button' or self::a]"
+                        + "[contains(normalize-space(translate(., '*', '')), 'ADD')])");
+        Locator addButton = nthVisibleLocatorByPositionOrNull(addButtons, 0);
+        if (addButton == null) {
+            throw new IllegalStateException("CPC ADD button was not visible.");
+        }
+
+        dismissTransientOverlays();
+        addButton.scrollIntoViewIfNeeded();
+        try {
+            addButton.click(new Locator.ClickOptions().setForce(true));
+            return;
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            addButton.evaluate("""
+                    element => {
+                        element.click();
+                        return true;
+                    }
+                    """);
+        } catch (PlaywrightException exception) {
+            throw new IllegalStateException("CPC ADD button click failed.", exception);
+        }
+    }
+
+    private Locator nthVisibleLocatorByPositionOrNull(Locator locator, int occurrence) {
+        List<PositionedCpcField> positionedLocators = collectVisiblePositionedCpcFields(locator);
+        if (occurrence < 0 || occurrence >= positionedLocators.size()) {
+            return null;
+        }
+
+        List<PositionedCpcField> sortedLocators = positionedLocators.stream()
+                .sorted(Comparator.comparingDouble(PositionedCpcField::y).thenComparingDouble(PositionedCpcField::x))
+                .toList();
+        return locator.nth(sortedLocators.get(occurrence).index());
+    }
+
+    private List<PositionedCpcField> collectVisiblePositionedCpcFields(Locator locator) {
+        List<PositionedCpcField> positionedFields = new ArrayList<>();
+        int count = locator.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = locator.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null) {
+                continue;
+            }
+            positionedFields.add(new PositionedCpcField(index, box.x, box.y));
+        }
+        return positionedFields;
+    }
+
+    private record PositionedCpcField(int index, double x, double y) {
     }
 
     private void fillItemHsCode(String hsCode) {
@@ -1222,6 +1587,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         openSection("Summary (Y)");
 
         JsonNode summary = data.path("summary");
+        JsonNode formMetaData = data.path("formMetaData");
         Locator declarationSummaryCard = resolveSummaryCard(
                 "Declaration Summary",
                 "Total Package",
@@ -1237,11 +1603,16 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillFieldAfterScopeLabelIfPresent(remarksCard, "Remarks", 0,
                 text(data.path("header").path("remarks"), "freeText"));
         fillFieldAfterScopeLabelIfPresent(remarksCard, "Internal Remarks", 0,
-                text(data.path("header").path("remarks"), "internalText"));
+                firstNonBlank(
+                        text(formMetaData, "internalRemarks"),
+                        text(data.path("header").path("remarks"), "internalText")));
         fillFieldAfterScopeLabelIfPresent(remarksCard, "Customer Remarks", 0,
-                text(data.path("header").path("remarks"), "customerText"));
+                firstNonBlank(
+                        text(formMetaData, "customerRemarks"),
+                        text(data.path("header").path("remarks"), "customerText")));
 
-        if (data.path("header").path("declarationIndicator").asBoolean(false)) {
+        if (data.path("header").path("declarationIndicator").asBoolean(false)
+                || formMetaData.path("declarationIndicator").asBoolean(false)) {
             setCheckboxByLabel("Declaration Indicator", true);
             setCheckboxByLabel("I/We declare that all the particulars in this Application are true and correct.", true);
             syncCheckboxValue(true,

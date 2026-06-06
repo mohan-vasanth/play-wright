@@ -578,6 +578,7 @@ public class IptDeclarationPage {
         JsonNode item = firstArrayItem(data.path("item"));
         JsonNode itemQuantity = item.path("itemQuantity");
         JsonNode packingDescription = item.path("packingDescription");
+        JsonNode motorVehicle = item.path("motorVehicle");
         JsonNode lotIdentification = item.path("lotIdentification");
         JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
         JsonNode cascProduct = item.path("cascProduct");
@@ -592,14 +593,16 @@ public class IptDeclarationPage {
         fillField("Brand", text(item, "brandName"));
         fillLookupFieldIfPresent("COO", text(item, "originCountry"), text(item, "originCountry"));
         fillFieldIfPresent("Model", text(item, "modelDescription"));
-        if (formMetaData.path("itemPackingIsActive").path(0).asBoolean(false)) {
+        boolean hasPackingDescription = !isMissingOrEmpty(packingDescription);
+        if (hasPackingDescription || formMetaData.path("itemPackingIsActive").path(0).asBoolean(false)) {
             setCheckboxByLabel("Item Packing", true);
             pauseUi(UI_ACTION_PAUSE_MS);
         }
-        if (!isMissingOrEmpty(packingDescription)) {
+        if (hasPackingDescription) {
             fillPackingDescription(packingDescription);
         }
         fillItemQuantityDetails(itemQuantity);
+        fillVehicleDetails(motorVehicle);
         JsonNode transactionValue = item.path("transactionValue");
         fillItemValues(transactionValue);
         fillLotIdentification(item, lotIdentification);
@@ -608,13 +611,35 @@ public class IptDeclarationPage {
         fillCascDetails(cascProduct);
     }
 
+    protected void fillVehicleDetails(JsonNode motorVehicle) {
+        if (isMissingOrEmpty(motorVehicle)) {
+            return;
+        }
+
+        JsonNode engineCapacity = motorVehicle.path("engineCapacity");
+        String engineCapacityValue = text(engineCapacity, "value");
+        String engineCapacityUnitCode = text(engineCapacity, "unitCode");
+        String originalRegistrationDate = formatUiDate(text(motorVehicle, "originalRegistrationDate"));
+
+        if ((engineCapacityValue == null || engineCapacityValue.isBlank())
+                && (engineCapacityUnitCode == null || engineCapacityUnitCode.isBlank())
+                && (originalRegistrationDate == null || originalRegistrationDate.isBlank())) {
+            return;
+        }
+
+        Locator vehicleDetailsSection = resolveSection("Vehicle Details");
+        fillFieldAfterScopeLabelIfPresent(vehicleDetailsSection, "Engine Capacity", 0, engineCapacityValue);
+        fillLookupFieldAfterScopeLabelIfPresent(
+                vehicleDetailsSection,
+                "Unit",
+                0,
+                engineCapacityUnitCode,
+                engineCapacityUnitCode);
+        fillDateFieldInSectionIfPresent("Vehicle Details", "Registration Date", originalRegistrationDate);
+    }
+
     private void fillPackingDescription(JsonNode packingDescription) {
-        ensureAccordionExpanded(
-                "Packing Description",
-                "Outer Pack Qty",
-                "In Pack Qty",
-                "Inner Pack Qty",
-                "Inmost Pack Qty");
+        ensurePackingDescriptionExpanded();
         Locator packingDescriptionSection = resolvePackingDescriptionSection();
         JsonNode outerPackQuantity = packingDescription.path("outerPackQuantity");
         JsonNode inPackQuantity = packingDescription.path("inPackQuantity");
@@ -626,10 +651,51 @@ public class IptDeclarationPage {
                 text(innerPackQuantity, "unitCode"),
                 text(inmostPackQuantity, "unitCode"));
 
-        fillQuantityRowInScope(packingDescriptionSection, "Outer Pack Qty", outerPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "In Pack Qty", inPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "Inner Pack Qty", innerPackQuantity, defaultPackingUnitCode);
-        fillQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Outer Pack Qty", outerPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "In Pack Qty", inPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Inner Pack Qty", innerPackQuantity, defaultPackingUnitCode);
+        fillPackingQuantityRowInScope(packingDescriptionSection, "Inmost Pack Qty", inmostPackQuantity, defaultPackingUnitCode);
+    }
+
+    private void ensurePackingDescriptionExpanded() {
+        String[] titles = new String[] { "Packing Description", "Packing Details" };
+        for (String title : titles) {
+            try {
+                ensureAccordionExpanded(
+                        title,
+                        "Outer Pack Qty",
+                        "In Pack Qty",
+                        "Inner Pack Qty",
+                        "Inmost Pack Qty");
+                Locator section = resolvePackingDescriptionSectionOrNull(title);
+                if (section != null) {
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private void fillPackingQuantityRowInScope(
+            Locator packingDescriptionSection,
+            String rowLabel,
+            JsonNode quantityNode,
+            String defaultUnitCode) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return;
+        }
+
+        String value = text(quantityNode, "value");
+        String unitCode = firstNonBlank(text(quantityNode, "unitCode"), defaultUnitCode);
+        Locator valueField = resolvePackingQuantityFieldOrNull(packingDescriptionSection, rowLabel, 0);
+        if (valueField != null && value != null && !value.isBlank()) {
+            focusAndType(valueField, value, false);
+        }
+
+        Locator unitField = resolvePackingQuantityFieldOrNull(packingDescriptionSection, rowLabel, 1);
+        if (unitField != null && unitCode != null && !unitCode.isBlank()) {
+            focusAndType(unitField, unitCode, true, unitCode);
+        }
     }
 
     protected void fillItemQuantityDetails(JsonNode itemQuantity) {
@@ -937,34 +1003,36 @@ public class IptDeclarationPage {
                 pauseUi(UI_ACTION_PAUSE_MS);
             }
         }
+
+        verifyAdditionalCascIdentifications(cascBlock, additionalCascIdentifications);
     }
 
     private void fillAdditionalCascIdentification(Locator additionalCascRow, JsonNode additionalCascIdentification) {
         String cascCodeOne = text(additionalCascIdentification, "cascCodeOne");
         if (cascCodeOne != null && !cascCodeOne.isBlank()) {
-            fillAdditionalCascCodeOne(additionalCascRow, cascCodeOne);
+            fillAdditionalCascCodeField(additionalCascRow, "Code 1", cascCodeOne);
         }
 
-        fillAdditionalCascCodeField(additionalCascRow, 1, "Code 2", text(additionalCascIdentification, "cascCodeTwo"));
-        fillAdditionalCascCodeField(additionalCascRow, 2, "Code 3", text(additionalCascIdentification, "cascCodeThree"));
+        fillAdditionalCascCodeField(additionalCascRow, "Code 2", text(additionalCascIdentification, "cascCodeTwo"));
+        fillAdditionalCascCodeField(additionalCascRow, "Code 3", text(additionalCascIdentification, "cascCodeThree"));
     }
 
-    private void fillAdditionalCascCodeField(Locator additionalCascRow, int fieldOccurrence, String label, String value) {
+    private void fillAdditionalCascCodeField(Locator additionalCascRow, String label, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
 
-        Locator field = waitForAdditionalCascEditableFieldOrNull(additionalCascRow, fieldOccurrence, 3000);
+        Locator field = waitForAdditionalCascEditableFieldOrNull(additionalCascRow, label, 3000);
         if (field == null) {
             throw new IllegalStateException("Additional CASC " + label + " field was not visible.");
         }
-        focusAndType(field, value, false);
+        fillAdditionalCascTextField(field, value, label);
     }
 
-    private Locator waitForAdditionalCascEditableFieldOrNull(Locator additionalCascRow, int fieldOccurrence, int timeoutMs) {
+    private Locator waitForAdditionalCascEditableFieldOrNull(Locator additionalCascRow, String label, int timeoutMs) {
         long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
         while (System.currentTimeMillis() <= deadline) {
-            Locator field = resolveVisibleEditableFieldInRowOrNull(additionalCascRow, fieldOccurrence);
+            Locator field = resolveAdditionalCascFieldOrNull(additionalCascRow, label);
             if (field != null) {
                 return field;
             }
@@ -973,95 +1041,115 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private void fillAdditionalCascCodeOne(Locator additionalCascRow, String value) {
-        Locator editableField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
-        if (editableField != null) {
-            fillAdditionalCascCodeOneField(editableField, value);
-            return;
-        }
-
-        Locator activator = resolveAdditionalCascCodeOneActivatorOrNull(additionalCascRow);
-        if (activator != null) {
-            closeTransientOverlays();
-            activator.scrollIntoViewIfNeeded();
-            activator.click(new Locator.ClickOptions().setForce(true));
-            pauseUi(UI_ACTION_PAUSE_MS);
-
-            Locator activatedField = resolveFirstVisibleEditableFieldInScopeOrNull(additionalCascRow);
-            if (activatedField != null) {
-                fillAdditionalCascCodeOneField(activatedField, value);
-                return;
-            }
-
-            page.keyboard().press("Control+A");
-            page.keyboard().press("Backspace");
-            page.keyboard().type(value);
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
-            return;
-        }
-
-        captureAdditionalCascFailureArtifacts("code-one-field-not-visible");
-        throw new IllegalStateException("Additional CASC Code 1 field was not visible.");
-    }
-
-    private void fillAdditionalCascCodeOneField(Locator field, String value) {
+    private void fillAdditionalCascTextField(Locator field, String value, String label) {
         closeTransientOverlays();
         field.scrollIntoViewIfNeeded();
-
-        if (trySelectNativeDropdown(field, value, value)) {
-            if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
-                throw new IllegalStateException("Additional CASC Code 1 value was not rendered. Expected: "
-                        + value + ", Actual: " + readRenderedFieldValue(field));
-            }
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
-            return;
-        }
-
         field.click(new Locator.ClickOptions().setForce(true));
+
         try {
             field.fill("");
         } catch (PlaywrightException ignored) {
             page.keyboard().press("Control+A");
             page.keyboard().press("Backspace");
         }
-        field.type(value, new Locator.TypeOptions().setDelay(80));
+
+        try {
+            field.fill(value);
+        } catch (PlaywrightException ignored) {
+            field.type(value, new Locator.TypeOptions().setDelay(60));
+        }
+
         pauseUi(UI_ACTION_PAUSE_MS);
-
-        if (waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, value)) {
-            clickVisibleSuggestionExact(value);
-            pauseUi(UI_ACTION_PAUSE_MS);
-        } else if (waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, value)) {
-            clickVisibleSuggestion(value);
-            pauseUi(UI_ACTION_PAUSE_MS);
-        }
-
-        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
-            try {
-                field.fill(value);
-            } catch (PlaywrightException ignored) {
-            }
-        }
-        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
-            ensureTextFieldValue(field, value);
-        }
-        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
-            throw new IllegalStateException("Additional CASC Code 1 value was not rendered. Expected: "
-                    + value + ", Actual: " + readRenderedFieldValue(field));
-        }
-
+        ensureRenderedFieldValue(field, value, "Additional CASC " + label);
         page.keyboard().press("Tab");
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
     }
 
+    private void verifyAdditionalCascIdentifications(Locator cascBlock, JsonNode additionalCascIdentifications) {
+        if (isMissingOrEmpty(additionalCascIdentifications)) {
+            return;
+        }
+
+        for (int index = 0; index < additionalCascIdentifications.size(); index++) {
+            JsonNode expectedRow = additionalCascIdentifications.get(index);
+            if (isMissingOrEmpty(expectedRow)) {
+                continue;
+            }
+
+            Locator actualRow = waitForAdditionalCascEntryRow(cascBlock, index, 3000);
+            assertAdditionalCascFieldValue(actualRow, "Code 1", text(expectedRow, "cascCodeOne"));
+            assertAdditionalCascFieldValue(actualRow, "Code 2", text(expectedRow, "cascCodeTwo"));
+            assertAdditionalCascFieldValue(actualRow, "Code 3", text(expectedRow, "cascCodeThree"));
+        }
+    }
+
+    private void assertAdditionalCascFieldValue(Locator additionalCascRow, String label, String expectedValue) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return;
+        }
+
+        Locator field = waitForAdditionalCascEditableFieldOrNull(additionalCascRow, label, 2000);
+        if (field == null) {
+            throw new IllegalStateException("Additional CASC " + label + " field was not visible for verification.");
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, expectedValue)) {
+            throw new IllegalStateException("Additional CASC " + label + " row verification failed. Expected: "
+                    + expectedValue + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
     private void fillSummary(JsonNode data) {
         openSection("Summary (Y)");
-        fillFieldInSectionIfPresent("Remarks", "Remarks", text(data.path("header").path("remarks"), "freeText"));
-        if (data.path("header").path("declarationIndicator").asBoolean(false)) {
+
+        JsonNode formMetaData = data.path("formMetaData");
+        Locator remarksCard = resolveSummaryCard(
+                "Remarks",
+                "Internal Remarks",
+                "Customer Remarks");
+        fillFieldAfterScopeLabelIfPresent(
+                remarksCard,
+                "Remarks",
+                0,
+                text(data.path("header").path("remarks"), "freeText"));
+        fillFieldAfterScopeLabelIfPresent(
+                remarksCard,
+                "Internal Remarks",
+                0,
+                firstNonBlank(
+                        text(formMetaData, "internalRemarks"),
+                        text(data.path("header").path("remarks"), "internalText")));
+        fillFieldAfterScopeLabelIfPresent(
+                remarksCard,
+                "Customer Remarks",
+                0,
+                firstNonBlank(
+                        text(formMetaData, "customerRemarks"),
+                        text(data.path("header").path("remarks"), "customerText")));
+
+        if (data.path("header").path("declarationIndicator").asBoolean(false)
+                || formMetaData.path("declarationIndicator").asBoolean(false)) {
             setDeclarationIndicatorInSummary(true);
         }
         saveDraftAndWaitForCompletion();
+    }
+
+    private Locator resolveSummaryCard(String title, String... expectedTexts) {
+        String escapedTitle = toXpathLiteral(title);
+        StringBuilder xpath = new StringBuilder(
+                "(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[");
+        for (int index = 0; index < expectedTexts.length; index++) {
+            if (index > 0) {
+                xpath.append(" and ");
+            }
+            xpath.append(".//*[contains(normalize-space(translate(., '*', '')), ")
+                    .append(toXpathLiteral(expectedTexts[index]))
+                    .append(")]");
+        }
+        xpath.append("][1]");
+        Locator locator = page.locator("xpath=" + xpath);
+        return firstVisible(locator);
     }
 
     private boolean shouldSubmitDeclaration(JsonNode data) {
@@ -2551,6 +2639,14 @@ public class IptDeclarationPage {
     private record PositionedField(int index, double x, double y) {
     }
 
+    private record PositionedElement(
+            int index,
+            double x,
+            double y,
+            double width,
+            double height) {
+    }
+
     private Locator resolveEditableFieldInRowByExactText(String rowLabel, int occurrence) {
         waitForFormControls();
         String escapedRowLabel = toXpathLiteral(rowLabel);
@@ -2671,41 +2767,21 @@ public class IptDeclarationPage {
             return null;
         }
 
-        Locator fields = visibleRow.locator(
-                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
-        List<PositionedField> positionedFields = new ArrayList<>();
-        int count = fields.count();
-        for (int index = 0; index < count; index++) {
-            Locator candidate = fields.nth(index);
-            if (!candidate.isVisible()) {
-                continue;
-            }
-
-            BoundingBox box;
-            try {
-                box = candidate.boundingBox();
-            } catch (PlaywrightException ignored) {
-                continue;
-            }
-            if (box == null) {
-                continue;
-            }
-            positionedFields.add(new PositionedField(index, box.x, box.y));
-        }
-
+        Locator fields = visibleRow.locator(combinedEditableSelector());
+        List<PositionedElement> positionedFields = collectDistinctVisibleEditableElements(fields);
         if (positionedFields.isEmpty()) {
             return null;
         }
 
         double minY = positionedFields.stream()
-                .mapToDouble(PositionedField::y)
+                .mapToDouble(PositionedElement::y)
                 .min()
                 .orElse(Double.MAX_VALUE);
         double primaryRowThreshold = minY + 24.0d;
 
-        List<PositionedField> primaryRowFields = positionedFields.stream()
+        List<PositionedElement> primaryRowFields = positionedFields.stream()
                 .filter(field -> field.y() <= primaryRowThreshold)
-                .sorted(Comparator.comparingDouble(PositionedField::x).thenComparingDouble(PositionedField::y))
+                .sorted(Comparator.comparingDouble(PositionedElement::x).thenComparingDouble(PositionedElement::y))
                 .toList();
         if (occurrence < 0 || occurrence >= primaryRowFields.size()) {
             return null;
@@ -2720,20 +2796,7 @@ public class IptDeclarationPage {
             return null;
         }
 
-        Locator fields = visibleRow.locator(
-                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
-        int visibleIndex = 0;
-        int count = fields.count();
-        for (int index = 0; index < count; index++) {
-            Locator candidate = fields.nth(index);
-            if (!candidate.isVisible()) {
-                continue;
-            }
-            if (visibleIndex++ == occurrence) {
-                return candidate;
-            }
-        }
-        return null;
+        return resolveNthVisibleEditableFieldInScopeOrNull(visibleRow, occurrence);
     }
 
     private Locator resolveCascRow(Locator cascSection, int occurrence) {
@@ -2835,20 +2898,15 @@ public class IptDeclarationPage {
             return null;
         }
 
-        Locator fields = visibleScope.locator(
-                concreteEditableSelector() + ", [role='combobox'], [role='textbox']");
-        int visibleIndex = 0;
-        int count = fields.count();
-        for (int index = 0; index < count; index++) {
-            Locator candidate = fields.nth(index);
-            if (!candidate.isVisible()) {
-                continue;
-            }
-            if (visibleIndex++ == occurrence) {
-                return candidate;
-            }
+        Locator fields = visibleScope.locator(combinedEditableSelector());
+        List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
+        if (occurrence < 0 || occurrence >= positionedElements.size()) {
+            return null;
         }
-        return null;
+        List<PositionedElement> orderedElements = positionedElements.stream()
+                .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
+                .toList();
+        return fields.nth(orderedElements.get(occurrence).index());
     }
 
     private String concreteEditableSelector() {
@@ -2856,6 +2914,10 @@ public class IptDeclarationPage {
                 + "textarea:not([readonly]):not([disabled]), "
                 + "select:not([disabled]), "
                 + "[contenteditable='true']";
+    }
+
+    private String combinedEditableSelector() {
+        return concreteEditableSelector() + ", [role='combobox'], [role='textbox']";
     }
 
     private Locator resolveEditableFieldInScopeRowOrNull(Locator scope, String rowLabel, int occurrence) {
@@ -3121,8 +3183,20 @@ public class IptDeclarationPage {
 
     private Locator resolvePackingDescriptionSection() {
         waitForFormControls();
+        String[] titles = new String[] { "Packing Description", "Packing Details" };
+        for (String title : titles) {
+            Locator section = resolvePackingDescriptionSectionOrNull(title);
+            if (section != null) {
+                return section;
+            }
+        }
+        throw new IllegalStateException("Packing Description / Packing Details section was not visible.");
+    }
+
+    private Locator resolvePackingDescriptionSectionOrNull(String title) {
+        String escapedTitle = toXpathLiteral(title);
         Locator section = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))='Packing Description'])[last()]"
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
                         + "/ancestor::*[(.//*[contains(normalize-space(translate(., '*', '')), 'Outer Pack Qty')]"
                         + " or .//*[contains(normalize-space(translate(., '*', '')), 'In Pack Qty')]"
                         + " or .//*[contains(normalize-space(translate(., '*', '')), 'Inner Pack Qty')]"
@@ -3134,13 +3208,28 @@ public class IptDeclarationPage {
         }
 
         Locator titledContainer = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))='Packing Description'])[last()]"
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
                         + "/ancestor::*[.//input or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
-        Locator visibleTitledContainer = firstVisible(titledContainer);
-        if (visibleTitledContainer != null) {
-            return visibleTitledContainer;
+        return firstVisible(titledContainer);
+    }
+
+    private Locator resolvePackingQuantityFieldOrNull(Locator scope, String rowLabel, int occurrence) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
         }
-        throw new IllegalStateException("Packing Description section was not visible.");
+
+        String escapedRowLabel = toXpathLiteral(rowLabel);
+        Locator row = visibleScope.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escapedRowLabel + "]"
+                        + "[not(.//*[normalize-space(translate(., '*', ''))=" + escapedRowLabel + "])]"
+                        + "/ancestor::*[count(.//input[not(@type='checkbox')] | .//textarea | .//select | .//*[@role='combobox'] | .//*[@role='textbox']) >= 2][1])");
+        Locator fieldInRow = resolveNthVisibleEditableFieldInScopeOrNull(row, occurrence);
+        if (fieldInRow != null) {
+            return fieldInRow;
+        }
+
+        return resolveEditableFieldAfterScopeLabelOrNull(visibleScope, rowLabel, occurrence);
     }
 
     private Locator resolveItemQuantitySection() {
@@ -3178,34 +3267,122 @@ public class IptDeclarationPage {
             return null;
         }
 
+        String rowNumber = String.valueOf(occurrence + 1);
+        Locator numberedRow = visibleScope.locator(
+                "xpath=(.//*[normalize-space(.)=" + toXpathLiteral(rowNumber) + "]"
+                        + "[not(ancestor::*[self::thead or @role='columnheader'])]"
+                        + "/ancestor::*[.//*[self::button or @role='button' or self::a or self::div or self::span]"
+                        + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'COPY')]"
+                        + " and count(.//input[not(@type='checkbox') and not(@readonly) and not(@disabled)]"
+                        + " | .//textarea[not(@readonly) and not(@disabled)]"
+                        + " | .//select[not(@disabled)]"
+                        + " | .//*[@contenteditable='true']) >= 3][1])[last()]");
+        Locator visibleRow = firstVisible(numberedRow);
+        if (visibleRow != null) {
+            return visibleRow;
+        }
+
         Locator rows = visibleScope.locator(
                 "xpath=.//*[self::button or @role='button' or self::a or self::div or self::span]"
                         + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'COPY')]"
-                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
-                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
-                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1]");
-        int visibleIndex = 0;
-        int count = rows.count();
-        for (int index = 0; index < count; index++) {
-            Locator candidate = rows.nth(index);
-            if (!candidate.isVisible()) {
-                continue;
-            }
-            if (visibleIndex++ == occurrence) {
-                return candidate;
-            }
+                        + "/ancestor::*[count(.//input[not(@type='checkbox') and not(@readonly) and not(@disabled)]"
+                        + " | .//textarea[not(@readonly) and not(@disabled)]"
+                        + " | .//select[not(@disabled)]"
+                        + " | .//*[@contenteditable='true']) >= 3][1]");
+        visibleRow = nthVisibleLocatorByPositionOrNull(rows, occurrence);
+        if (visibleRow != null) {
+            return visibleRow;
         }
 
         Locator fallbackRows = visibleScope.locator(
-                "xpath=.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')]"
-                        + "[not(self::th)]"
-                        + "[not(ancestor::*[self::thead or @role='columnheader'])]"
-                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Code 2')]"
-                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Code 3')]][1]");
-        visibleIndex = 0;
-        count = fallbackRows.count();
+                "xpath=.//input[not(@type='checkbox') and not(@readonly) and not(@disabled)]"
+                        + "/ancestor::*[count(.//input[not(@type='checkbox') and not(@readonly) and not(@disabled)]"
+                        + " | .//textarea[not(@readonly) and not(@disabled)]"
+                        + " | .//select[not(@disabled)]"
+                        + " | .//*[@contenteditable='true']) >= 3][1]");
+        visibleRow = nthVisibleLocatorByPositionOrNull(fallbackRows, occurrence);
+        if (visibleRow != null) {
+            return visibleRow;
+        }
+
+        return null;
+    }
+
+    private List<PositionedField> collectVisiblePositionedFields(Locator fields) {
+        List<PositionedField> positionedFields = new ArrayList<>();
+        int count = fields.count();
         for (int index = 0; index < count; index++) {
-            Locator candidate = fallbackRows.nth(index);
+            Locator candidate = fields.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null) {
+                continue;
+            }
+            positionedFields.add(new PositionedField(index, box.x, box.y));
+        }
+        return positionedFields;
+    }
+
+    private List<PositionedElement> collectDistinctVisibleEditableElements(Locator fields) {
+        List<PositionedElement> positionedElements = new ArrayList<>();
+        int count = fields.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = fields.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null || box.width < 4 || box.height < 4) {
+                continue;
+            }
+
+            PositionedElement current = new PositionedElement(index, box.x, box.y, box.width, box.height);
+            int duplicateIndex = findDuplicatePositionedElementIndex(positionedElements, current);
+            if (duplicateIndex >= 0) {
+                PositionedElement existing = positionedElements.get(duplicateIndex);
+                if (current.width() * current.height() > existing.width() * existing.height()) {
+                    positionedElements.set(duplicateIndex, current);
+                }
+                continue;
+            }
+            positionedElements.add(current);
+        }
+        return positionedElements;
+    }
+
+    private int findDuplicatePositionedElementIndex(List<PositionedElement> elements, PositionedElement candidate) {
+        for (int index = 0; index < elements.size(); index++) {
+            PositionedElement existing = elements.get(index);
+            double xDistance = Math.abs(existing.x() - candidate.x());
+            double yDistance = Math.abs(existing.y() - candidate.y());
+            double widthDistance = Math.abs(existing.width() - candidate.width());
+            double heightDistance = Math.abs(existing.height() - candidate.height());
+            if (xDistance <= 8.0d && yDistance <= 8.0d && widthDistance <= 24.0d && heightDistance <= 24.0d) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private Locator nthVisibleLocatorOrNull(Locator locator, int occurrence) {
+        int visibleIndex = 0;
+        int count = locator.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = locator.nth(index);
             if (!candidate.isVisible()) {
                 continue;
             }
@@ -3216,15 +3393,62 @@ public class IptDeclarationPage {
         return null;
     }
 
-    private Locator resolveAdditionalCascCodeOneActivatorOrNull(Locator additionalCascRow) {
-        Locator visibleScope = firstVisible(additionalCascRow);
-        if (visibleScope == null) {
+    private Locator nthVisibleLocatorByPositionOrNull(Locator locator, int occurrence) {
+        List<PositionedField> positionedLocators = collectVisiblePositionedFields(locator);
+        if (occurrence < 0 || occurrence >= positionedLocators.size()) {
             return null;
         }
 
-        Locator rowCodeOne = visibleScope.locator(
-                "xpath=(.//*[contains(normalize-space(translate(., '*', '')), 'Code 1')])[last()]");
-        return firstVisible(rowCodeOne);
+        List<PositionedField> sortedLocators = positionedLocators.stream()
+                .sorted(Comparator.comparingDouble(PositionedField::y).thenComparingDouble(PositionedField::x))
+                .toList();
+        return locator.nth(sortedLocators.get(occurrence).index());
+    }
+
+    private Locator resolveAdditionalCascFieldOrNull(Locator additionalCascRow, String label) {
+        Locator visibleScope = firstVisible(additionalCascRow);
+        if (visibleScope == null || label == null || label.isBlank()) {
+            return null;
+        }
+
+        String escapedLabel = toXpathLiteral(label);
+        Locator placeholderField = visibleScope.locator(
+                "xpath=(.//*[self::input or self::textarea or self::select]"
+                        + "[normalize-space(@placeholder)=" + escapedLabel
+                        + " or contains(normalize-space(@aria-label), " + escapedLabel + ")])[1]");
+        Locator visiblePlaceholderField = firstVisible(placeholderField);
+        if (visiblePlaceholderField != null) {
+            return visiblePlaceholderField;
+        }
+
+        int occurrence = switch (normalize(label).toUpperCase()) {
+            case "CODE 1" -> 0;
+            case "CODE 2" -> 1;
+            case "CODE 3" -> 2;
+            default -> -1;
+        };
+        if (occurrence < 0) {
+            return null;
+        }
+        return resolveVisibleEditableFieldInRowOrNull(additionalCascRow, occurrence);
+    }
+
+    private void ensureRenderedFieldValue(Locator field, String expectedValue, String label) {
+        if (waitForAnyRenderedFieldValue(field, 1500, expectedValue)) {
+            return;
+        }
+
+        try {
+            field.fill(expectedValue);
+        } catch (PlaywrightException ignored) {
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1000, expectedValue)) {
+            ensureTextFieldValue(field, expectedValue);
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, expectedValue)) {
+            throw new IllegalStateException(label + " value was not rendered. Expected: "
+                    + expectedValue + ", Actual: " + readRenderedFieldValue(field));
+        }
     }
 
     private void clickAdditionalCascAddButton(Locator cascRow) {
