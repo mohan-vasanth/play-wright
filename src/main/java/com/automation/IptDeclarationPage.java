@@ -966,11 +966,27 @@ public class IptDeclarationPage {
 
         String endUseDescription = text(cascProduct.path("endUseDescription"), "endUseLine");
         if (endUseDescription != null && !endUseDescription.isBlank()) {
-            fillFieldAfterScopeLabelIfPresent(
-                    cascSection,
-                    "End User Description (Strategic Goods)",
-                    0,
-                    endUseDescription);
+            fillCascEndUseDescription(cascRow, cascBlock, endUseDescription);
+        }
+    }
+
+    private void fillCascEndUseDescription(Locator cascRow, Locator cascBlock, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveCascEndUseDescriptionFieldOrNull(cascRow, cascBlock);
+        if (field == null) {
+            throw new IllegalStateException("End User Description (Strategic Goods) field was not visible.");
+        }
+
+        focusAndType(field, value, false);
+        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
+            ensureTextFieldValue(field, value);
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("End User Description (Strategic Goods) was not rendered. Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
         }
     }
 
@@ -2851,6 +2867,60 @@ public class IptDeclarationPage {
         return cascRow;
     }
 
+    private Locator resolveCascEndUseDescriptionFieldOrNull(Locator cascRow, Locator cascBlock) {
+        String label = toXpathLiteral("End User Description (Strategic Goods)");
+        for (Locator scope : new Locator[] { cascRow, cascBlock }) {
+            Locator visibleScope = firstVisible(scope);
+            if (visibleScope == null) {
+                continue;
+            }
+
+            Locator fieldAfterLabel = visibleScope.locator(
+                    "xpath=((.//*[normalize-space(translate(., '*', ''))=" + label + "]"
+                            + "[not(.//*[normalize-space(translate(., '*', ''))=" + label + "])])[1]"
+                            + "/following::*[self::textarea or self::input[not(@type='checkbox')] or @role='textbox'][1])[1]");
+            Locator visibleFieldAfterLabel = firstVisible(fieldAfterLabel);
+            if (visibleFieldAfterLabel != null) {
+                return visibleFieldAfterLabel;
+            }
+
+            Locator textarea = visibleScope.locator("textarea:not([readonly]):not([disabled]), [role='textbox']");
+            Locator visibleTextarea = firstVisible(textarea);
+            if (visibleTextarea != null) {
+                return visibleTextarea;
+            }
+
+            Locator fieldByScopeLabel = resolveEditableFieldAfterScopeLabelOrNull(
+                    visibleScope,
+                    "End User Description (Strategic Goods)",
+                    0);
+            if (fieldByScopeLabel != null) {
+                return fieldByScopeLabel;
+            }
+        }
+
+        Locator surroundingContainer = firstVisible(cascRow);
+        if (surroundingContainer == null) {
+            surroundingContainer = firstVisible(cascBlock);
+        }
+        if (surroundingContainer == null) {
+            return null;
+        }
+
+        Locator nearestTextareaContainer = surroundingContainer.locator(
+                "xpath=(ancestor::*[.//textarea or .//*[@role='textbox']][1])");
+        Locator visibleNearestTextareaContainer = firstVisible(nearestTextareaContainer);
+        if (visibleNearestTextareaContainer != null) {
+            Locator visibleTextarea = firstVisible(
+                    visibleNearestTextareaContainer.locator("textarea:not([readonly]):not([disabled]), [role='textbox']"));
+            if (visibleTextarea != null) {
+                return visibleTextarea;
+            }
+        }
+
+        return null;
+    }
+
     private void waitForAdditionalCascSection(Locator cascRow, Locator cascBlock, int timeoutMs) {
         long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
         while (System.currentTimeMillis() <= deadline) {
@@ -3495,7 +3565,7 @@ public class IptDeclarationPage {
     }
 
     private void clickAddCascProductButton(Locator cascSection) {
-        clickButtonInScope(cascSection, "ADD CASC PRODUCT");
+        clickButtonInScope(cascSection, "ADD CASC PRODUCT", "ADD PRODUCT");
     }
 
     private boolean hasVisibleTextInScope(Locator scope, String text) {

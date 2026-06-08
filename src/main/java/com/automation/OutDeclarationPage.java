@@ -252,21 +252,17 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     text(inwardTransportMeans, "mawboucroblNumber"),
                     text(inwardTransport, "mawboucroblNumber"));
 
-            fillFieldInSectionByAnyLabelIfPresent(
+            fillVerifiedTransportTextField(
                     "Inward Transport Means",
+                    "conveyanceReferenceNumber",
                     inwardConveyanceReferenceNumber,
                     "Inward Flight Number",
                     "Flight Number",
                     "Conveyance Reference Number",
                     "Inward Voyage Number");
-            syncVisibleTextComponentValue("conveyanceReferenceNumber",
-                    inwardConveyanceReferenceNumber,
-                    "Inward Flight Number",
-                    "Flight Number",
-                    "Conveyance Reference Number",
-                    "Inward Voyage Number");
-            fillFieldInSectionByAnyLabelIfPresent(
+            fillVerifiedTransportTextField(
                     "Inward Transport Means",
+                    "transportIdentifier",
                     inwardTransportIdentifier,
                     "Transport Identifier",
                     "Aircraft Registration Number",
@@ -280,24 +276,9 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Inward Aircraft Registration Number",
                     "Inward Vessel Name",
                     "Vehicle Licence/Registration Number");
-            syncVisibleTextComponentValue("transportIdentifier",
-                    inwardTransportIdentifier,
-                    "Transport Identifier",
-                    "Aircraft Registration Number",
-                    "Inward Vehicle/Vessel Registration Number",
-                    "Vehicle/Vessel Registration Number",
-                    "Inward Aircraft Registration Number",
-                    "Inward Vessel Name",
-                    "Vehicle Licence/Registration Number");
-            fillFieldInSectionByAnyLabelIfPresent(
+            fillVerifiedTransportTextField(
                     "Inward Transport Means",
-                    inwardBillOfLadingNumber,
-                    "Inward Master Air Waybill",
-                    "Master Air Waybill",
-                    "MAWB/UCR/OBL Number",
-                    "Inward Ocean Bill of Lading Number",
-                    "Inward Ocean Bill Of Lading Number");
-            syncVisibleTextComponentValue("mawboucroblNumber",
+                    "mawboucroblNumber",
                     inwardBillOfLadingNumber,
                     "Inward Master Air Waybill",
                     "Master Air Waybill",
@@ -305,7 +286,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Inward Ocean Bill of Lading Number",
                     "Inward Ocean Bill Of Lading Number");
             fillDateFieldInSectionIfPresent("Inward Transport Means", "Arrival Date", formatUiDate(text(inwardTransport, "arrivalDate")));
-            fillLookupFieldIfPresent("Loading Port",
+            fillLookupFieldInSectionIfPresent("Inward Transport Means", "Loading Port",
                     text(inwardTransport, "loadingPort"),
                     text(inwardTransport, "loadingPort"));
             setHiddenComponentValue(
@@ -315,19 +296,24 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         if (resolveSectionOrNull("Outward Transport Means") != null) {
-            fillFieldInSectionByAnyLabelIfPresent(
+            String outwardConveyanceReferenceNumber = text(outwardTransportMode, "conveyanceReferenceNumber");
+            String outwardTransportIdentifier = text(outwardTransportMode, "transportIdentifier");
+            String outwardBillOfLadingNumber = firstNonBlank(
+                    text(outwardTransportMeans, "mawboucroblNumber"),
+                    text(outwardTransport, "mawboucroblNumber"));
+
+            fillVerifiedTransportTextField(
                     "Outward Transport Means",
-                    text(outwardTransportMode, "conveyanceReferenceNumber"),
-                    "Outward Flight Number",
-                    "Flight Number",
-                    "Conveyance Reference Number",
+                    "conveyanceReferenceNumber",
+                    outwardConveyanceReferenceNumber,
                     "Outward Flight Number",
                     "Flight Number",
                     "Conveyance Reference Number",
                     "Outward Voyage Number");
-            fillFieldInSectionByAnyLabelIfPresent(
+            fillVerifiedTransportTextField(
                     "Outward Transport Means",
-                    text(outwardTransportMode, "transportIdentifier"),
+                    "transportIdentifier",
+                    outwardTransportIdentifier,
                     "Transport Identifier",
                     "Aircraft Registration Number",
                     "Outward Vehicle/Vessel Registration Number",
@@ -340,10 +326,16 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "Outward Aircraft Registration Number",
                     "Outward Vessel Name",
                     "Vehicle Licence/Registration Number");
-            fillFieldInSectionIfPresent(
+            fillVerifiedTransportTextField(
                     "Outward Transport Means",
+                    "mawboucroblNumber",
+                    outwardBillOfLadingNumber,
+                    "Outward Master Air Waybill",
+                    "Master Air Waybill",
                     "MAWB/OUCR/OBL Number",
-                    text(outwardTransportMeans, "mawboucroblNumber"));
+                    "MAWB/UCR/OBL Number",
+                    "Outward Ocean Bill of Lading Number",
+                    "Outward Ocean Bill Of Lading Number");
             fillDateFieldInSectionIfPresent("Outward Transport Means", "Departure Date", formatUiDate(text(outwardTransport, "departureDate")));
             fillLookupFieldInSectionIfPresent("Outward Transport Means", "Discharge Port",
                     text(outwardTransport, "dischargePort"),
@@ -1265,8 +1257,6 @@ public class OutDeclarationPage extends IptDeclarationPage {
         setCheckboxIfTrue(formMetaData.path("stsIsActive").asBoolean(false), "STS");
         setCheckboxIfTrue(formMetaData.path("stsAndCwcIsActive").asBoolean(false), "STS & CWC");
         setCheckboxIfTrue(formMetaData.path("internationalPermitExchangeIsActive").asBoolean(false), "INTERNATIONAL PERMIT EXCHANGE");
-        setCheckboxIfTrue(formMetaData.path("cnbIsActive").asBoolean(false), "CNB");
-        setCheckboxIfTrue(formMetaData.path("deferredPrintingOfCoIsActive").asBoolean(false), "Deferred Printing of CO");
 
         JsonNode customsProcedureCodeInformation = header.path("customsProcedureCodeInformation");
         if (customsProcedureCodeInformation.isArray()) {
@@ -1274,6 +1264,13 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 fillCustomsProcedureCodeEntry(customsProcedureCodeEntry);
             }
         }
+
+        // Apply footer checkbox state after CPC row entry because this area can rerender
+        // while additional CPC sections are being expanded and populated.
+        page.waitForTimeout(250);
+        setCpcFooterCheckboxState("CNB", headerBoolean(header, "cnb"));
+        setCpcFooterCheckboxState("Deferred Printing of CO",
+                headerBoolean(header, "deferredPrintingofCO", "deferredPrintingOfCO"));
     }
 
     private void fillCustomsProcedureCodeEntry(JsonNode customsProcedureCodeEntry) {
@@ -1814,12 +1811,338 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
     }
 
+    private boolean headerBoolean(JsonNode header, String... fieldNames) {
+        if (header == null || header.isMissingNode() || header.isNull()) {
+            return false;
+        }
+
+        for (String fieldName : fieldNames) {
+            JsonNode valueNode = header.path(fieldName);
+            if (valueNode.isMissingNode() || valueNode.isNull()) {
+                continue;
+            }
+            if (valueNode.isBoolean()) {
+                return valueNode.asBoolean(false);
+            }
+
+            String value = valueNode.asText("").trim();
+            if ("true".equalsIgnoreCase(value)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(value)) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    private void setCpcFooterCheckboxState(String label, boolean checked) {
+        Locator checkbox = resolveCpcFooterCheckboxByExactLabelOrNull(label);
+        if (checkbox != null) {
+            setCheckboxState(checkbox, checked, label);
+            if (isCheckboxWithExactLabelInExpectedState(label, checked)) {
+                return;
+            }
+        }
+
+        setCheckboxByLabelIfDifferent(label, checked);
+        if (isCheckboxWithExactLabelInExpectedState(label, checked)) {
+            return;
+        }
+
+        forceNearbyCheckboxStateByExactLabel(label, checked);
+        if (!isCheckboxWithExactLabelInExpectedState(label, checked)) {
+            throw new IllegalStateException("CPC checkbox did not reach expected state for "
+                    + label + ": " + checked);
+        }
+    }
+
+    private Locator resolveCpcFooterCheckboxByExactLabelOrNull(String label) {
+        try {
+            page.waitForTimeout(200);
+        } catch (Exception ignored) {
+        }
+        String escapedLabel = toXpathLiteral(label);
+
+        Locator nestedCheckbox = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[last()]"
+                        + "//*[self::input[@type='checkbox'] or @role='checkbox'])[1]");
+        Locator visibleNestedCheckbox = firstVisible(nestedCheckbox);
+        if (visibleNestedCheckbox != null) {
+            return visibleNestedCheckbox;
+        }
+
+        Locator precedingCheckbox = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[last()]"
+                        + "/preceding::*[self::input[@type='checkbox'] or @role='checkbox'][1])[1]");
+        Locator visiblePrecedingCheckbox = firstVisible(precedingCheckbox);
+        if (visiblePrecedingCheckbox != null) {
+            return visiblePrecedingCheckbox;
+        }
+
+        Locator checkboxInNearestContainer = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[last()]"
+                        + "/ancestor::*[.//input[@type='checkbox'] or .//*[@role='checkbox']][1]"
+                        + "//*[self::input[@type='checkbox'] or @role='checkbox'])[1]");
+        Locator visibleCheckboxInNearestContainer = firstVisible(checkboxInNearestContainer);
+        if (visibleCheckboxInNearestContainer != null) {
+            return visibleCheckboxInNearestContainer;
+        }
+
+        Locator followingCheckbox = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[last()]"
+                        + "/following::*[self::input[@type='checkbox'] or @role='checkbox'][1])[1]");
+        return firstVisible(followingCheckbox);
+    }
+
+    private void setCheckboxState(Locator checkbox, boolean checked, String label) {
+        try {
+            checkbox.scrollIntoViewIfNeeded();
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (isCheckboxSelectedInOutPage(checkbox) != checked) {
+                checkbox.click(new Locator.ClickOptions().setForce(true));
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (isCheckboxSelectedInOutPage(checkbox) == checked) {
+            return;
+        }
+
+        try {
+            Locator container = checkbox.locator("xpath=ancestor::*[self::label or self::div or self::span][1]");
+            Locator visibleContainer = firstVisible(container);
+            if (visibleContainer != null) {
+                visibleContainer.click(new Locator.ClickOptions().setForce(true));
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (isCheckboxSelectedInOutPage(checkbox) == checked) {
+            return;
+        }
+
+        forceNearbyCheckboxStateByExactLabel(label, checked);
+    }
+
+    private boolean isCheckboxSelectedInOutPage(Locator checkbox) {
+        try {
+            return "true".equalsIgnoreCase(normalize(checkbox.getAttribute("aria-checked")))
+                    || Boolean.TRUE.equals(checkbox.evaluate("element => element.checked === true"));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean isCheckboxWithExactLabelInExpectedState(String label, boolean expectedState) {
+        try {
+            Object matched = page.evaluate("""
+                    args => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const checkboxState = checkbox =>
+                            checkbox.getAttribute('aria-checked') === 'true' || checkbox.checked === true;
+                        const resolveCheckbox = labelText => {
+                            const searchRoots = Array.from(document.querySelectorAll('label, span, div, p'))
+                                .filter(isVisible)
+                                .filter(element => normalize(element.innerText || element.textContent) === normalize(labelText));
+                            const visibleCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"], [role="checkbox"]'))
+                                .filter(isVisible);
+                            for (const root of searchRoots) {
+                                const containers = [];
+                                let current = root;
+                                for (let depth = 0; current && depth < 6; depth += 1) {
+                                    containers.push(current);
+                                    current = current.parentElement;
+                                }
+                                containers.push(root.previousElementSibling, root.nextElementSibling);
+                                for (const container of containers.filter(Boolean)) {
+                                    const checkbox = container.matches?.('input[type="checkbox"], [role="checkbox"]')
+                                        ? container
+                                        : container.querySelector?.('input[type="checkbox"], [role="checkbox"]');
+                                    if (checkbox && isVisible(checkbox)) {
+                                        return checkbox;
+                                    }
+                                }
+
+                                const labelRect = root.getBoundingClientRect();
+                                let bestCheckbox = null;
+                                let bestScore = Number.POSITIVE_INFINITY;
+                                for (const checkbox of visibleCheckboxes) {
+                                    const rect = checkbox.getBoundingClientRect();
+                                    const labelCenterY = labelRect.top + (labelRect.height / 2);
+                                    const checkboxCenterY = rect.top + (rect.height / 2);
+                                    const verticalGap = Math.abs(labelCenterY - checkboxCenterY);
+                                    const horizontalGap = rect.right <= labelRect.left + 8
+                                        ? Math.abs(labelRect.left - rect.right)
+                                        : Math.abs(rect.left - labelRect.right) + 200;
+                                    const sameRowPenalty = verticalGap <= Math.max(rect.height, labelRect.height, 24) ? 0 : 1000;
+                                    const score = sameRowPenalty + (verticalGap * 10) + horizontalGap;
+                                    if (score < bestScore) {
+                                        bestScore = score;
+                                        bestCheckbox = checkbox;
+                                    }
+                                }
+                                if (bestCheckbox) {
+                                    return bestCheckbox;
+                                }
+                            }
+                            return null;
+                        };
+
+                        const checkbox = resolveCheckbox(args.label);
+                        if (!checkbox) {
+                            return false;
+                        }
+                        return checkboxState(checkbox) === !!args.expectedState;
+                    }
+                    """, java.util.Map.of(
+                    "label", label,
+                    "expectedState", expectedState));
+            return Boolean.TRUE.equals(matched);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void forceNearbyCheckboxStateByExactLabel(String label, boolean checked) {
+        try {
+            page.evaluate("""
+                    args => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const dispatch = checkbox => {
+                            checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+                            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                            checkbox.dispatchEvent(new Event('blur', { bubbles: true }));
+                        };
+                        const checkboxState = checkbox =>
+                            checkbox.getAttribute('aria-checked') === 'true' || checkbox.checked === true;
+                        const applyState = checkbox => {
+                            const expectedState = !!args.checked;
+                            if (checkboxState(checkbox) !== expectedState) {
+                                checkbox.click?.();
+                            }
+                            if ('checked' in checkbox) {
+                                checkbox.checked = expectedState;
+                            }
+                            checkbox.setAttribute?.('aria-checked', String(expectedState));
+                            dispatch(checkbox);
+                            if (checkboxState(checkbox) === expectedState) {
+                                return true;
+                            }
+                            const container = checkbox.closest?.('label, div, span, p') || checkbox.parentElement;
+                            container?.click?.();
+                            if ('checked' in checkbox) {
+                                checkbox.checked = expectedState;
+                            }
+                            checkbox.setAttribute?.('aria-checked', String(expectedState));
+                            dispatch(checkbox);
+                            return checkboxState(checkbox) === expectedState;
+                        };
+                        const resolveCheckbox = labelText => {
+                            const exactLabels = Array.from(document.querySelectorAll('label, span, div, p'))
+                                .filter(isVisible)
+                                .filter(element => normalize(element.innerText || element.textContent) === normalize(labelText));
+                            const visibleCheckboxes = Array.from(document.querySelectorAll('input[type="checkbox"], [role="checkbox"]'))
+                                .filter(isVisible);
+                            for (const textNode of exactLabels) {
+                                const containers = [];
+                                let current = textNode;
+                                for (let depth = 0; current && depth < 6; depth += 1) {
+                                    containers.push(current);
+                                    current = current.parentElement;
+                                }
+                                containers.push(textNode.previousElementSibling, textNode.nextElementSibling);
+                                for (const container of containers.filter(Boolean)) {
+                                    const checkbox = container.matches?.('input[type="checkbox"], [role="checkbox"]')
+                                        ? container
+                                        : container.querySelector?.('input[type="checkbox"], [role="checkbox"]');
+                                    if (checkbox && isVisible(checkbox)) {
+                                        return checkbox;
+                                    }
+                                }
+
+                                const labelRect = textNode.getBoundingClientRect();
+                                let bestCheckbox = null;
+                                let bestScore = Number.POSITIVE_INFINITY;
+                                for (const checkbox of visibleCheckboxes) {
+                                    const rect = checkbox.getBoundingClientRect();
+                                    const labelCenterY = labelRect.top + (labelRect.height / 2);
+                                    const checkboxCenterY = rect.top + (rect.height / 2);
+                                    const verticalGap = Math.abs(labelCenterY - checkboxCenterY);
+                                    const horizontalGap = rect.right <= labelRect.left + 8
+                                        ? Math.abs(labelRect.left - rect.right)
+                                        : Math.abs(rect.left - labelRect.right) + 200;
+                                    const sameRowPenalty = verticalGap <= Math.max(rect.height, labelRect.height, 24) ? 0 : 1000;
+                                    const score = sameRowPenalty + (verticalGap * 10) + horizontalGap;
+                                    if (score < bestScore) {
+                                        bestScore = score;
+                                        bestCheckbox = checkbox;
+                                    }
+                                }
+                                if (bestCheckbox) {
+                                    return bestCheckbox;
+                                }
+                            }
+                            return null;
+                        };
+
+                        const checkbox = resolveCheckbox(args.label);
+                        if (!checkbox) {
+                            return false;
+                        }
+                        return applyState(checkbox);
+                    }
+                    """, java.util.Map.of(
+                    "label", label,
+                    "checked", checked));
+        } catch (Exception ignored) {
+        }
+    }
+
     private Locator resolvePartyCard(String title) {
         String escapedTitle = toXpathLiteral(title);
         Locator locator = page.locator(
                 "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
                         + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox']][1]");
         return firstVisible(locator);
+    }
+
+    @Override
+    protected Locator resolveSection(String sectionTitle) {
+        String escapedTitle = toXpathLiteral(sectionTitle);
+        String controlQuery = ".//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button";
+
+        Locator exactNearestSection = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[" + controlQuery + "][1])");
+        Locator visibleExactNearestSection = firstVisible(exactNearestSection);
+        if (visibleExactNearestSection != null) {
+            return visibleExactNearestSection;
+        }
+
+        return super.resolveSection(sectionTitle);
     }
 
     private Locator resolveSectionOrNull(String title) {
@@ -2092,6 +2415,279 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     "value", value,
                     "labelHints", labelHints));
         } catch (Exception ignored) {
+        }
+    }
+
+    private void syncVisibleTextComponentValueInSection(
+            String sectionTitle,
+            String formControlName,
+            String value,
+            String... labelHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator section = resolveSectionOrNull(sectionTitle);
+        if (section == null) {
+            return;
+        }
+
+        Locator component = firstVisible(section.locator("[formcontrolname='" + formControlName + "']"));
+        if (component == null) {
+            component = firstVisible(section.locator(
+                    "input[formcontrolname='" + formControlName + "'], textarea[formcontrolname='" + formControlName + "']"));
+        }
+        if (component == null) {
+            return;
+        }
+
+        try {
+            component.evaluate("""
+                    (element, args) => {
+                        const normalize = input => (input || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = candidate => !!candidate && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        const hints = (args.labelHints || []).map(normalize).filter(Boolean);
+                        const scopeText = normalize(element.innerText || element.textContent || '');
+                        if (hints.length > 0 && scopeText && !hints.some(hint => scopeText.includes(hint) || hint.includes(scopeText))) {
+                            const labeledContainer = element.closest('app-textbox, app-input, app-text-input, .form-group, .mat-form-field, .ng-star-inserted, div');
+                            const containerText = normalize(labeledContainer?.innerText || labeledContainer?.textContent || '');
+                            if (!containerText || !hints.some(hint => containerText.includes(hint))) {
+                                return false;
+                            }
+                        }
+
+                        const candidateElements = [
+                            element,
+                            element.querySelector?.('input, textarea'),
+                            element.closest?.('[formcontrolname]'),
+                            element.parentElement,
+                            element.parentElement?.querySelector?.('input, textarea')
+                        ].filter(Boolean);
+
+                        for (const candidate of candidateElements) {
+                            const component = typeof window.ng !== 'undefined' && typeof window.ng.getComponent === 'function'
+                                ? window.ng.getComponent(candidate)
+                                : null;
+                            if (component) {
+                                if ('value' in component) {
+                                    component.value = args.value;
+                                }
+                                if ('_value' in component) {
+                                    component._value = args.value;
+                                }
+                                if ('inputDisplayValue' in component) {
+                                    component.inputDisplayValue = args.value;
+                                }
+                                if ('displayValue' in component) {
+                                    component.displayValue = args.value;
+                                }
+                                const nativeInput = component.inputElement?.nativeElement
+                                    || candidate.querySelector?.('input, textarea');
+                                if (nativeInput && isVisible(nativeInput)) {
+                                    nativeInput.value = args.value;
+                                    nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                    nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                    nativeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                                }
+                                if (typeof component.onChange === 'function') {
+                                    component.onChange(args.value);
+                                }
+                                if (typeof component.onTouched === 'function') {
+                                    component.onTouched();
+                                }
+                                return true;
+                            }
+                        }
+
+                        const field = element.matches?.('input, textarea')
+                            ? element
+                            : element.querySelector?.('input, textarea');
+                        if (!field || !isVisible(field)) {
+                            return false;
+                        }
+
+                        field.value = args.value;
+                        field.dispatchEvent(new Event('input', { bubbles: true }));
+                        field.dispatchEvent(new Event('change', { bubbles: true }));
+                        field.dispatchEvent(new Event('blur', { bubbles: true }));
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "value", value,
+                    "labelHints", labelHints));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void fillVerifiedTransportTextField(
+            String sectionTitle,
+            String formControlName,
+            String value,
+            String... labels) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        fillFieldInSectionByAnyLabelIfPresent(sectionTitle, value, labels);
+
+        Locator field = resolveTransportTextFieldOrNull(sectionTitle, formControlName, labels);
+        if (field != null && waitForExpectedRenderedValue(field, value, 1000)) {
+            return;
+        }
+        if (field != null) {
+            ensureTransportTextFieldValue(field, value);
+            if (waitForExpectedRenderedValue(field, value, 1000)) {
+                return;
+            }
+        }
+
+        syncVisibleTextComponentValueInSection(sectionTitle, formControlName, value, labels);
+
+        field = resolveTransportTextFieldOrNull(sectionTitle, formControlName, labels);
+        if (field != null) {
+            ensureTransportTextFieldValue(field, value);
+        }
+        if (field == null || !waitForExpectedRenderedValue(field, value, 1500)) {
+            throw new IllegalStateException(sectionTitle + " field did not render expected value for "
+                    + formControlName + ". Expected: " + value
+                    + ", Actual: " + (field == null ? "<field-not-found>" : readRenderedFieldValue(field)));
+        }
+    }
+
+    private Locator resolveTransportTextFieldOrNull(String sectionTitle, String formControlName, String... labels) {
+        for (String label : labels) {
+            Locator field = resolveFieldByLabelInSectionOrNull(sectionTitle, label, 0);
+            if (field != null) {
+                Locator concreteField = resolveConcreteTransportEditableFieldOrNull(field);
+                if (concreteField != null) {
+                    return concreteField;
+                }
+            }
+        }
+
+        Locator section = resolveSectionOrNull(sectionTitle);
+        if (section == null) {
+            return null;
+        }
+
+        Locator field = firstVisible(section.locator(
+                "input[formcontrolname='" + formControlName + "'], textarea[formcontrolname='" + formControlName + "']"));
+        if (field != null) {
+            return field;
+        }
+
+        return resolveConcreteTransportEditableFieldOrNull(
+                firstVisible(section.locator("[formcontrolname='" + formControlName + "']")));
+    }
+
+    private boolean waitForExpectedRenderedValue(Locator field, String expectedValue, int timeoutMs) {
+        if (field == null || expectedValue == null || expectedValue.isBlank()) {
+            return false;
+        }
+
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        String normalizedExpected = normalize(expectedValue);
+        while (System.currentTimeMillis() <= deadline) {
+            String currentValue = normalize(readRenderedFieldValue(field));
+            if (!currentValue.isBlank()
+                    && (currentValue.equalsIgnoreCase(normalizedExpected)
+                    || currentValue.contains(normalizedExpected)
+                    || normalizedExpected.contains(currentValue))) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private void ensureTransportTextFieldValue(Locator field, String expectedValue) {
+        if (field == null || expectedValue == null || expectedValue.isBlank()) {
+            return;
+        }
+
+        try {
+            String currentValue = normalize(readRenderedFieldValue(field));
+            String normalizedExpected = normalize(expectedValue);
+            if (!currentValue.isBlank()
+                    && (currentValue.equalsIgnoreCase(normalizedExpected)
+                    || currentValue.contains(normalizedExpected)
+                    || normalizedExpected.contains(currentValue))) {
+                return;
+            }
+
+            field.evaluate("""
+                    (element, newValue) => {
+                        element.value = newValue;
+                        element.setAttribute('value', newValue);
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        element.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                    """, expectedValue);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private Locator resolveConcreteTransportEditableFieldOrNull(Locator candidate) {
+        Locator visibleCandidate = firstVisible(candidate);
+        if (visibleCandidate == null) {
+            return null;
+        }
+
+        if (isConcreteTransportEditableField(visibleCandidate)) {
+            return visibleCandidate;
+        }
+
+        Locator nestedConcreteField = firstVisible(visibleCandidate.locator(
+                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                        + "textarea:not([readonly]):not([disabled]), "
+                        + "select:not([disabled]), "
+                        + "[contenteditable='true']"));
+        if (nestedConcreteField != null) {
+            return nestedConcreteField;
+        }
+
+        Locator nestedTextbox = firstVisible(visibleCandidate.locator("[role='combobox'], [role='textbox']"));
+        if (nestedTextbox != null) {
+            return nestedTextbox;
+        }
+
+        Locator parentConcreteField = firstVisible(visibleCandidate.locator(
+                "xpath=(ancestor::*[.//input or .//textarea or .//select or .//*[@contenteditable='true']][1]"
+                        + "//input[not(@type='checkbox') and not(@readonly) and not(@disabled)]"
+                        + " | ancestor::*[.//input or .//textarea or .//select or .//*[@contenteditable='true']][1]"
+                        + "//textarea[not(@readonly) and not(@disabled)]"
+                        + " | ancestor::*[.//input or .//textarea or .//select or .//*[@contenteditable='true']][1]"
+                        + "//select[not(@disabled)]"
+                        + " | ancestor::*[.//input or .//textarea or .//select or .//*[@contenteditable='true']][1]"
+                        + "//*[@contenteditable='true'])[1]"));
+        if (parentConcreteField != null) {
+            return parentConcreteField;
+        }
+
+        return visibleCandidate;
+    }
+
+    private boolean isConcreteTransportEditableField(Locator field) {
+        try {
+            Object editable = field.evaluate("""
+                    element => {
+                        const tagName = (element.tagName || '').toUpperCase();
+                        if (tagName === 'INPUT') {
+                            return element.type !== 'checkbox' && !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'TEXTAREA') {
+                            return !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'SELECT') {
+                            return !element.disabled;
+                        }
+                        return element.getAttribute('contenteditable') === 'true';
+                    }
+                    """);
+            return Boolean.TRUE.equals(editable);
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
