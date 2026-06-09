@@ -38,6 +38,8 @@ public class IptDeclarationPage {
             Integer.getInteger("tradenix.ui.lookup.wait.ms", 1000);
     private static final int UI_NEXT_FIELD_PAUSE_MS =
             Integer.getInteger("tradenix.ui.next.field.pause.ms", 1000);
+    private static final int UI_POST_SAVE_READY_TIMEOUT_MS =
+            Integer.getInteger("tradenix.ui.post.save.ready.timeout.ms", 45000);
     private static final int UI_SUBMIT_CLICK_WAIT_MS = 2000;
     private static final int UI_POST_SUBMIT_WAIT_MS = 3000;
 
@@ -70,9 +72,9 @@ public class IptDeclarationPage {
         if (!summaryDraftSaved) {
             saveDraftAndWaitForCompletion();
         } else {
-            waitForPostSaveReadyState(15000);
+            waitForPostSaveReadyState(UI_POST_SAVE_READY_TIMEOUT_MS);
         }
-        waitForActionButtonEnabled("SUBMIT DECLARATION", 15000);
+        waitForActionButtonEnabled("SUBMIT DECLARATION", UI_POST_SAVE_READY_TIMEOUT_MS);
         clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
         page.waitForTimeout(5000);
     }
@@ -212,9 +214,7 @@ public class IptDeclarationPage {
             fillDateFieldInSectionIfPresent("Checks", "Blanket Start Date", blanketStartDate);
         }
 
-        if (cargo.path("supplyIndicator").asBoolean(false)) {
-            setCheckboxByLabel("Supply Indicator", true);
-        }
+        setCheckboxByLabelIfDifferent("Supply Indicator", isExplicitTrue(cargo.path("supplyIndicator")));
     }
 
     private void selectBgIndicator(String bgIndicator) {
@@ -604,7 +604,7 @@ public class IptDeclarationPage {
         fillItemQuantityDetails(itemQuantity);
         fillVehicleDetails(motorVehicle);
         JsonNode transactionValue = item.path("transactionValue");
-        fillItemValues(transactionValue);
+        fillItemValues(item, transactionValue, formMetaData);
         fillLotIdentification(item, lotIdentification);
         fillShippingMarks(shippingMarksInformation);
 
@@ -735,13 +735,24 @@ public class IptDeclarationPage {
         fillLookupFieldAfterScopeLabelIfPresent(scope, rowLabel, 1, unitCode, unitCode);
     }
 
-    protected void fillItemValues(JsonNode transactionValue) {
-        if (isMissingOrEmpty(transactionValue)) {
+    protected void fillItemValues(JsonNode item, JsonNode transactionValue, JsonNode formMetaData) {
+        if (isMissingOrEmpty(transactionValue) && isMissingOrEmpty(item)) {
             return;
         }
 
         Locator itemValuesSection = resolveItemValuesSection();
         JsonNode unitPriceValue = transactionValue.path("unitPriceValue");
+        JsonNode optionalItemCharge = transactionValue.path("optionalItemCharge");
+        String lastSellingPrice = firstNonBlank(
+                text(transactionValue, "lastSellingPriceValue", "lastSellingPrice", "lastsellingPriceValue", "lastsellingPrice"),
+                text(item, "lastSellingPriceValue", "lastSellingPrice", "lastsellingPriceValue", "lastsellingPrice"));
+        boolean hasOtherAmountFields = hasOtherAmountFields(formMetaData, optionalItemCharge, lastSellingPrice);
+
+        setCheckboxByLabelIfDifferent("Other Amount Fields", hasOtherAmountFields);
+        if (hasOtherAmountFields) {
+            pauseUi(UI_ACTION_PAUSE_MS);
+        }
+
         fillFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
                 "Item Value",
@@ -753,7 +764,6 @@ public class IptDeclarationPage {
                 1,
                 text(unitPriceValue.path("amount"), "currencyID"),
                 text(unitPriceValue.path("amount"), "currencyID"));
-        JsonNode optionalItemCharge = transactionValue.path("optionalItemCharge");
         fillFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
                 "Optional Charges",
@@ -765,11 +775,23 @@ public class IptDeclarationPage {
                 1,
                 text(optionalItemCharge.path("amount"), "currencyID"),
                 text(optionalItemCharge.path("amount"), "currencyID"));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
                 "Last Selling Price",
                 0,
-                normalizeNumericForEntry(text(transactionValue, "lastSellingPriceValue")));
+                normalizeNumericForEntry(lastSellingPrice));
+    }
+
+    protected void fillItemValues(JsonNode transactionValue) {
+        fillItemValues(MissingNode.getInstance(), transactionValue, MissingNode.getInstance());
+    }
+
+    protected boolean hasOtherAmountFields(JsonNode formMetaData, JsonNode optionalItemCharge, String lastSellingPrice) {
+        boolean metadataEnabled = formMetaData != null
+                && formMetaData.path("otherAmountFieldsIsActive").path(0).asBoolean(false);
+        return metadataEnabled
+                || !isMissingOrEmpty(optionalItemCharge)
+                || (lastSellingPrice != null && !lastSellingPrice.isBlank());
     }
 
     private Locator resolveItemValuesSection() {
@@ -942,7 +964,7 @@ public class IptDeclarationPage {
         String productCode = text(cascProduct, "cascProductCode");
         if (productCode != null && !productCode.isBlank()) {
             Locator productCodeField = resolveCascPrimaryEditableField(cascRow, 0);
-            focusAndType(productCodeField, productCode, true, productCode);
+            fillVerifiedLookupField(productCodeField, productCode, productCode);
         }
 
         JsonNode cascQuantity = cascProduct.path("cascProductQuantity");
@@ -1732,6 +1754,24 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
+    protected void fillValidatedFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        Locator field = resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            return;
+        }
+        focusAndType(field, value, false);
+        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
+            ensureTextFieldValue(field, value);
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("Field value was not rendered for " + rowLabel + ". Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
     protected void fillLookupFieldAfterScopeLabelIfPresent(
             Locator scope,
             String rowLabel,
@@ -1860,6 +1900,55 @@ public class IptDeclarationPage {
         }
         page.keyboard().press("Tab");
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+    }
+
+    private void fillVerifiedLookupField(Locator field, String value, String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        List<String> expectedValuesList = new ArrayList<>();
+        appendCandidate(expectedValuesList, value);
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                appendCandidate(expectedValuesList, suggestionHint);
+            }
+        }
+        String[] expectedValues = expectedValuesList.toArray(String[]::new);
+
+        focusAndType(field, value, true, suggestionHints);
+        if (waitForAnyRenderedFieldValue(field, 1500, expectedValues)) {
+            return;
+        }
+
+        closeTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+        field.click(new Locator.ClickOptions().setForce(true));
+        page.keyboard().press("Control+A");
+        page.keyboard().press("Backspace");
+        page.keyboard().type(value);
+        pauseUi(UI_ACTION_PAUSE_MS);
+
+        if (!clickVisibleSuggestion(suggestionHints)) {
+            try {
+                page.keyboard().press("ArrowDown");
+                pauseUi(UI_ACTION_PAUSE_MS);
+                if (!clickVisibleSuggestion(suggestionHints)) {
+                    page.keyboard().press("Enter");
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                }
+            } catch (PlaywrightException ignored) {
+            }
+        }
+
+        ensureLookupValue(field, value);
+        page.keyboard().press("Tab");
+        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, expectedValues)) {
+            throw new IllegalStateException("Lookup value was not rendered. Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
     }
 
     private void openLookupAndChooseOption(Locator field, String... optionHints) {
@@ -4003,7 +4092,7 @@ public class IptDeclarationPage {
     private void saveDraftAndWaitForCompletion() {
         waitForActionButtonEnabled("SAVE DRAFT", 15000);
         clickActionButtonExactWithRetry("SAVE DRAFT", 3);
-        waitForPostSaveReadyState(15000);
+        waitForPostSaveReadyState(UI_POST_SAVE_READY_TIMEOUT_MS);
         summaryDraftSaved = true;
     }
 
@@ -4042,18 +4131,33 @@ public class IptDeclarationPage {
 
                         const saveButton = findExactButton('SAVE DRAFT');
                         const submitButton = findExactButton('SUBMIT DECLARATION');
-                        return !!saveButton && isEnabled(saveButton) && !!submitButton && isEnabled(submitButton);
+                        const busySelector = [
+                            '[aria-busy="true"]',
+                            '.spinner',
+                            '.loading',
+                            '.loader',
+                            '.progress-spinner',
+                            '.mat-mdc-progress-spinner',
+                            '.ngx-spinner-overlay',
+                            '.cdk-overlay-backdrop-showing'
+                        ].join(', ');
+                        const hasBusyOverlay = Array.from(document.querySelectorAll(busySelector)).some(isVisible);
+                        return !!saveButton
+                            && isEnabled(saveButton)
+                            && !!submitButton
+                            && isEnabled(submitButton)
+                            && !hasBusyOverlay;
                     }
                     """);
             if (Boolean.TRUE.equals(ready)) {
                 stableChecks++;
-                if (stableChecks >= 2) {
+                if (stableChecks >= 4) {
                     return;
                 }
             } else {
                 stableChecks = 0;
             }
-            page.waitForTimeout(250);
+            page.waitForTimeout(300);
         }
         throw new IllegalStateException("Page did not return to ready state after saving draft.");
     }
@@ -4731,6 +4835,26 @@ public class IptDeclarationPage {
             return node.get(0);
         }
         return MissingNode.getInstance();
+    }
+
+    private boolean isExplicitTrue(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return false;
+        }
+        if (node.isBoolean()) {
+            return node.booleanValue();
+        }
+        if (node.isNumber()) {
+            return node.intValue() != 0;
+        }
+        if (node.isTextual()) {
+            String normalized = normalize(node.asText()).toUpperCase();
+            return "TRUE".equals(normalized)
+                    || "YES".equals(normalized)
+                    || "Y".equals(normalized)
+                    || "1".equals(normalized);
+        }
+        return false;
     }
 
     protected String firstNonBlank(String... values) {
