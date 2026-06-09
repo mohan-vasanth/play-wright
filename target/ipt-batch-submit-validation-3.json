@@ -1,0 +1,4 @@
+{
+  "toastText": "Tradenix IPT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2606090139 URN ID 202535359H Sequence Number 1139 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice Info (V) Items (I) CPC (C) Summary (Y) Response (R) Validation Failed: Please fill in all required fields before submitting: GST amount mismatch: client='0.63', server='900.63', diff=900.00",
+  "invalidElements": []
+}
