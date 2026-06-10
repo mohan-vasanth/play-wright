@@ -214,7 +214,7 @@ public class IptDeclarationPage {
             fillDateFieldInSectionIfPresent("Checks", "Blanket Start Date", blanketStartDate);
         }
 
-        setCheckboxByLabelIfDifferent("Supply Indicator", isExplicitTrue(cargo.path("supplyIndicator")));
+        setCheckboxByLabelIfDifferent("Supply Indicator", isStrictJsonBooleanTrue(cargo.path("supplyIndicator")));
     }
 
     private void selectBgIndicator(String bgIndicator) {
@@ -1262,10 +1262,16 @@ public class IptDeclarationPage {
         }
         Set<Integer> visibleFieldIndexesBeforeOpening = captureVisibleTextEntryIndexes();
         setCheckboxByLabel("License", true);
-        clickContainerByLabelIfPresent("License");
-        page.waitForTimeout(300);
+        ensureLicenseEditorVisible(visibleFieldIndexesBeforeOpening);
 
-        Locator licenseField = resolveLicenseFieldOrNull(visibleFieldIndexesBeforeOpening);
+        Locator licenseField = waitForLicenseFieldOrNull(visibleFieldIndexesBeforeOpening, 1500);
+        if (licenseField == null) {
+            Locator licenseSection = waitForLicenseSectionOrNull(1000);
+            if (licenseSection != null && clickButtonInScopeIfVisible(licenseSection, "ADD")) {
+                pauseUi(UI_ACTION_PAUSE_MS);
+                licenseField = waitForLicenseFieldOrNull(visibleFieldIndexesBeforeOpening, 2000);
+            }
+        }
         if (licenseField == null) {
             throw new IllegalStateException("License input did not open after checking License.");
         }
@@ -1281,7 +1287,27 @@ public class IptDeclarationPage {
         }
     }
 
+    private void ensureLicenseEditorVisible(Set<Integer> visibleFieldIndexesBeforeOpening) {
+        if (resolveLicenseFieldOrNull(visibleFieldIndexesBeforeOpening) != null) {
+            return;
+        }
+
+        Locator licenseSection = waitForLicenseSectionOrNull(750);
+        if (licenseSection != null && hasButtonInScopeVisible(licenseSection, "ADD")) {
+            return;
+        }
+
+        clickLicensePanelBodyIfPresent();
+        pauseUi(UI_ACTION_PAUSE_MS);
+    }
+
     private Locator resolveLicenseFieldOrNull(Set<Integer> visibleFieldIndexesBeforeOpening) {
+        Locator licenseSection = resolveLicenseSectionOrNull();
+        Locator scopedField = resolveLicenseInputBoxOrNull(licenseSection);
+        if (scopedField != null && !isFieldInsideText(scopedField, "Prev Permit Number", "Previous Permit Number")) {
+            return scopedField;
+        }
+
         Locator panelField = lastVisible(page.locator(
                 "xpath=(//*[normalize-space()='License'])[last()]/ancestor::*[.//input or .//textarea][1]"
                         + "//*[self::input[not(@type) or @type='text' or @type='search'] or self::textarea]"));
@@ -1303,6 +1329,99 @@ public class IptDeclarationPage {
         }
 
         return null;
+    }
+
+    private Locator waitForLicenseFieldOrNull(Set<Integer> visibleFieldIndexesBeforeOpening, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 1000);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator field = resolveLicenseFieldOrNull(visibleFieldIndexesBeforeOpening);
+            if (field != null) {
+                return field;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator waitForLicenseSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 500);
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolveLicenseSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator resolveLicenseSectionOrNull() {
+        waitForFormControls();
+
+        Locator expandedSection = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))='License'])[last()]"
+                        + "/ancestor::*[(.//*[self::button or @role='button' or self::a]"
+                        + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'ADD')]"
+                        + " or .//*[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'LIST (1)')]"
+                        + " or .//input[(not(@type) or @type='text' or @type='search') and not(@readonly) and not(@disabled)]"
+                        + " or .//textarea[not(@readonly) and not(@disabled)])][1]");
+        Locator visibleExpandedSection = firstVisible(expandedSection);
+        if (visibleExpandedSection != null) {
+            return visibleExpandedSection;
+        }
+
+        return resolveLicenseCardOrNull();
+    }
+
+    private Locator resolveLicenseCardOrNull() {
+        Locator visibleCard = firstVisible(page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))='License'])[last()]"
+                        + "/ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' card ')][1]"));
+        if (visibleCard != null) {
+            return visibleCard;
+        }
+
+        Locator checkboxWrapper = firstVisible(page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))='License'])[last()]"
+                        + "/ancestor::*[self::clr-checkbox-wrapper or contains(@class, 'checkbox') or contains(@class, 'control')][1]"));
+        if (checkboxWrapper != null) {
+            return checkboxWrapper;
+        }
+
+        return null;
+    }
+
+    private Locator resolveLicenseInputBoxOrNull(Locator licenseSection) {
+        Locator visibleScope = firstVisible(licenseSection);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator field = visibleScope.locator(
+                "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                        + "textarea:not([readonly]):not([disabled])");
+        return firstVisible(field);
+    }
+
+    private void clickLicensePanelBodyIfPresent() {
+        Locator licenseCard = resolveLicenseCardOrNull();
+        if (licenseCard == null) {
+            return;
+        }
+
+        try {
+            licenseCard.scrollIntoViewIfNeeded();
+            BoundingBox box = licenseCard.boundingBox();
+            if (box == null) {
+                licenseCard.click(new Locator.ClickOptions().setForce(true));
+                return;
+            }
+
+            double safeX = box.x + Math.max(24, Math.min(box.width - 24, box.width * 0.78));
+            double safeY = box.y + Math.max(18, Math.min(box.height - 18, box.height * 0.55));
+            page.mouse().click(safeX, safeY);
+        } catch (PlaywrightException ignored) {
+        }
     }
 
     private boolean waitForLicenseValue(String expectedValue, int timeoutMs) {
@@ -4621,7 +4740,7 @@ public class IptDeclarationPage {
         visibleCheckbox.scrollIntoViewIfNeeded();
         boolean selected = isCheckboxSelected(visibleCheckbox);
         if (selected != checked) {
-            visibleCheckbox.click(new Locator.ClickOptions().setForce(true));
+            clickCheckboxTarget(label, visibleCheckbox);
         }
         if (isCheckboxSelected(visibleCheckbox) != checked) {
             clickContainerByLabelIfPresent(label);
@@ -4682,18 +4801,50 @@ public class IptDeclarationPage {
                         const normalize = input => (input || '').replace(/\\s+/g, ' ').trim().toUpperCase();
                         const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
                         const hints = (args.labelHints || []).map(normalize).filter(Boolean);
+
+                        const resolveCheckboxFromElement = element => {
+                            if (!element) {
+                                return null;
+                            }
+
+                            if (element.tagName === 'LABEL') {
+                                if (element.control && element.control.type === 'checkbox') {
+                                    return element.control;
+                                }
+                                const htmlFor = element.getAttribute('for');
+                                if (htmlFor) {
+                                    const associated = document.getElementById(htmlFor);
+                                    if (associated && associated.type === 'checkbox') {
+                                        return associated;
+                                    }
+                                }
+                            }
+
+                            return element.querySelector?.('input[type="checkbox"], [role="checkbox"]')
+                                || element.closest?.('clr-checkbox-wrapper, label, div, section, form')?.querySelector?.('input[type="checkbox"], [role="checkbox"]')
+                                || null;
+                        };
+
+                        const visibleLabels = Array.from(document.querySelectorAll('label')).filter(isVisible);
+                        for (const hint of hints) {
+                            const exactLabel = visibleLabels.find(element => normalize(element.innerText || element.textContent) === hint);
+                            const exactCheckbox = resolveCheckboxFromElement(exactLabel);
+                            if (exactCheckbox) {
+                                exactCheckbox.checked = !!args.checked;
+                                exactCheckbox.dispatchEvent(new Event('input', { bubbles: true }));
+                                exactCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+                                exactCheckbox.dispatchEvent(new Event('blur', { bubbles: true }));
+                                return true;
+                            }
+                        }
+
                         const label = Array.from(document.querySelectorAll('label, span, div, p'))
                             .filter(isVisible)
                             .find(element => {
                                 const text = normalize(element.innerText || element.textContent);
-                                return hints.some(hint => text.includes(hint));
+                                return hints.some(hint => text === hint || text.includes(hint));
                             });
-                        if (!label) {
-                            return false;
-                        }
-
-                        const checkbox = label.closest('div, label, section, form')?.querySelector('input[type="checkbox"]')
-                            || label.parentElement?.querySelector('input[type="checkbox"]')
+                        const checkbox = resolveCheckboxFromElement(label)
                             || document.querySelector('input[type="checkbox"][formcontrolname="declarationIndicator"]');
                         if (!checkbox) {
                             return false;
@@ -4714,6 +4865,11 @@ public class IptDeclarationPage {
 
     private Locator resolveCheckboxByLabel(String label) {
         waitForFormControls();
+        Locator checkboxViaExplicitLabel = resolveCheckboxViaExplicitLabel(label);
+        if (checkboxViaExplicitLabel != null) {
+            return checkboxViaExplicitLabel;
+        }
+
         String escapedLabel = toXpathLiteral(label);
         Locator nestedCheckbox = page.locator(
                 "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
@@ -4750,7 +4906,66 @@ public class IptDeclarationPage {
         return firstVisible(followingCheckbox);
     }
 
+    private Locator resolveCheckboxViaExplicitLabel(String label) {
+        Locator labelElement = resolveExactLabelElement(label);
+        if (labelElement == null) {
+            return null;
+        }
+
+        String associatedControlId = normalize(labelElement.getAttribute("for"));
+        if (!associatedControlId.isBlank()) {
+            Locator associatedCheckbox = firstVisible(page.locator("#" + escapeCssIdentifier(associatedControlId)));
+            if (associatedCheckbox != null) {
+                return associatedCheckbox;
+            }
+        }
+
+        Locator nestedCheckbox = firstVisible(labelElement.locator("input[type='checkbox'], [role='checkbox']"));
+        if (nestedCheckbox != null) {
+            return nestedCheckbox;
+        }
+
+        Locator containerCheckbox = firstVisible(labelElement.locator(
+                "xpath=ancestor::*[.//input[@type='checkbox'] or .//*[@role='checkbox']][1]"
+                        + "//*[self::input[@type='checkbox'] or @role='checkbox']"));
+        if (containerCheckbox != null) {
+            return containerCheckbox;
+        }
+
+        return null;
+    }
+
+    private Locator resolveExactLabelElement(String label) {
+        String escapedLabel = toXpathLiteral(label);
+        return firstVisible(page.locator(
+                "xpath=(//label[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[1]"));
+    }
+
+    private void clickCheckboxTarget(String label, Locator checkbox) {
+        Locator labelElement = resolveExactLabelElement(label);
+        if (labelElement != null) {
+            try {
+                labelElement.scrollIntoViewIfNeeded();
+                labelElement.click(new Locator.ClickOptions().setForce(true));
+                return;
+            } catch (PlaywrightException ignored) {
+            }
+        }
+
+        checkbox.click(new Locator.ClickOptions().setForce(true));
+    }
+
     private void clickContainerByLabelIfPresent(String label) {
+        Locator labelElement = resolveExactLabelElement(label);
+        if (labelElement != null) {
+            try {
+                labelElement.scrollIntoViewIfNeeded();
+                labelElement.click(new Locator.ClickOptions().setForce(true));
+                return;
+            } catch (PlaywrightException ignored) {
+            }
+        }
+
         String escapedLabel = toXpathLiteral(label);
         Locator containers = page.locator(
                 "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
@@ -4837,24 +5052,12 @@ public class IptDeclarationPage {
         return MissingNode.getInstance();
     }
 
-    private boolean isExplicitTrue(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) {
-            return false;
-        }
-        if (node.isBoolean()) {
-            return node.booleanValue();
-        }
-        if (node.isNumber()) {
-            return node.intValue() != 0;
-        }
-        if (node.isTextual()) {
-            String normalized = normalize(node.asText()).toUpperCase();
-            return "TRUE".equals(normalized)
-                    || "YES".equals(normalized)
-                    || "Y".equals(normalized)
-                    || "1".equals(normalized);
-        }
-        return false;
+    private boolean isStrictJsonBooleanTrue(JsonNode node) {
+        return node != null
+                && !node.isMissingNode()
+                && !node.isNull()
+                && node.isBoolean()
+                && node.booleanValue();
     }
 
     protected String firstNonBlank(String... values) {

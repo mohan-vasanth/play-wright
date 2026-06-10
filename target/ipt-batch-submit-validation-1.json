@@ -1,4 +1,6 @@
 {
-  "toastText": "",
-  "invalidElements": []
+  "toastText": "Tradenix IPT Declarations Edit Declaration EXIT DECLARATION Job Info Message Reference TDX2606100070 URN ID 202535359H Sequence Number 1069 Declarant Name NAMASIVAYAM GUNESPARAN Declarant Code S8562791J Declarant Phone 81189066 Shipment Info (S) Transport Info (T) Party Info (P) Invoice Info (V) Items (I) CPC (C) Summary (Y) Response (R) Validation Failed: Please fill in all required fields before submitting: FreightForwarderParty ID is mandatory when party is present",
+  "invalidElements": [
+    "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-29\",\"type\":\"text\",\"ariaInvalid\":\"\",\"classes\":\"clr-input ng-untouched ng-pristine ng-invalid\"}"
+  ]
 }
