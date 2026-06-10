@@ -1,180 +1,143 @@
 [
   {
     "type": "COODEC",
-    "header": {
-      "messageReference": "TDX2606100049",
-      "uniqueReferenceNumber": {
-        "id": "202535359H",
-        "date": "20260610",
-        "sequenceNumeric": "1048"
-      },
-      "declarantId": "ADAT.ADAT001",
-      "commonAccessReference": "COODEC",
-      "applicationType": "COO",
-      "declarationIndicator": true,
-      "previousPermitNumber": "OD6E774234I"
-    },
-    "certificate": {
-      "applicationProductType": "NH",
-      "currencyCode": "USD",
-      "certificateDetail": [
-        {
-          "sequenceNumeric": 1,
-          "certificateType": "16"
-        }
-      ]
-    },
-    "transport": {
-      "outwardTransport": {
-        "transportMeans": {
-          "transportMode": {
-            "modeCode": "4",
-            "conveyanceReferenceNumber": "SQ001"
-          }
+    
+        "header": {
+            "messageReference": "TDX2606100104",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260610",
+                "sequenceNumeric": "1103"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "COODEC",
+            "applicationType": "COO",
+            "declarationIndicator": true,
+            "previousPermitNumber": "OD6E774234I"
         },
-        "departureDate": "20260528",
-        "dischargePort": "IDJKT",
-        "finalDestinationCountry": "ID"
-      }
-    },
-    "item": [
-      {
-        "itemSequenceNumeric": "1",
-        "itemHarmonizedSystemCode": "33029000",
-        "harmonizedSystemQuantity": {
-          "value": "840",
-          "unitCode": "KGM"
-        },
-        "originCountry": "SG",
-        "itemCIFFOBValue": "1355.3",
-        "shippingMarksInformation": [
-          {
-            "shippingMarks": [
-              "PSB001"
+        "certificate": {
+            "applicationProductType": "NH",
+            "preferenceContentPercent": 23,
+            "currencyCode": "USD",
+            "additionalCertificateDetails": [
+                "AA",
+                "BB",
+                "CC",
+                "DD",
+                "EE"
+            ],
+            "transportDetails": [
+                "FF",
+                "FF",
+                "FF",
+                "FF",
+                "FF"
+            ],
+            "certificateDetail": [
+                {
+                    "sequenceNumeric": 1,
+                    "certificateType": "3",
+                    "copiesNumeric": 11
+                },
+                {
+                    "sequenceNumeric": 2,
+                    "certificateType": "5",
+                    "copiesNumeric": 55
+                }
             ]
-          }
-        ],
-        "itemCertificate": {
-          "itemCertificateQuantity": {
-            "value": "960",
-            "unitCode": "KGM"
-          },
-          "itemValue": "1000",
-          "itemCertificateDescription": [
-            {
-              "line": [
-                "FLAVOUR"
-              ]
+        },
+        "transport": {
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "KKKK",
+                        "transportIdentifier": "FFSFF"
+                    }
+                },
+                "departureDate": "20260619",
+                "dischargePort": "AEAJM",
+                "finalDestinationCountry": "IN"
             }
-          ],
-          "manufacturingCostDate": "20260326",
-          "itemInvoiceNumber": "991011",
-          "itemInvoiceDate": "20260525",
-          "originCriterion": [
-            "CTH"
-          ]
-        }
-      }
-    ],
-    "summary": {
-      "numberOfItems": "1",
-      "totalGrossWeight": {
-        "unitCode": "KGM"
-      },
-      "totalOuterPack": {
-        "value": "1",
-        "unitCode": "PKG"
-      }
-    },
-    "formMetaData": {
-      "unitPriceCurrencies": [
-        "USD"
-      ],
-      "itemValues": [
-        "1000"
-      ],
-      "editUnitPrice": [
-        false
-      ],
-      "shippingMarksIsActive": [
-        false
-      ]
-    },
-    "party": {
-      "declarantParty": {
-        "personInformation": {
-          "codeValue": "S8562791J",
-          "name": "NAMASIVAYAM GUNESPARAN"
         },
-        "telephone": "81189066"
-      },
-      "declaringAgentParty": {
-        "partyIdentification": {
-          "id": "202535359H"
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "01012900",
+                "harmonizedSystemQuantity": {
+                    "value": "100",
+                    "unitCode": "NMB"
+                },
+                "originCountry": "CM",
+                "itemCIFFOBValue": "135.53",
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "LK222",
+                            "LK444"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "summary": {
+            "numberOfItems": "1",
+            "totalGrossWeight": {
+                "unitCode": "KGM"
+            },
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "PKG"
+            }
         },
-        "partyName": {
-          "name": "ADATA PVT LMT"
-        }
-      },
-      "exporterParty": {
-        "partyDetail": {
-          "partyIdentification": {
-            "id": "198003808K"
-          },
-          "partyName": {
-            "name": "ARMSTRONG INDUSTRIAL CORP"
-          }
-        },
-        "addressLine": {
-          "line": [
-            "TOLLGATE",
-            "LALGUDI"
-          ]
-        }
-      },
-      "outwardCarrierAgentParty": {
-        "partyIdentification": {
-          "id": "197702772D"
-        },
-        "partyName": {
-          "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
-        }
-      },
-      "consigneeParty": {
-        "partyName": {
-          "name": "NAME1"
-        },
-        "addressLine": {
-          "line": [
-            "add1",
-            "add2"
-          ]
-        }
-      },
-      "manufacturerParty": {
-        "partyDetail": {
-          "partyIdentification": {
-            "id": "198003808K"
-          },
-          "partyName": {
-            "name": "ARMSTRONG INDUSTRIAL CORP"
-          }
-        },
-        "address": {
-          "addressLine": {
-            "line": [
-              "ADD1",
-              "ADD2"
+        "formMetaData": {
+            "unitPriceCurrencies": [
+                "USD"
+            ],
+            "itemValues": [
+                "100"
+            ],
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
             ]
-          },
-          "cityName": "TRICHY",
-          "countrySubentityCode": "TN",
-          "countrySubentity": "TAMILNADU",
-          "postalZone": "620001",
-          "countryCode": "ID"
-        }
-      }
-    },
-    "type": "COO"
-  }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "type": "COO"
+    }
+
 ]

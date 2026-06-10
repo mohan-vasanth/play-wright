@@ -5,6 +5,11 @@ import com.fasterxml.jackson.databind.node.MissingNode;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.BoundingBox;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 public class CooDeclarationPage extends IptDeclarationPage {
 
@@ -43,10 +48,11 @@ public class CooDeclarationPage extends IptDeclarationPage {
     @Override
     public void submitDeclaration() {
         openSection("Summary (S)");
-        saveDraft();
-        page.waitForTimeout(1500);
-        clickButtonByText("SUBMIT DECLARATION", "Submit Declaration");
+        waitForActionButtonEnabled("SUBMIT DECLARATION", 15000);
+        captureProgressScreenshot("summary-before-submit");
+        clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
         page.waitForTimeout(5000);
+        captureProgressScreenshot("after-submit");
     }
 
     private void validateCooPayload(JsonNode data) {
@@ -95,11 +101,17 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 text(certificate, "applicationProductType"));
         fillCertificateDetail(certificate.path("certificateDetail"), 0, "Certificate Detail #1 - Type");
         fillCertificateDetail(certificate.path("certificateDetail"), 1, "Certificate Detail #2 - Type");
+        fillFieldInSectionIfPresent(
+                "Certificate of Origin",
+                "Preference Content Percent",
+                normalizeNumericForEntry(text(certificate, "preferenceContentPercent")));
         fillLookupFieldInSectionIfPresent(
                 "Certificate of Origin",
                 "Currency",
                 text(certificate, "currencyCode"),
                 text(certificate, "currencyCode"));
+        fillCertificateColumnValues("Certificate Additional Info", certificate.path("additionalCertificateDetails"));
+        fillCertificateColumnValues("Transport Details", certificate.path("transportDetails"));
 
         if (hasDocumentData(data)) {
             setCheckboxByLabel("Document", true);
@@ -127,6 +139,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return;
         }
 
+        Locator certificateDetailRow = resolveCertificateDetailRowOrNull(index);
+        if (certificateDetailRow != null) {
+            fillLastOrderedFieldInScope(certificateDetailRow, copies);
+            return;
+        }
+
         Locator certificateSection = resolveSection("Certificate of Origin");
         fillFieldAfterScopeLabelIfPresent(certificateSection, "No. of copies", index, copies);
     }
@@ -139,22 +157,46 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 || formMetaData.path("documentIsActive").asBoolean(false);
     }
 
+    private void fillCertificateColumnValues(String heading, JsonNode values) {
+        if (values == null || !values.isArray() || values.isEmpty()) {
+            return;
+        }
+
+        Locator column = resolveCertificateColumnByHeadingOrNull(heading);
+        if (column == null) {
+            return;
+        }
+
+        List<Locator> orderedFields = orderedVisibleEditableFields(column);
+        int fieldIndex = 0;
+        for (int index = 0; index < values.size() && fieldIndex < orderedFields.size(); index++) {
+            String value = normalize(values.get(index).asText());
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            focusAndType(orderedFields.get(fieldIndex++), value, false);
+        }
+    }
+
     private void fillTransportInfo(JsonNode data) {
         JsonNode outwardTransport = data.path("transport").path("outwardTransport");
         JsonNode transportMeans = outwardTransport.path("transportMeans");
         JsonNode transportMode = transportMeans.path("transportMode");
 
-        fillFieldInSectionByAnyLabelIfPresent(
+        fillVerifiedFieldInSectionByAnyLabelIfPresent(
                 "Outward Transport Means",
                 text(transportMode, "conveyanceReferenceNumber"),
+                "Flight Number",
                 "Conveyance Ref. No.",
                 "Conveyance Reference Number",
                 "Outward Flight Number",
                 "Outward Voyage Number");
-        fillFieldInSectionByAnyLabelIfPresent(
+        fillVerifiedFieldInSectionByAnyLabelIfPresent(
                 "Outward Transport Means",
                 text(transportMode, "transportIdentifier"),
+                "Aircraft Registration Number",
                 "Transport Identifier",
+                "Vessel Name",
                 "Outward Aircraft Registration Number",
                 "Outward Vessel Name",
                 "Vehicle Licence/Registration Number");
@@ -177,6 +219,10 @@ public class CooDeclarationPage extends IptDeclarationPage {
     private void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
 
+        fillPartyCard(
+                "Freight Forwarder",
+                party.path("freightForwarderParty"),
+                MissingNode.getInstance());
         fillPartyCard(
                 "Declaring Agent",
                 party.path("declaringAgentParty"),
@@ -298,14 +344,16 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
         fillQuantityRowInScope(resolveItemQuantitySection(), "HS Quantity", item.path("harmonizedSystemQuantity"));
 
-        Locator itemValuesSection = resolveItemValuesSection();
         String itemCurrency = firstNonBlank(
                 arrayText(formMetaData.path("unitPriceCurrencies"), index),
                 text(certificate, "currencyCode"));
+        fillVerifiedLookupFieldInSectionIfPresent("Item Details", "Currency", itemCurrency, itemCurrency);
+
+        Locator itemValuesSection = resolveItemValuesSection();
         String itemValue = firstNonBlank(
                 arrayText(formMetaData.path("itemValues"), index),
                 text(item.path("itemCertificate"), "itemValue"));
-        fillLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
         fillFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
         fillFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
@@ -315,6 +363,290 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
         fillShippingMarks(firstArrayItem(item.path("shippingMarksInformation")));
         fillItemCertificate(item.path("itemCertificate"), formMetaData);
+    }
+
+    private void fillVerifiedFieldInSectionByAnyLabelIfPresent(String sectionTitle, String value, String... labels) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        for (String label : labels) {
+            Locator field = resolveFieldByLabelInSectionOrNull(sectionTitle, label, 0);
+            if (field == null) {
+                continue;
+            }
+
+            focusAndType(field, value, false);
+            if (waitForAnyRenderedFieldValue(field, 1500, value)) {
+                return;
+            }
+
+            try {
+                field.fill(value);
+            } catch (PlaywrightException ignored) {
+            }
+            if (waitForAnyRenderedFieldValue(field, 1500, value)) {
+                return;
+            }
+
+            throw new IllegalStateException(label + " value was not rendered. Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
+    private void fillVerifiedLookupFieldInSectionIfPresent(
+            String sectionTitle,
+            String label,
+            String value,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveFieldByLabelInSectionOrNull(sectionTitle, label, 0);
+        if (field == null) {
+            return;
+        }
+
+        fillVerifiedLookupField(field, value, label, suggestionHints);
+    }
+
+    private void fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String value,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveEditableFieldAfterScopeLabelInScopeOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            return;
+        }
+
+        fillVerifiedLookupField(field, value, rowLabel, suggestionHints);
+    }
+
+    private void fillVerifiedLookupField(
+            Locator field,
+            String value,
+            String label,
+            String... suggestionHints) {
+        focusAndType(field, value, true, suggestionHints);
+        if (waitForAnyRenderedFieldValue(field, 1500, appendLookupExpectedValues(value, suggestionHints))) {
+            return;
+        }
+
+        syncLookupComponentValue(field, value, suggestionHints);
+        if (waitForAnyRenderedFieldValue(field, 1500, appendLookupExpectedValues(value, suggestionHints))) {
+            return;
+        }
+
+        throw new IllegalStateException(label + " lookup value was not rendered. Expected: "
+                + value + ", Actual: " + readRenderedFieldValue(field));
+    }
+
+    private String[] appendLookupExpectedValues(String value, String... suggestionHints) {
+        List<String> expectedValues = new ArrayList<>();
+        if (value != null && !value.isBlank()) {
+            expectedValues.add(value);
+        }
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                if (suggestionHint != null && !suggestionHint.isBlank()) {
+                    expectedValues.add(suggestionHint);
+                }
+            }
+        }
+        return expectedValues.toArray(String[]::new);
+    }
+
+    private void syncLookupComponentValue(Locator field, String value, String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        try {
+            field.evaluate("""
+                    (element, args) => {
+                        const normalize = input => (input || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const hints = [args.value, ...(args.suggestionHints || [])].map(normalize).filter(Boolean);
+                        const unique = candidates => candidates.filter((candidate, index) =>
+                            !!candidate && candidates.indexOf(candidate) === index);
+
+                        const candidateElements = unique([
+                            element,
+                            element.closest?.('[formcontrolname]'),
+                            element.closest?.('app-currency-code-lookup, app-lookup, app-dropdown, ng-select, mat-select, .ng-select, [role="combobox"]'),
+                            element.parentElement,
+                            element.parentElement?.parentElement,
+                            element.parentElement?.parentElement?.parentElement
+                        ]);
+
+                        for (const candidate of candidateElements) {
+                            const component = typeof window.ng !== 'undefined' && typeof window.ng.getComponent === 'function'
+                                ? window.ng.getComponent(candidate)
+                                : null;
+                            if (!component) {
+                                continue;
+                            }
+
+                            const allOptions = Array.isArray(component.allOptions)
+                                ? component.allOptions
+                                : Array.isArray(component.options)
+                                    ? component.options
+                                    : [];
+                            const option = allOptions.find(optionCandidate => {
+                                const code = normalize(optionCandidate?.code);
+                                const description = normalize(optionCandidate?.description);
+                                const combined = normalize(`${optionCandidate?.code || ''} ${optionCandidate?.description || ''}`);
+                                return hints.some(hint =>
+                                    hint === code
+                                    || hint === description
+                                    || hint === combined
+                                    || combined.includes(hint)
+                                    || hint.includes(combined));
+                            });
+
+                            const selectedValue = option?.code || args.value;
+                            const selectedDisplay = option?.description || option?.code || args.value;
+
+                            if ('value' in component) {
+                                component.value = selectedValue;
+                            }
+                            if ('_value' in component) {
+                                component._value = selectedValue;
+                            }
+                            if ('inputDisplayValue' in component) {
+                                component.inputDisplayValue = selectedDisplay;
+                            }
+                            if ('displayValue' in component) {
+                                component.displayValue = selectedDisplay;
+                            }
+                            if (typeof component.selectOptionItem === 'function' && option) {
+                                component.selectOptionItem(option);
+                            }
+                            if (typeof component.selectOptionLabel === 'function' && option) {
+                                component.selectOptionLabel(option);
+                            }
+                            if (typeof component.onChange === 'function') {
+                                component.onChange(selectedValue);
+                            }
+                            if (typeof component.onTouched === 'function') {
+                                component.onTouched();
+                            }
+
+                            const nativeInput = component.inputElement?.nativeElement
+                                || candidate.querySelector?.('input, textarea, select')
+                                || element.querySelector?.('input, textarea, select');
+                            if (nativeInput) {
+                                nativeInput.value = selectedDisplay;
+                                nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                                nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                nativeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+                            }
+                            return true;
+                        }
+
+                        const fallbackField = element.matches?.('input, textarea, select')
+                            ? element
+                            : element.querySelector?.('input, textarea, select')
+                                || element.closest?.('[formcontrolname]')?.querySelector?.('input, textarea, select');
+                        if (!fallbackField) {
+                            return false;
+                        }
+
+                        fallbackField.value = args.value;
+                        fallbackField.dispatchEvent(new Event('input', { bubbles: true }));
+                        fallbackField.dispatchEvent(new Event('change', { bubbles: true }));
+                        fallbackField.dispatchEvent(new Event('blur', { bubbles: true }));
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "value", value,
+                    "suggestionHints", suggestionHints == null ? new String[0] : suggestionHints));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private Locator resolveEditableFieldAfterScopeLabelInScopeOrNull(Locator scope, String rowLabel, int occurrence) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator field = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        if (field != null) {
+            return field;
+        }
+
+        field = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
+        if (field != null) {
+            return field;
+        }
+
+        return resolveEditableFieldInScopeRowOrNull(visibleScope, rowLabel, occurrence);
+    }
+
+    private Locator resolveEditableFieldInScopeRowOrNull(Locator visibleScope, String rowLabel, int occurrence) {
+        Locator exactRow = resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, false);
+        if (exactRow != null) {
+            return exactRow;
+        }
+        return resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, true);
+    }
+
+    private Locator resolveEditableFieldInScopeRowByLabelOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return null;
+        }
+
+        Locator row = label.locator(
+                "xpath=(ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > "
+                        + occurrence + "][1])");
+        return resolveVisibleEditableFieldInRowOrNull(row, occurrence);
+    }
+
+    private Locator resolveEditableFieldAfterScopeLabelByMatchOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return null;
+        }
+
+        Locator field = label.locator(
+                "xpath=(following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
+                        + (occurrence + 1) + "])[1]");
+        return firstVisible(field);
+    }
+
+    private Locator resolveScopeLabelOrNull(Locator visibleScope, String rowLabel, boolean containsMatch) {
+        String escapedRowLabel = xpathLiteral(rowLabel);
+        String matchExpression = containsMatch
+                ? "contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")"
+                : "normalize-space(translate(., '*', ''))=" + escapedRowLabel;
+        Locator label = visibleScope.locator(
+                "xpath=(.//*[" + matchExpression + "]"
+                        + "[not(.//*[" + matchExpression + "])])[1]");
+        return firstVisible(label);
+    }
+
+    private Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
+        List<Locator> orderedFields = orderedVisibleEditableFields(row);
+        if (occurrence < 0 || occurrence >= orderedFields.size()) {
+            return null;
+        }
+        return orderedFields.get(occurrence);
     }
 
     private void fillItemCertificate(JsonNode itemCertificate, JsonNode formMetaData) {
@@ -399,12 +731,117 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 || data.path("formMetaData").path("declarationIndicator").asBoolean(false)) {
             setCheckboxByLabel("I/We declare that all particulars in this application are true and correct.", true);
         }
-        saveDraft();
+        captureProgressScreenshot("summary-before-save-draft");
+        saveDraftAndWaitForCompletion();
     }
 
     private boolean shouldSubmitDeclaration(JsonNode data) {
-        return data.path("summary").path("submitDeclaration").asBoolean(false)
-                || data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        if (data.path("summary").has("submitDeclaration")) {
+            return data.path("summary").path("submitDeclaration").asBoolean(false);
+        }
+        if (data.path("formMetaData").has("submitDeclaration")) {
+        return data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+    }
+    return true;
+    }
+
+    private Locator resolveCertificateDetailRowOrNull(int index) {
+        String detailLabel = "Certificate Detail #" + (index + 1) + " - Type";
+        String escapedDetailLabel = xpathLiteral(detailLabel);
+        String escapedCopiesLabel = xpathLiteral("No. of copies");
+        Locator row = page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + escapedDetailLabel + ")])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), " + escapedCopiesLabel + ")]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]");
+        return firstVisible(row);
+    }
+
+    private Locator resolveCertificateColumnByHeadingOrNull(String heading) {
+        String escapedHeading = xpathLiteral(heading);
+        Locator column = page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + escapedHeading + ")])[last()]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
+        return firstVisible(column);
+    }
+
+    private void fillLastOrderedFieldInScope(Locator scope, String value) {
+        if (scope == null || value == null || value.isBlank()) {
+            return;
+        }
+
+        List<Locator> fields = orderedVisibleEditableFields(scope);
+        if (fields.isEmpty()) {
+            return;
+        }
+
+        focusAndType(fields.get(fields.size() - 1), value, false);
+    }
+
+    private List<Locator> orderedVisibleEditableFields(Locator scope) {
+        List<Locator> orderedFields = new ArrayList<>();
+        Locator fields = scope.locator(combinedEditableSelector());
+        List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
+        positionedElements.stream()
+                .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
+                .forEach(positionedElement -> orderedFields.add(fields.nth(positionedElement.index())));
+        return orderedFields;
+    }
+
+    private List<PositionedElement> collectDistinctVisibleEditableElements(Locator fields) {
+        List<PositionedElement> positionedElements = new ArrayList<>();
+        int count = fields.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = fields.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null || box.width < 4 || box.height < 4) {
+                continue;
+            }
+
+            PositionedElement current = new PositionedElement(index, box.x, box.y, box.width, box.height);
+            int duplicateIndex = findDuplicatePositionedElementIndex(positionedElements, current);
+            if (duplicateIndex >= 0) {
+                PositionedElement existing = positionedElements.get(duplicateIndex);
+                if (current.width() * current.height() > existing.width() * existing.height()) {
+                    positionedElements.set(duplicateIndex, current);
+                }
+                continue;
+            }
+
+            positionedElements.add(current);
+        }
+        return positionedElements;
+    }
+
+    private int findDuplicatePositionedElementIndex(List<PositionedElement> elements, PositionedElement candidate) {
+        for (int index = 0; index < elements.size(); index++) {
+            PositionedElement existing = elements.get(index);
+            double xDistance = Math.abs(existing.x() - candidate.x());
+            double yDistance = Math.abs(existing.y() - candidate.y());
+            double widthDistance = Math.abs(existing.width() - candidate.width());
+            double heightDistance = Math.abs(existing.height() - candidate.height());
+            if (xDistance <= 8.0d && yDistance <= 8.0d && widthDistance <= 24.0d && heightDistance <= 24.0d) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private String combinedEditableSelector() {
+        return "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                + "textarea:not([readonly]):not([disabled]), "
+                + "select:not([disabled]), "
+                + "[contenteditable='true'], "
+                + "[role='combobox'], "
+                + "[role='textbox']";
     }
 
     private Locator resolvePartyCard(String title) {
@@ -573,6 +1010,168 @@ public class CooDeclarationPage extends IptDeclarationPage {
         return builder.toString();
     }
 
+    private void saveDraftAndWaitForCompletion() {
+        waitForActionButtonEnabled("SAVE DRAFT", 15000);
+        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForPostSaveReadyState(15000);
+        captureProgressScreenshot("after-save-draft");
+    }
+
+    private void waitForPostSaveReadyState(int timeoutMs) {
+        int stableChecks = 0;
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean ready = (Boolean) page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const isEnabled = element => {
+                            const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                            const disabled = element.disabled === true || element.hasAttribute('disabled');
+                            return !disabled && ariaDisabled !== 'TRUE';
+                        };
+                        const findExactButton = expected => Array.from(document.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible)
+                            .reverse()
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                const ariaLabel = normalize(element.getAttribute('aria-label'));
+                                const value = normalize(element.getAttribute('value'));
+                                return text === expected || ariaLabel === expected || value === expected;
+                            });
+
+                        const saveDraftButton = findExactButton('SAVE DRAFT');
+                        const submitButton = findExactButton('SUBMIT DECLARATION');
+                        const busySelector = [
+                            '[aria-busy="true"]',
+                            '.spinner',
+                            '.loading',
+                            '.loader',
+                            '.progress-spinner',
+                            '.mat-mdc-progress-spinner',
+                            '.ngx-spinner-overlay',
+                            '.cdk-overlay-backdrop-showing'
+                        ].join(', ');
+                        const hasBusyOverlay = Array.from(document.querySelectorAll(busySelector)).some(isVisible);
+                        return !!saveDraftButton
+                            && !!submitButton
+                            && isEnabled(saveDraftButton)
+                            && isEnabled(submitButton)
+                            && !hasBusyOverlay;
+                    }
+                    """);
+            if (Boolean.TRUE.equals(ready)) {
+                stableChecks++;
+                if (stableChecks >= 4) {
+                    return;
+                }
+            } else {
+                stableChecks = 0;
+            }
+            page.waitForTimeout(300);
+        }
+        throw new IllegalStateException("Draft save did not complete successfully before submit.");
+    }
+
+    private void waitForActionButtonEnabled(String buttonText, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Boolean enabled = (Boolean) page.evaluate("""
+                    expected => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const isEnabled = element => {
+                            const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                            const disabled = element.disabled === true || element.hasAttribute('disabled');
+                            return !disabled && ariaDisabled !== 'TRUE';
+                        };
+                        const target = Array.from(document.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible)
+                            .reverse()
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                const ariaLabel = normalize(element.getAttribute('aria-label'));
+                                const value = normalize(element.getAttribute('value'));
+                                return text === expected || ariaLabel === expected || value === expected;
+                            });
+                        return !!target && isEnabled(target);
+                    }
+                    """, buttonText.trim().toUpperCase());
+            if (Boolean.TRUE.equals(enabled)) {
+                return;
+            }
+            page.waitForTimeout(250);
+        }
+        throw new IllegalStateException("Action button was not enabled: " + buttonText);
+    }
+
+    private void clickActionButtonExactWithRetry(String buttonText, int attempts) {
+        String expected = buttonText.trim().toUpperCase();
+        for (int attempt = 0; attempt < attempts; attempt++) {
+            Boolean clicked = (Boolean) page.evaluate("""
+                    expected => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const isEnabled = element => {
+                            const ariaDisabled = normalize(element.getAttribute('aria-disabled'));
+                            const disabled = element.disabled === true || element.hasAttribute('disabled');
+                            return !disabled && ariaDisabled !== 'TRUE';
+                        };
+                        const target = Array.from(document.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible)
+                            .reverse()
+                            .find(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                const ariaLabel = normalize(element.getAttribute('aria-label'));
+                                const value = normalize(element.getAttribute('value'));
+                                return (text === expected || ariaLabel === expected || value === expected) && isEnabled(element);
+                            });
+                        if (!target) {
+                            return false;
+                        }
+                        target.scrollIntoView({ block: 'center' });
+                        target.click();
+                        return true;
+                    }
+                    """, expected);
+            if (Boolean.TRUE.equals(clicked)) {
+                return;
+            }
+            page.waitForTimeout(750);
+        }
+        throw new IllegalStateException("Action button was not clickable: " + buttonText);
+    }
+
     private void captureProgressScreenshot(String stepName) {
         String reportPrefix = System.getProperty("tradenix.report.artifact.prefix", "coo-progress");
         String sanitizedStepName = (stepName == null || stepName.isBlank())
@@ -591,5 +1190,13 @@ public class CooDeclarationPage extends IptDeclarationPage {
                     .setPath(screenshotPath));
         } catch (Exception ignored) {
         }
+    }
+
+    private record PositionedElement(
+            int index,
+            double x,
+            double y,
+            double width,
+            double height) {
     }
 }
