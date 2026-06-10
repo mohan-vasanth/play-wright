@@ -6,12 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 
 public class BaseTest {
 
-    private static final String BROWSER_CHANNEL = System.getProperty("playwright.channel", "chrome");
-    private static final boolean HEADLESS = Boolean.parseBoolean(System.getProperty("playwright.headless", "false"));
-    private static final long DEFAULT_TIMEOUT_MS = Long.parseLong(System.getProperty("playwright.timeout.ms", "15000"));
-    private static final long DEFAULT_NAVIGATION_TIMEOUT_MS = Long.parseLong(
-            System.getProperty("playwright.navigation.timeout.ms", "60000"));
-
     protected Playwright playwright;
     protected Browser browser;
     protected BrowserContext context;
@@ -19,15 +13,23 @@ public class BaseTest {
 
     @BeforeEach
     public void setup() {
+        String browserChannel = System.getProperty("playwright.channel", "chrome");
+        boolean headless = Boolean.parseBoolean(System.getProperty("playwright.headless", "false"));
+        double slowMoMs = Double.parseDouble(System.getProperty("playwright.slowmo.ms", "0"));
+        long defaultTimeoutMs = Long.parseLong(System.getProperty("playwright.timeout.ms", "15000"));
+        long defaultNavigationTimeoutMs = Long.parseLong(
+                System.getProperty("playwright.navigation.timeout.ms", "60000"));
+
         playwright = Playwright.create();
         browser = playwright.chromium().launch(
                 new BrowserType.LaunchOptions()
-                        .setChannel(BROWSER_CHANNEL)
-                        .setHeadless(HEADLESS));
+                        .setChannel(browserChannel)
+                        .setHeadless(headless)
+                        .setSlowMo(slowMoMs));
         context = browser.newContext();
         page = context.newPage();
-        page.setDefaultTimeout(DEFAULT_TIMEOUT_MS);
-        page.setDefaultNavigationTimeout(DEFAULT_NAVIGATION_TIMEOUT_MS);
+        page.setDefaultTimeout(defaultTimeoutMs);
+        page.setDefaultNavigationTimeout(defaultNavigationTimeoutMs);
     }
 
     @AfterEach

@@ -3,7 +3,10 @@ package com.automation;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.options.LoadState;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 public class DeclarationsPage {
@@ -29,8 +32,61 @@ public class DeclarationsPage {
     }
 
     public void createNewDeclarationDraft(String route) {
+        createNewDeclarationDraft(route, "Edit Declaration", "Job Info");
+    }
+
+    public void createNewDeclarationDraft(String route, String... expectedVisibleTexts) {
         clickNewDeclarationButton();
+        waitForDeclarationEditScreenVisible(route, expectedVisibleTexts);
+    }
+
+    public void waitForDeclarationEditScreenVisible(String route, String... expectedVisibleTexts) {
         page.waitForURL("**" + route + "/edit/*");
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        page.waitForFunction("""
+                args => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+
+                    const path = window.location.pathname || '';
+                    if (!path.includes(args.route + '/edit/')) {
+                        return false;
+                    }
+
+                    const editableVisible = Array.from(document.querySelectorAll(
+                        "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
+                        .some(isVisible);
+                    if (!editableVisible) {
+                        return false;
+                    }
+
+                    const requiredTexts = (args.expectedVisibleTexts || [])
+                        .map(normalize)
+                        .filter(Boolean);
+                    const pageTexts = Array.from(document.querySelectorAll('body, body *'))
+                        .filter(isVisible)
+                        .map(element => normalize(element.innerText || element.textContent || ''))
+                        .filter(Boolean);
+
+                    return requiredTexts.every(required =>
+                        pageTexts.some(text => text.includes(required)));
+                }
+                """, Map.of(
+                "route", route,
+                "expectedVisibleTexts", Arrays.asList(expectedVisibleTexts)));
+
+        if (!isDeclarationEditScreenVisible(route, expectedVisibleTexts)) {
+            throw new IllegalStateException("Declaration edit screen was not fully visible before data entry: " + route);
+        }
     }
 
     public DeclarationListEntry readDeclarationListEntry(String messageReference) {
@@ -270,6 +326,49 @@ public class DeclarationsPage {
         }
 
         return null;
+    }
+
+    private boolean isDeclarationEditScreenVisible(String route, String... expectedVisibleTexts) {
+        try {
+            return Boolean.TRUE.equals(page.evaluate("""
+                    args => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+
+                        const path = window.location.pathname || '';
+                        if (!path.includes(args.route + '/edit/')) {
+                            return false;
+                        }
+
+                        const requiredTexts = (args.expectedVisibleTexts || [])
+                            .map(normalize)
+                            .filter(Boolean);
+                        const pageTexts = Array.from(document.querySelectorAll('body, body *'))
+                            .filter(isVisible)
+                            .map(element => normalize(element.innerText || element.textContent || ''))
+                            .filter(Boolean);
+                        const editableVisible = Array.from(document.querySelectorAll(
+                            "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
+                            .some(isVisible);
+
+                        return editableVisible && requiredTexts.every(required =>
+                            pageTexts.some(text => text.includes(required)));
+                    }
+                    """, Map.of(
+                    "route", route,
+                    "expectedVisibleTexts", List.of(expectedVisibleTexts))));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     public record DeclarationListEntry(String jobId, String jobStatus) {
