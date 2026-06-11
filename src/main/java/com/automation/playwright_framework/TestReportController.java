@@ -360,69 +360,77 @@ public class TestReportController {
     }
 
     private BatchCaseResult toBatchCase(int index, BatchCaseAccumulator accumulator, BatchMetaInfo batchMetaInfo) {
-        Path diagnosticsPath = accumulator.failureJson != null ? accumulator.failureJson : accumulator.validationJson;
-        Path screenshotPath = accumulator.failureScreenshot != null ? accumulator.failureScreenshot : accumulator.successScreenshot;
-        BatchDiagnostics diagnostics = readDiagnostics(diagnosticsPath);
+        // Validation JSON captures the actual declaration state (job fields + validation result).
+        // Failure JSON may be plain text (e.g. a Playwright error), so never use it as the primary source.
+        BatchDiagnostics valDiag = readDiagnostics(accumulator.validationJson);
+        BatchDiagnostics failDiag = accumulator.failureJson != null
+                ? readDiagnostics(accumulator.failureJson)
+                : BatchDiagnostics.empty();
+
+        Path screenshotPath = accumulator.failureScreenshot != null
+                ? accumulator.failureScreenshot
+                : accumulator.successScreenshot;
+
+        // Merge: validation JSON is authoritative; failure JSON fills any gaps
+        String jobStatus    = normalizeJobStatus(firstNonBlank(valDiag.jobStatus(), failDiag.jobStatus()));
+        String jobId        = firstNonBlank(valDiag.jobId(), failDiag.jobId());
+        String declNum      = firstNonBlank(valDiag.declarationNumber(), failDiag.declarationNumber());
+        String createdBy    = firstNonBlank(valDiag.jobCreatedBy(), failDiag.jobCreatedBy());
+        String responseMsg  = firstNonBlank(valDiag.responseMessage(), failDiag.responseMessage());
+        String errorMsg     = firstNonBlank(valDiag.errorMessage(), failDiag.errorMessage());
+        String summary      = firstNonBlank(valDiag.responseSummary(), failDiag.responseSummary());
+        String toastText    = firstNonBlank(valDiag.toastText(), failDiag.toastText());
+        int    invalidCount = valDiag.invalidCount() > 0 ? valDiag.invalidCount() : failDiag.invalidCount();
+        String rawJson      = firstNonBlank(valDiag.rawJson(), failDiag.rawJson());
+
+        boolean hasValidationError = toastText != null || invalidCount > 0;
 
         String status;
         String message;
-        String jobStatus = normalizeJobStatus(diagnostics.jobStatus());
-        if (accumulator.failureJson != null) {
-            status = "FAILURE";
+        if (hasValidationError) {
+            // Declaration reached validation but was saved as draft — treat as ISSUE, not FAILURE
+            status = "ISSUE";
             message = firstNonBlank(
-                    diagnostics.errorMessage(),
-                    diagnostics.responseSummary(),
-                    diagnostics.toastText(),
-                    diagnostics.invalidCount() > 0 ? "Validation failed with " + diagnostics.invalidCount() + " invalid fields." : null,
-                    "Declaration failed during submission.");
-        } else if (diagnosticsPath != null) {
-            if (diagnostics.toastText() == null && diagnostics.invalidCount() == 0) {
-                status = "SUCCESS";
-                message = firstNonBlank(diagnostics.responseMessage(), "Declaration submitted successfully.");
-            } else {
-                status = "ISSUE";
-                message = firstNonBlank(
-                        diagnostics.errorMessage(),
-                        diagnostics.responseSummary(),
-                        diagnostics.toastText(),
-                        diagnostics.invalidCount() > 0 ? "Validation found " + diagnostics.invalidCount() + " invalid fields." : null,
-                        "Validation issue detected.");
-            }
+                    responseMsg, errorMsg, toastText,
+                    invalidCount > 0 ? "Validation found " + invalidCount + " invalid fields." : null,
+                    "Validation issue detected.");
+        } else if (accumulator.failureJson != null && accumulator.validationJson == null) {
+            // Only a failure artifact and no validation data → hard submission failure
+            status = "FAILURE";
+            message = firstNonBlank(errorMsg, responseMsg, "Declaration failed during submission.");
+        } else if (accumulator.validationJson != null) {
+            // Validation JSON present with no errors → declaration submitted successfully
+            status = "SUCCESS";
+            message = firstNonBlank(responseMsg, "Declaration submitted successfully.");
         } else {
             status = "NO_REPORT";
             message = "No batch declaration artifacts found.";
         }
 
+        // Derive job status from actual data; validation failures default to DRF (saved as draft)
         if (jobStatus == null || jobStatus.isBlank()) {
             jobStatus = switch (status) {
-                case "SUCCESS" -> "SUB";
-                case "FAILURE", "ISSUE" -> "FLD";
-                default -> "NO_REPORT";
+                case "SUCCESS"  -> "SUB";
+                case "ISSUE"    -> "DRF";   // validation failure = declaration saved as draft
+                case "FAILURE"  -> "FLD";
+                default         -> "NO_REPORT";
             };
         }
 
+        Path diagnosticsPath = accumulator.validationJson != null
+                ? accumulator.validationJson
+                : accumulator.failureJson;
         long updatedAtMillis = Math.max(
                 Math.max(lastModifiedMillis(diagnosticsPath), lastModifiedMillis(screenshotPath)),
                 lastModifiedMillis(accumulator.statusScreenshot));
 
         return new BatchCaseResult(
-                index,
-                status,
-                message,
+                index, status, message,
                 batchMetaInfo != null ? batchMetaInfo.declarationTypeCode() : null,
                 batchMetaInfo != null ? batchMetaInfo.declarationTypeDisplay() : null,
-                jobStatus,
-                diagnostics.jobId(),
-                diagnostics.declarationNumber(),
-                diagnostics.jobCreatedBy(),
-                diagnostics.responseMessage(),
-                diagnostics.errorMessage(),
-                diagnostics.responseSummary(),
-                diagnostics.toastText(),
-                diagnostics.invalidCount(),
-                diagnostics.rawJson(),
-                fileName(diagnosticsPath),
-                fileName(screenshotPath),
+                jobStatus, jobId, declNum, createdBy,
+                responseMsg, errorMsg, summary, toastText, invalidCount, rawJson,
+                fileName(diagnosticsPath), fileName(screenshotPath),
                 fileName(accumulator.statusScreenshot),
                 updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null,
                 updatedAtMillis);
@@ -448,7 +456,10 @@ public class TestReportController {
             int invalidCount = invalidElementsNode.isArray() ? invalidElementsNode.size() : 0;
             return new BatchDiagnostics(jobId, jobStatus, declarationNumber, jobCreatedBy, toastText, responseMessage, errorMessage, responseSummary, invalidCount, rawJson);
         } catch (Exception exception) {
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, 0, "Unable to parse diagnostics: " + exception.getMessage());
+            // File is not valid JSON (e.g. a plain-text Playwright error); surface the raw content
+            String rawContent = null;
+            try { rawContent = Files.readString(diagnosticsPath); } catch (Exception ignored) {}
+            return new BatchDiagnostics(null, null, null, null, null, null, rawContent, null, 0, rawContent);
         }
     }
 
@@ -491,6 +502,10 @@ public class TestReportController {
         if (batchReport.summary().issues() > 0) {
             return "ISSUE";
         }
+        // Declarations that ended as Draft (DRF) with validation errors are not successes
+        if (batchReport.summary().drafts() > 0 && batchReport.summary().successes() == 0) {
+            return "ISSUE";
+        }
         if (surefireReport == null && batchReport.summary().total() == 0) {
             return "NO_REPORT";
         }
@@ -508,11 +523,11 @@ public class TestReportController {
         }
         if ("ISSUE".equals(status)) {
             return batchReport.batchCases().stream()
-                    .filter(batchCase -> "ISSUE".equals(batchCase.status()))
+                    .filter(batchCase -> "ISSUE".equals(batchCase.status()) || "DRAFT".equals(batchCase.status()))
                     .map(BatchCaseResult::message)
                     .filter(message -> message != null && !message.isBlank())
                     .findFirst()
-                    .orElse("Validation issue detected.");
+                    .orElse("Validation issue detected — declaration saved as draft.");
         }
         if (batchReport.summary().total() > 0) {
             return batchReport.summary().successes() + " of " + batchReport.summary().total() + " declarations passed.";

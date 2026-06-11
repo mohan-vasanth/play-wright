@@ -4,10 +4,10 @@
   "errorMessage" : "N/A",
   "notificationMessages" : [ ],
   "invalidElements" : [ ],
-  "jobId" : "5112",
+  "jobId" : "5128",
   "jobStatus" : "SUB",
   "declarationType" : "20",
-  "declarationNumber" : "TDX2606110069",
+  "declarationNumber" : "TDX2606110085",
   "jobCreatedBy" : "mohan",
-  "responseSummary" : "Job ID: 5112\r\n\r\nMessage Ref: TDX2606110069\r\n\r\nDeclaration Type: 20\r\n\r\nStatus: SUB\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
+  "responseSummary" : "Job ID: 5128\r\n\r\nMessage Ref: TDX2606110085\r\n\r\nDeclaration Type: 20\r\n\r\nStatus: SUB\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
 }

@@ -301,6 +301,7 @@
             <h1>Automation Report</h1>
             <div class="sub">Batch declaration results from the latest Maven run</div>
         </div>
+        <a href="test-launcher.html" style="text-decoration:none;border:1px solid #0b6bcb;background:#fff;color:#0b86d1;border-radius:10px;padding:10px 16px;font-size:14px;font-family:inherit;cursor:pointer;">Launch Test</a>
         <button id="refreshBtn" type="button">Refresh</button>
     </div>
 
@@ -396,11 +397,14 @@
     const focusJobId = normalizeQueryValue(queryParams.get('jobId'));
     const focusMessageRef = normalizeQueryValue(queryParams.get('messageRef'));
     const requestedReportPrefix = String(queryParams.get('reportPrefix') || '').trim();
+    const AUTO_REFRESH_INTERVAL_MS = 10000;
     const localReportScriptCandidates = [
         '../../../../target/report-data.js',
         '../../../../target/classes/static/report-data.js',
         '../../report-data.js'
     ];
+    let autoRefreshTimer = null;
+    let loadInProgress = false;
 
     function resolveApiBase() {
         const params = new URLSearchParams(window.location.search);
@@ -561,6 +565,7 @@
         failures.textContent = 0;
         errors.textContent = 0;
         skipped.textContent = 0;
+        scheduleAutoRefresh();
     }
 
     function resolveResultsTitle(report) {
@@ -594,6 +599,7 @@
     }
 
     function renderReport(report) {
+        stopAutoRefresh();
         const focusedReport = applyFocusedCase(report);
         const batchSummary = focusedReport.batchSummary || {};
         const selectedBatchCase = (focusedReport.batchCases || [])[0];
@@ -624,6 +630,23 @@
             || '<div class="fine">No batch declaration results available.</div>';
         cases.innerHTML = (focusedReport.testCases || []).map(renderCase).join('')
             || '<div class="fine">No wrapper test cases available.</div>';
+    }
+
+    function stopAutoRefresh() {
+        if (autoRefreshTimer !== null) {
+            window.clearTimeout(autoRefreshTimer);
+            autoRefreshTimer = null;
+        }
+    }
+
+    function scheduleAutoRefresh() {
+        if (autoRefreshTimer !== null) {
+            return;
+        }
+        autoRefreshTimer = window.setTimeout(() => {
+            autoRefreshTimer = null;
+            loadReport();
+        }, AUTO_REFRESH_INTERVAL_MS);
     }
 
     async function loadLocalReportData() {
@@ -725,55 +748,67 @@
     }
 
     async function loadReport() {
-        const reportUrl = `${apiBase}/api/reports/latest`;
-        const localReport = await loadLocalReportData();
-        if (localReport && reportMatchesRequestedContext(localReport)) {
-            renderReport(localReport);
+        if (loadInProgress) {
             return;
         }
-        let report;
+        loadInProgress = true;
+        const reportUrl = `${apiBase}/api/reports/latest`;
         try {
-            const response = await fetch(reportUrl, { cache: 'no-store' });
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+            const localReport = await loadLocalReportData();
+            if (localReport && reportMatchesRequestedContext(localReport)) {
+                renderReport(localReport);
+                return;
             }
-            report = await response.json();
-        } catch (error) {
-            if (localReport && !reportMatchesRequestedContext(localReport)) {
+
+            let report;
+            try {
+                const response = await fetch(reportUrl, { cache: 'no-store' });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                report = await response.json();
+            } catch (error) {
+                if (localReport && !reportMatchesRequestedContext(localReport)) {
+                    renderWaitingForRequestedReport(reportUrl);
+                    return;
+                }
+                statusBadge.className = 'status-badge status-NO_REPORT';
+                statusBadge.textContent = 'NO_REPORT';
+                issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8080/report.html or append ?apiBase=http://localhost:8080 when using the file directly.`;
+                source.textContent = `API endpoint: ${reportUrl}`;
+                suiteName.textContent = 'Suite: not available';
+                updatedAt.textContent = 'Updated: -';
+                duration.textContent = 'Wrapper Duration: -';
+                batchResultsTitle.textContent = 'Results';
+                batchCases.innerHTML = '<div class="fine">No batch declaration results available.</div>';
+                cases.innerHTML = '<div class="fine">No wrapper test cases available.</div>';
+                batchTotal.textContent = 0;
+                batchSuccess.textContent = 0;
+                batchIssues.textContent = 0;
+                batchFailures.textContent = 0;
+                batchDrafts.textContent = 0;
+                tests.textContent = 0;
+                failures.textContent = 0;
+                errors.textContent = 0;
+                skipped.textContent = 0;
+                scheduleAutoRefresh();
+                return;
+            }
+            if (!reportMatchesRequestedContext(report)) {
                 renderWaitingForRequestedReport(reportUrl);
                 return;
             }
-            statusBadge.className = 'status-badge status-NO_REPORT';
-            statusBadge.textContent = 'NO_REPORT';
-            issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8080/report.html or append ?apiBase=http://localhost:8080 when using the file directly.`;
-            source.textContent = `API endpoint: ${reportUrl}`;
-            suiteName.textContent = 'Suite: not available';
-            updatedAt.textContent = 'Updated: -';
-            duration.textContent = 'Wrapper Duration: -';
-            batchResultsTitle.textContent = 'Results';
-            batchCases.innerHTML = '<div class="fine">No batch declaration results available.</div>';
-            cases.innerHTML = '<div class="fine">No wrapper test cases available.</div>';
-            batchTotal.textContent = 0;
-            batchSuccess.textContent = 0;
-            batchIssues.textContent = 0;
-            batchFailures.textContent = 0;
-            batchDrafts.textContent = 0;
-            tests.textContent = 0;
-            failures.textContent = 0;
-            errors.textContent = 0;
-            skipped.textContent = 0;
-            return;
+            renderReport(report);
+        } finally {
+            loadInProgress = false;
         }
-        if (!reportMatchesRequestedContext(report)) {
-            renderWaitingForRequestedReport(reportUrl);
-            return;
-        }
-        renderReport(report);
     }
 
-    document.getElementById('refreshBtn').addEventListener('click', loadReport);
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        stopAutoRefresh();
+        loadReport();
+    });
     loadReport();
-    setInterval(loadReport, 10000);
 </script>
 </body>
 </html>

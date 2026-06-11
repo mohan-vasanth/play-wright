@@ -1,4 +1,4 @@
 -------------------------------------------------------------------------------
 Test set: com.automation.playwright_framework.OutDeclarationTestCase1Test
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 277.2 s -- in com.automation.playwright_framework.OutDeclarationTestCase1Test
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 281.0 s -- in com.automation.playwright_framework.OutDeclarationTestCase1Test

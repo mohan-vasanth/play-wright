@@ -1032,7 +1032,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
         return firstVisible(label);
     }
 
-    private Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
+    protected Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
         List<Locator> orderedFields = orderedVisibleEditableFields(row);
         if (occurrence < 0 || occurrence >= orderedFields.size()) {
             return null;

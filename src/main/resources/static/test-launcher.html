@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Declaration Test Launcher</title>
+    <style>
+        :root {
+            --bg: #f4f7fb;
+            --panel: #ffffff;
+            --text: #16324f;
+            --muted: #5f7186;
+            --border: #d7e0ea;
+            --success: #127a4a;
+            --success-bg: #e8f7ef;
+            --failure: #b42318;
+            --failure-bg: #fdecec;
+            --issue: #8a4b00;
+            --issue-bg: #fff4df;
+            --neutral: #1f6feb;
+            --neutral-bg: #eaf2ff;
+            --running: #6b3fa0;
+            --running-bg: #f3eeff;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Arial, sans-serif;
+            background:
+                radial-gradient(circle at top right, #dcecff 0, transparent 30%),
+                linear-gradient(180deg, #f9fbfe 0, var(--bg) 100%);
+            color: var(--text);
+        }
+
+        .wrap {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        h1, h2, h3 { margin: 0; }
+        h1 { font-size: 32px; line-height: 1.1; }
+        h2 { font-size: 20px; margin-bottom: 14px; }
+
+        .sub {
+            color: var(--muted);
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(34, 68, 102, 0.08);
+            margin-bottom: 20px;
+        }
+
+        button {
+            border: 1px solid #0b6bcb;
+            background: #0b86d1;
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        button:hover:not(:disabled) { background: #0970b0; }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .nav-link {
+            display: inline-block;
+            text-decoration: none;
+            border: 1px solid #0b6bcb;
+            background: #0b86d1;
+            color: #fff;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .nav-link:hover { background: #0970b0; }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        .status-IDLE    { color: var(--muted);    background: #f0f3f7; }
+        .status-RUNNING { color: var(--running);  background: var(--running-bg); }
+        .status-COMPLETED { color: var(--success); background: var(--success-bg); }
+        .status-FAILED  { color: var(--failure);  background: var(--failure-bg); }
+
+        .launcher-btn {
+            font-size: 17px;
+            font-weight: 600;
+            padding: 20px 36px;
+            border-radius: 14px;
+            min-width: 240px;
+            border: 2px solid #0b6bcb;
+            transition: background 0.15s, transform 0.1s;
+        }
+
+        .launcher-btn:hover:not(:disabled) {
+            background: #0970b0;
+            transform: translateY(-1px);
+        }
+
+        .launcher-btn:active:not(:disabled) { transform: translateY(0); }
+
+        #terminal {
+            background: #0d1b2a;
+            color: #c9d8e8;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 12.5px;
+            line-height: 1.55;
+            padding: 16px;
+            border-radius: 12px;
+            min-height: 300px;
+            max-height: 580px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .fine {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 600px) {
+            .launcher-btn { min-width: 100%; }
+            h1 { font-size: 24px; }
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="topbar">
+        <div>
+            <h1>Declaration Test Launcher</h1>
+            <div class="sub">Run Playwright automation tests and monitor output in real-time</div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <a href="report.html" id="viewReportBtn" class="nav-link" style="display:none">View Report</a>
+            <a href="report.html" class="nav-link" style="background:#fff;color:#0b86d1;border-color:#0b6bcb;">Report</a>
+        </div>
+    </div>
+
+    <!-- Status panel -->
+    <div class="panel">
+        <div class="status-row">
+            <span class="status-badge status-IDLE" id="statusBadge">IDLE</span>
+            <span class="fine" id="statusMsg">No test running. Select a test below to begin.</span>
+        </div>
+    </div>
+
+    <!-- Launch buttons panel -->
+    <div class="panel" id="launchPanel">
+        <h2>Select Test to Run</h2>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+            <button class="launcher-btn" id="btnIpt" type="button" onclick="startTest('ipt')">
+                In Payment (IPT) Test
+            </button>
+            <button class="launcher-btn" id="btnOut" type="button" onclick="startTest('out')">
+                Out Declaration (OUT) Test
+            </button>
+            <button class="launcher-btn" id="btnCoo" type="button" onclick="startTest('coo')">
+                COO Declaration Test
+            </button>
+        </div>
+    </div>
+
+    <!-- Terminal output panel -->
+    <div class="panel" id="terminalPanel" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h2 id="terminalTitle" style="margin:0">Test Output</h2>
+            <button type="button" onclick="clearTerminal()" style="font-size:12px;padding:6px 12px;background:#f4f7fb;color:var(--text);border-color:var(--border)">
+                Clear
+            </button>
+        </div>
+        <pre id="terminal"></pre>
+    </div>
+</div>
+
+<script>
+    let isRunning = false;
+    let currentEventSource = null;
+
+    async function startTest(type) {
+        if (isRunning) {
+            alert('A test is already running. Please wait for it to finish.');
+            return;
+        }
+
+        setStatus('RUNNING', type);
+        setBtnsDisabled(true);
+        showTerminal();
+        clearTerminalContent();
+        document.getElementById('viewReportBtn').style.display = 'none';
+
+        let resp;
+        try {
+            resp = await fetch('/api/launcher/start?type=' + type, { method: 'POST' });
+        } catch (e) {
+            appendLine('ERROR: Could not reach the server. Is the Spring Boot app running?');
+            setStatus('FAILED', type);
+            setBtnsDisabled(false);
+            return;
+        }
+
+        if (resp.status === 409) {
+            const data = await resp.json();
+            appendLine('A test is already running on the server (type: ' + data.type + '). Connecting to its output...');
+            isRunning = true;
+            connectStream();
+            return;
+        }
+
+        if (!resp.ok) {
+            let msg = 'Unknown error';
+            try { const data = await resp.json(); msg = data.error || msg; } catch (_) {}
+            appendLine('ERROR: ' + msg);
+            setStatus('FAILED', type);
+            setBtnsDisabled(false);
+            return;
+        }
+
+        isRunning = true;
+        connectStream();
+    }
+
+    function connectStream() {
+        if (currentEventSource) {
+            currentEventSource.close();
+            currentEventSource = null;
+        }
+
+        currentEventSource = new EventSource('/api/launcher/stream');
+
+        currentEventSource.onmessage = function(e) {
+            if (e.data === '__DONE__') {
+                isRunning = false;          // set before close() so onerror won't trigger a reconnect
+                currentEventSource.close();
+                currentEventSource = null;
+                fetchStatus();
+                return;
+            }
+            appendLine(e.data);
+        };
+
+        currentEventSource.onerror = function() {
+            if (isRunning) {
+                setTimeout(connectStream, 2000);
+            }
+        };
+    }
+
+    async function fetchStatus() {
+        try {
+            const resp = await fetch('/api/launcher/status');
+            const data = await resp.json();
+            isRunning = false;
+            const succeeded = data.exitCode === 0;
+            setStatus(succeeded ? 'COMPLETED' : 'FAILED', data.type);
+            document.getElementById('viewReportBtn').style.display = '';
+            setBtnsDisabled(false);
+        } catch (e) {
+            isRunning = false;
+            setStatus('FAILED', '');
+            setBtnsDisabled(false);
+        }
+    }
+
+    function appendLine(text) {
+        const terminal = document.getElementById('terminal');
+        terminal.textContent += text + '\n';
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearTerminal() {
+        document.getElementById('terminal').textContent = '';
+    }
+
+    function clearTerminalContent() {
+        document.getElementById('terminal').textContent = '';
+    }
+
+    function showTerminal() {
+        document.getElementById('terminalPanel').style.display = '';
+    }
+
+    function setBtnsDisabled(disabled) {
+        document.getElementById('btnIpt').disabled = disabled;
+        document.getElementById('btnOut').disabled = disabled;
+        document.getElementById('btnCoo').disabled = disabled;
+    }
+
+    function setStatus(state, type) {
+        const badge = document.getElementById('statusBadge');
+        const msg = document.getElementById('statusMsg');
+
+        badge.className = 'status-badge status-' + state;
+        badge.textContent = state;
+
+        const label = type === 'ipt' ? 'In Payment (IPT)' : type === 'out' ? 'Out Declaration (OUT)' : type === 'coo' ? 'COO Declaration' : '';
+
+        const messages = {
+            IDLE: 'No test running. Select a test below to begin.',
+            RUNNING: (label ? label + ' test is running...' : 'Test is running...'),
+            COMPLETED: (label ? label + ' test completed successfully.' : 'Test completed successfully.'),
+            FAILED: (label ? label + ' test finished with errors.' : 'Test finished with errors.')
+        };
+
+        msg.textContent = messages[state] || state;
+    }
+
+    window.addEventListener('DOMContentLoaded', async function() {
+        try {
+            const resp = await fetch('/api/launcher/status');
+            const data = await resp.json();
+
+            if (data.running) {
+                isRunning = true;
+                setStatus('RUNNING', data.type);
+                setBtnsDisabled(true);
+                showTerminal();
+                connectStream();
+            } else if (data.exitCode !== -999) {
+                const succeeded = data.exitCode === 0;
+                setStatus(succeeded ? 'COMPLETED' : 'FAILED', data.type);
+                document.getElementById('viewReportBtn').style.display = '';
+            }
+        } catch (_) {
+            // server not reachable yet — stay in idle state
+        }
+    });
+</script>
+</body>
+</html>
