@@ -7,9 +7,16 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.BoundingBox;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class CooDeclarationPage extends IptDeclarationPage {
 
@@ -115,6 +122,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
         if (hasDocumentData(data)) {
             setCheckboxByLabel("Document", true);
+            fillSupportingDocumentReferences(data);
         }
     }
 
@@ -150,11 +158,394 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private boolean hasDocumentData(JsonNode data) {
-        JsonNode supportingDocuments = data.path("supportingDocument");
+        JsonNode supportingDocuments = supportingDocumentReferences(data);
         JsonNode formMetaData = data.path("formMetaData");
         return (supportingDocuments.isArray() && !supportingDocuments.isEmpty())
                 || formMetaData.path("supportingDocumentIsActive").asBoolean(false)
                 || formMetaData.path("documentIsActive").asBoolean(false);
+    }
+
+    private JsonNode supportingDocumentReferences(JsonNode data) {
+        JsonNode supportingDocumentReference = data.path("supportingDocumentReference");
+        if (supportingDocumentReference.isArray() && !supportingDocumentReference.isEmpty()) {
+            return supportingDocumentReference;
+        }
+
+        JsonNode supportingDocument = data.path("supportingDocument");
+        if (supportingDocument.isArray() && !supportingDocument.isEmpty()) {
+            return supportingDocument;
+        }
+
+        return MissingNode.getInstance();
+    }
+
+    private void fillSupportingDocumentReferences(JsonNode data) {
+        JsonNode supportingDocuments = supportingDocumentReferences(data);
+        if (!supportingDocuments.isArray() || supportingDocuments.isEmpty()) {
+            return;
+        }
+
+        Locator documentSection = waitForDocumentSectionOrNull(3000);
+        if (documentSection == null) {
+            throw new IllegalStateException("Document section did not expand after selecting the Document checkbox.");
+        }
+
+        JsonNode firstDocument = firstArrayItem(supportingDocuments);
+        if (firstDocument == null || firstDocument.isMissingNode() || firstDocument.isNull()) {
+            return;
+        }
+
+        fillSupportingDocumentRow(documentSection, firstDocument);
+    }
+
+    private void fillSupportingDocumentRow(Locator documentSection, JsonNode documentNode) {
+        String documentId = firstNonBlank(text(documentNode, "documentID"), text(documentNode, "documentId"));
+        String filename = firstNonBlank(text(documentNode, "filename"), text(documentNode, "fileName"));
+        String displayFileName = fileNameOnly(filename);
+
+        if ((documentId == null || documentId.isBlank()) && (filename == null || filename.isBlank())) {
+            return;
+        }
+
+        ensureDocumentRowVisible(documentSection);
+        page.waitForTimeout(250);
+
+        List<Locator> orderedFields = orderedVisibleEditableFields(documentSection);
+        Locator documentIdField = orderedFields.isEmpty() ? null : orderedFields.get(0);
+        Locator filenameField = orderedFields.size() > 1 ? orderedFields.get(1) : null;
+
+        if (documentId != null && !documentId.isBlank() && documentIdField != null) {
+            fillVerifiedLookupField(documentIdField, documentId, "Document ID", documentId);
+        }
+
+        boolean filenameRendered = false;
+        if (filename == null || filename.isBlank()) {
+            clickDocumentUploadButtonIfVisible(documentSection);
+            return;
+        }
+
+        if (filenameField != null) {
+            focusAndType(filenameField, displayFileName, false);
+            filenameRendered = waitForAnyRenderedFieldValue(filenameField, 1500, displayFileName);
+        }
+
+        if (!populateDocumentUploadControl(documentSection, filename)) {
+            throw new IllegalStateException("Document filename control was not available for: " + filename);
+        }
+
+        waitForDocumentFileNameVisible(documentSection, displayFileName);
+        clickDocumentUploadButton(documentSection);
+    }
+
+    private void ensureDocumentRowVisible(Locator documentSection) {
+        if (hasDocumentDataEntryControls(documentSection)) {
+            return;
+        }
+
+        clickDocumentAddButtonIfVisible(documentSection);
+        long deadline = System.currentTimeMillis() + 2000;
+        while (System.currentTimeMillis() <= deadline) {
+            if (hasDocumentDataEntryControls(documentSection)) {
+                return;
+            }
+            page.waitForTimeout(100);
+        }
+    }
+
+    private boolean hasDocumentDataEntryControls(Locator documentSection) {
+        try {
+            return Boolean.TRUE.equals(documentSection.evaluate("""
+                    section => {
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        return Array.from(section.querySelectorAll(
+                                "input:not([type='checkbox']):not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], input[type='file']"))
+                            .some(isVisible);
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private void clickDocumentAddButtonIfVisible(Locator documentSection) {
+        try {
+            Boolean clicked = (Boolean) documentSection.evaluate("""
+                    section => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const button = Array.from(section.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .find(element => isVisible(element)
+                                && normalize(element.innerText || element.textContent || element.value || element.getAttribute('aria-label')) === 'ADD');
+                        if (!button) {
+                            return false;
+                        }
+                        button.scrollIntoView({ block: 'center' });
+                        button.click();
+                        return true;
+                    }
+                    """);
+            if (Boolean.TRUE.equals(clicked)) {
+                page.waitForTimeout(250);
+            }
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private boolean populateDocumentUploadControl(Locator documentSection, String filename) {
+        try {
+            Locator fileInput = resolveDocumentFileInputOrNull(documentSection);
+            if (fileInput == null) {
+                return false;
+            }
+
+            Path uploadFile = createTemporaryUploadFile(filename);
+            fileInput.setInputFiles(uploadFile);
+            page.waitForTimeout(500);
+            return true;
+        } catch (PlaywrightException | IOException ignored) {
+            return false;
+        }
+    }
+
+    private void clickDocumentUploadButton(Locator documentSection) {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() <= deadline) {
+            if (clickDocumentUploadButtonIfVisible(documentSection)) {
+                verifyDocumentUploadFeedback();
+                return;
+            }
+            page.waitForTimeout(150);
+        }
+        throw new IllegalStateException("Document upload button was not visible after entering document values.");
+    }
+
+    private boolean clickDocumentUploadButtonIfVisible(Locator documentSection) {
+        try {
+            Boolean clicked = (Boolean) documentSection.evaluate("""
+                    section => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const buttons = Array.from(section.querySelectorAll(
+                                "button, [role='button'], input[type='button'], input[type='submit'], a"))
+                            .filter(isVisible);
+                        const uploadButton = buttons.find(element => {
+                            const text = normalize(element.innerText || element.textContent);
+                            const ariaLabel = normalize(element.getAttribute('aria-label'));
+                            const title = normalize(element.getAttribute('title'));
+                            const value = normalize(element.getAttribute('value'));
+                            return text === 'UPLOAD ALL'
+                                || ariaLabel === 'UPLOAD ALL'
+                                || title === 'UPLOAD ALL'
+                                || value === 'UPLOAD ALL'
+                                || text.includes('UPLOAD ALL')
+                                || ariaLabel.includes('UPLOAD ALL')
+                                || title.includes('UPLOAD ALL')
+                                || value.includes('UPLOAD ALL')
+                                || text.includes('UPLOAD')
+                                || ariaLabel.includes('UPLOAD')
+                                || title.includes('UPLOAD')
+                                || value.includes('UPLOAD');
+                        });
+                        if (!uploadButton) {
+                            return false;
+                        }
+                        uploadButton.scrollIntoView({ block: 'center' });
+                        uploadButton.click();
+                        return true;
+                    }
+                    """);
+            return Boolean.TRUE.equals(clicked);
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private void verifyDocumentUploadFeedback() {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() <= deadline) {
+            String visibleText = readVisiblePageText();
+            if (visibleText.contains("FAILED TO UPLOAD DOCUMENTS")) {
+                throw new IllegalStateException("Document upload failed after clicking Upload All.");
+            }
+            if (visibleText.contains("UNSUPPORTED FILE TYPE")) {
+                throw new IllegalStateException("Document upload was rejected due to unsupported file type.");
+            }
+            page.waitForTimeout(150);
+        }
+    }
+
+    private String readVisiblePageText() {
+        try {
+            Object text = page.evaluate("""
+                    () => (document.body?.innerText || '').replace(/\\s+/g, ' ').trim().toUpperCase()
+                    """);
+            return text == null ? "" : String.valueOf(text);
+        } catch (PlaywrightException ignored) {
+            return "";
+        }
+    }
+
+    private void waitForDocumentFileNameVisible(Locator documentSection, String displayFileName) {
+        if (displayFileName == null || displayFileName.isBlank()) {
+            return;
+        }
+
+        long deadline = System.currentTimeMillis() + 5000;
+        String expected = displayFileName.trim().toUpperCase();
+        while (System.currentTimeMillis() <= deadline) {
+            try {
+                Boolean visible = (Boolean) documentSection.evaluate("""
+                        (section, expected) => {
+                            const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                            return normalize(section.innerText || section.textContent).includes(expected);
+                        }
+                        """, expected);
+                if (Boolean.TRUE.equals(visible)) {
+                    return;
+                }
+            } catch (PlaywrightException ignored) {
+            }
+            page.waitForTimeout(150);
+        }
+    }
+
+    private Locator resolveDocumentFileInputOrNull(Locator documentSection) {
+        Locator scoped = documentSection.locator("input[type='file']");
+        if (scoped.count() > 0) {
+            return scoped.last();
+        }
+
+        Locator sibling = documentSection.locator("xpath=ancestor::form[1]//input[@type='file']");
+        if (sibling.count() > 0) {
+            return sibling.last();
+        }
+
+        return null;
+    }
+
+    private Path createTemporaryUploadFile(String filename) throws IOException {
+        String fileNameOnly = fileNameOnly(filename);
+        Path directory = Path.of("target", "upload-fixtures", String.valueOf(System.nanoTime()));
+        Files.createDirectories(directory);
+        Path output = directory.resolve(fileNameOnly);
+
+        String lowerName = fileNameOnly.toLowerCase(java.util.Locale.ROOT);
+        if (lowerName.endsWith(".docx")) {
+            writeMinimalDocx(output);
+            return output;
+        }
+        if (lowerName.endsWith(".pdf")) {
+            Files.writeString(output, "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n", StandardCharsets.UTF_8);
+            return output;
+        }
+
+        Files.writeString(output, "placeholder upload", StandardCharsets.UTF_8);
+        return output;
+    }
+
+    private void writeMinimalDocx(Path output) throws IOException {
+        try (OutputStream stream = Files.newOutputStream(output);
+             ZipOutputStream zip = new ZipOutputStream(stream, StandardCharsets.UTF_8)) {
+            writeZipEntry(zip, "[Content_Types].xml",
+                    """
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+                      <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+                      <Default Extension="xml" ContentType="application/xml"/>
+                      <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+                    </Types>
+                    """);
+            writeZipEntry(zip, "_rels/.rels",
+                    """
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+                      <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+                    </Relationships>
+                    """);
+            writeZipEntry(zip, "word/document.xml",
+                    """
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+                      <w:body>
+                        <w:p>
+                          <w:r>
+                            <w:t>Tradenix test upload</w:t>
+                          </w:r>
+                        </w:p>
+                      </w:body>
+                    </w:document>
+                    """);
+        }
+    }
+
+    private void writeZipEntry(ZipOutputStream zip, String entryName, String content) throws IOException {
+        zip.putNextEntry(new ZipEntry(entryName));
+        zip.write(content.getBytes(StandardCharsets.UTF_8));
+        zip.closeEntry();
+    }
+
+    private String fileNameOnly(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return filename;
+        }
+
+        int lastSlash = Math.max(filename.lastIndexOf('/'), filename.lastIndexOf('\\'));
+        return lastSlash >= 0 && lastSlash + 1 < filename.length()
+                ? filename.substring(lastSlash + 1)
+                : filename;
+    }
+
+    private Locator waitForDocumentSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolveDocumentSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator resolveDocumentSectionOrNull() {
+        String documentLabel = xpathLiteral("Document");
+        Locator documentSection = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + documentLabel + "])[last()]"
+                        + "/ancestor::*[(.//*[self::button or @role='button' or self::a]"
+                        + "[contains(translate(normalize-space(.), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'ADD')]"
+                        + " or .//input[(not(@type) or @type='text' or @type='search' or @type='file') and not(@disabled)]"
+                        + " or .//textarea[not(@disabled)]"
+                        + " or .//select[not(@disabled)]"
+                        + " or .//*[@role='combobox'] or .//*[@role='textbox'])][1]");
+        return firstVisible(documentSection);
     }
 
     private void fillCertificateColumnValues(String heading, JsonNode values) {
