@@ -11,6 +11,16 @@ import java.util.Map;
 
 public class DeclarationsPage {
 
+    private static final List<String> KNOWN_JOB_STATUSES = List.of(
+            "DRF", "DRAFT",
+            "SUB", "SUBMITTED",
+            "SNT", "SENT",
+            "PMT", "PERMIT ISSUED", "PERMIT_ISSUED",
+            "FLD", "FAILED", "FAILURE",
+            "REJ", "REJECTED",
+            "REG", "REGISTERED");
+    private static final List<String> TERMINAL_JOB_STATUSES = List.of(
+            "DRF", "SUB", "PMT", "FLD", "REJ", "REG");
     private final Page page;
     private static final String DECLARATIONS_MENU = "text=Declarations";
     private static final String NEW_DECLARATION_BUTTON = "button:has-text('NEW DECLARATION')";
@@ -91,53 +101,50 @@ public class DeclarationsPage {
 
     public DeclarationListEntry readDeclarationListEntry(String messageReference) {
         if (messageReference == null || messageReference.isBlank()) {
-            return new DeclarationListEntry(null, null);
+            return readLatestDeclarationListEntry();
         }
 
         for (int attempt = 0; attempt < 10; attempt++) {
             @SuppressWarnings("unchecked")
             Map<String, Object> result = (Map<String, Object>) page.evaluate("""
                     (messageReference) => {
+                        const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                        const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                        const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
                         const upper = value => normalize(value).toUpperCase();
                         const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
                         const textOf = element => normalize(element?.innerText || element?.textContent || '');
                         const targetReference = upper(messageReference);
+                        const knownStatuses = ['DRF', 'DRAFT', 'SUB', 'SUBMITTED', 'SNT', 'SENT', 'PMT', 'PERMIT ISSUED', 'PERMIT_ISSUED', 'FLD', 'FAILED', 'FAILURE', 'REJ', 'REJECTED', 'REG', 'REGISTERED'];
+                        const isStatusValue = value => knownStatuses.includes(upper(value));
+                        const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
+                        const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
+                        const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isCreatedByValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
+                        };
 
-                        const headerCandidates = Array.from(document.querySelectorAll('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'))
+                        const headerCandidates = Array.from(document.querySelectorAll(headerSelector))
                             .filter(isVisible);
                         const headerTexts = headerCandidates.map(textOf).map(upper);
                         const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
                         const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
                         const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageRefIndex = messageReferenceIndex >= 0
+                            ? messageReferenceIndex
+                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
+                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
 
-                        const rowCandidates = Array.from(document.querySelectorAll('tr, [role="row"], .mat-row, .ag-row'))
-                            .filter(row => isVisible(row) && !row.querySelector('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+                        const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+                            .filter(row => isVisible(row) && !row.querySelector(headerSelector));
 
-                        const extractStatus = cells => {
-                            if (statusIndex >= 0 && statusIndex < cells.length) {
-                                const explicitStatus = upper(textOf(cells[statusIndex]));
-                                if (explicitStatus) {
-                                    return explicitStatus;
-                                }
-                            }
-                            return cells
-                                .map(textOf)
-                                .map(upper)
-                                .find(text => ['PERMIT_ISSUED', 'FAILED', 'DRAFT', 'SUBMITTED'].includes(text)) || null;
-                        };
-
-                        for (const row of rowCandidates) {
-                            const cells = Array.from(row.querySelectorAll('td, [role="cell"], .mat-cell, .ag-cell')).filter(isVisible);
+                        const buildEntry = cells => {
                             const rowTexts = cells.map(textOf);
-                            const normalizedRowTexts = rowTexts.map(upper);
-                            const messageMatches = messageReferenceIndex >= 0 && messageReferenceIndex < normalizedRowTexts.length
-                                ? normalizedRowTexts[messageReferenceIndex] === targetReference
-                                : normalizedRowTexts.some(text => text === targetReference || text.includes(targetReference));
-                            if (!messageMatches) {
-                                continue;
-                            }
-
                             let jobId = null;
                             if (jobIdIndex >= 0 && jobIdIndex < rowTexts.length) {
                                 const candidate = rowTexts[jobIdIndex];
@@ -149,49 +156,250 @@ public class DeclarationsPage {
                                 jobId = rowTexts.find(value => /^\\d{3,}$/.test(value || '')) || null;
                             }
 
+                            let declarationNumber = messageRefIndex >= 0 && messageRefIndex < rowTexts.length
+                                ? rowTexts[messageRefIndex]
+                                : null;
+                            if (!isMessageRefValue(declarationNumber)) {
+                                declarationNumber = rowTexts.find(isMessageRefValue) || messageReference;
+                            }
+
+                            let jobCreatedBy = createdByIndex >= 0 && createdByIndex < rowTexts.length
+                                ? rowTexts[createdByIndex]
+                                : null;
+                            const resolvedStatus = extractStatus(cells);
+                            if (!isCreatedByValue(jobCreatedBy)) {
+                                const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(resolvedStatus));
+                                if (statusCellIndex > 0 && isCreatedByValue(rowTexts[statusCellIndex - 1])) {
+                                    jobCreatedBy = rowTexts[statusCellIndex - 1];
+                                } else {
+                                    jobCreatedBy = rowTexts.find(isCreatedByValue) || null;
+                                }
+                            }
+
                             return {
                                 jobId,
-                                jobStatus: extractStatus(cells)
+                                jobStatus: resolvedStatus,
+                                declarationNumber,
+                                jobCreatedBy
                             };
+                        };
+
+                        const extractStatus = cells => {
+                            if (statusIndex >= 0 && statusIndex < cells.length) {
+                                const explicitStatus = upper(textOf(cells[statusIndex]));
+                                if (explicitStatus) {
+                                    return explicitStatus;
+                                }
+                            }
+                            return cells
+                                .map(textOf)
+                                .map(upper)
+                                .find(text => knownStatuses.includes(text)) || null;
+                        };
+
+                        for (const row of rowCandidates) {
+                            const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
+                            const rowTexts = cells.map(textOf);
+                            const normalizedRowTexts = rowTexts.map(upper);
+                            const messageMatches = messageRefIndex >= 0 && messageRefIndex < normalizedRowTexts.length
+                                ? normalizedRowTexts[messageRefIndex] === targetReference
+                                : normalizedRowTexts.some(text => text === targetReference || text.includes(targetReference));
+                            if (!messageMatches) {
+                                continue;
+                            }
+                            return buildEntry(cells);
+                        }
+
+                        if (rowCandidates.length > 0) {
+                            const latestCells = Array.from(rowCandidates[0].querySelectorAll(cellSelector))
+                                .filter(isVisible);
+                            if (latestCells.length > 0) {
+                                return buildEntry(latestCells);
+                            }
                         }
                         return null;
                     }
                     """, messageReference);
             if (result != null) {
                 String jobId = stringValue(result.get("jobId"));
-                String jobStatus = stringValue(result.get("jobStatus"));
-                if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())) {
-                    return new DeclarationListEntry(jobId, jobStatus);
+                String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
+                String declarationNumber = stringValue(result.get("declarationNumber"));
+                String jobCreatedBy = stringValue(result.get("jobCreatedBy"));
+                if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())
+                        || (declarationNumber != null && !declarationNumber.isBlank())
+                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())) {
+                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy);
                 }
             }
             page.waitForTimeout(1000);
         }
 
-        return new DeclarationListEntry(null, null);
+        return readLatestDeclarationListEntry();
+    }
+
+    public DeclarationListEntry readLatestDeclarationListEntry() {
+        for (int attempt = 0; attempt < 10; attempt++) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+                    () => {
+                        const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                        const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                        const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                        const knownStatuses = ['DRF', 'DRAFT', 'SUB', 'SUBMITTED', 'SNT', 'SENT', 'PMT', 'PERMIT ISSUED', 'PERMIT_ISSUED', 'FLD', 'FAILED', 'FAILURE', 'REJ', 'REJECTED', 'REG', 'REGISTERED'];
+                        const isStatusValue = value => knownStatuses.includes(upper(value));
+                        const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
+                        const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
+                        const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isCreatedByValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
+                        };
+
+                        const headerCandidates = Array.from(document.querySelectorAll(headerSelector))
+                            .filter(isVisible);
+                        const headerTexts = headerCandidates.map(textOf).map(upper);
+                        const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
+                        const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
+                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageRefIndex = messageReferenceIndex >= 0
+                            ? messageReferenceIndex
+                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
+                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
+
+                        const row = Array.from(document.querySelectorAll(rowSelector))
+                            .find(candidate => isVisible(candidate)
+                                && !candidate.querySelector(headerSelector));
+                        if (!row) {
+                            return null;
+                        }
+
+                        const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
+                        if (cells.length === 0) {
+                            return null;
+                        }
+
+                        const rowTexts = cells.map(textOf);
+                        const normalizedRowTexts = rowTexts.map(upper);
+                        let jobId = jobIdIndex >= 0 && jobIdIndex < rowTexts.length ? rowTexts[jobIdIndex] : null;
+                        if (!jobId || !/^\\d{3,}$/.test(jobId || '')) {
+                            jobId = rowTexts.find(value => /^\\d{3,}$/.test(value || '')) || null;
+                        }
+
+                        let jobStatus = statusIndex >= 0 && statusIndex < rowTexts.length ? normalizedRowTexts[statusIndex] : null;
+                        if (!jobStatus) {
+                            jobStatus = normalizedRowTexts.find(text => knownStatuses.includes(text)) || null;
+                        }
+
+                        let declarationNumber = messageRefIndex >= 0 && messageRefIndex < rowTexts.length
+                            ? rowTexts[messageRefIndex]
+                            : null;
+                        if (!isMessageRefValue(declarationNumber)) {
+                            declarationNumber = rowTexts.find(isMessageRefValue) || null;
+                        }
+
+                        let jobCreatedBy = createdByIndex >= 0 && createdByIndex < rowTexts.length
+                            ? rowTexts[createdByIndex]
+                            : null;
+                        if (!isCreatedByValue(jobCreatedBy)) {
+                            const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(jobStatus));
+                            if (statusCellIndex > 0 && isCreatedByValue(rowTexts[statusCellIndex - 1])) {
+                                jobCreatedBy = rowTexts[statusCellIndex - 1];
+                            } else {
+                                jobCreatedBy = rowTexts.find(isCreatedByValue) || null;
+                            }
+                        }
+
+                        return {
+                            jobId,
+                            jobStatus,
+                            declarationNumber,
+                            jobCreatedBy
+                        };
+                    }
+                    """);
+            if (result != null) {
+                String jobId = stringValue(result.get("jobId"));
+                String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
+                String declarationNumber = stringValue(result.get("declarationNumber"));
+                String jobCreatedBy = stringValue(result.get("jobCreatedBy"));
+                if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())
+                        || (declarationNumber != null && !declarationNumber.isBlank())
+                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())) {
+                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy);
+                }
+            }
+            page.waitForTimeout(1000);
+        }
+        return new DeclarationListEntry(null, null, null, null);
+    }
+
+    public DeclarationListEntry waitForDeclarationCompletion(
+            String messageReference,
+            String expectedJobId,
+            long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        DeclarationListEntry latestMatchingEntry = null;
+
+        while (System.currentTimeMillis() <= deadline) {
+            try {
+                DeclarationListEntry currentEntry = readDeclarationListEntry(messageReference);
+                if (matchesTrackedDeclaration(currentEntry, messageReference, expectedJobId)) {
+                    latestMatchingEntry = currentEntry;
+                    if (isTerminalJobStatus(currentEntry.jobStatus())) {
+                        return currentEntry;
+                    }
+                }
+
+                refreshDeclarationList();
+                page.waitForTimeout(1500);
+            } catch (PlaywrightException exception) {
+                if (latestMatchingEntry != null) {
+                    return latestMatchingEntry;
+                }
+                throw exception;
+            }
+        }
+
+        return latestMatchingEntry != null ? latestMatchingEntry : readDeclarationListEntry(messageReference);
+    }
+
+    public void refreshDeclarationList() {
+        page.reload();
+        waitForDeclarationListRefresh();
     }
 
     public String readLatestJobId() {
         for (int attempt = 0; attempt < 10; attempt++) {
             String jobId = (String) page.evaluate("""
                     () => {
+                        const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                        const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                        const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
                         const upper = value => normalize(value).toUpperCase();
                         const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
                         const textOf = element => normalize(element?.innerText || element?.textContent || '');
 
-                        const headers = Array.from(document.querySelectorAll('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+                        const headers = Array.from(document.querySelectorAll(headerSelector));
                         const jobHeader = headers.find(element => upper(textOf(element)) === 'JOB ID');
                         if (jobHeader) {
-                            const headerRow = jobHeader.closest('tr, [role="row"], .mat-header-row, .ag-header-row');
+                            const headerRow = jobHeader.closest('tr, [role="row"], .mat-header-row, .ag-header-row, clr-dg-row, .datagrid-row');
                             const headerCells = headerRow
-                                ? Array.from(headerRow.querySelectorAll('th, td, [role="columnheader"], .mat-header-cell, .ag-header-cell')).filter(isVisible)
+                                ? Array.from(headerRow.querySelectorAll(`${headerSelector}, ${cellSelector}`)).filter(isVisible)
                                 : headers.filter(isVisible);
                             const columnIndex = headerCells.findIndex(cell => cell === jobHeader || upper(textOf(cell)) === 'JOB ID');
                             if (columnIndex >= 0) {
-                                const rowCandidates = Array.from(document.querySelectorAll('tr, [role="row"], .mat-row, .ag-row'))
-                                    .filter(row => isVisible(row) && !row.querySelector('th, [role="columnheader"], .mat-header-cell, .ag-header-cell'));
+                                const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+                                    .filter(row => isVisible(row) && !row.querySelector(headerSelector));
                                 for (const row of rowCandidates) {
-                                    const cells = Array.from(row.querySelectorAll('td, [role="cell"], .mat-cell, .ag-cell')).filter(isVisible);
+                                    const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
                                     if (columnIndex < cells.length) {
                                         const value = textOf(cells[columnIndex]);
                                         if (value && /^\\d{3,}$/.test(value)) {
@@ -223,6 +431,69 @@ public class DeclarationsPage {
         }
         String text = String.valueOf(value).trim();
         return text.isEmpty() || "null".equalsIgnoreCase(text) ? null : text;
+    }
+
+    private String normalizeJobStatus(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().replace('-', '_').replace(' ', '_').toUpperCase();
+        return switch (normalized) {
+            case "DRF", "DRAFT" -> "DRF";
+            case "SUB", "SUBMITTED" -> "SUB";
+            case "SNT", "SENT" -> "SNT";
+            case "FLD", "FAILED", "FAILURE" -> "FLD";
+            case "REJ", "REJECTED" -> "REJ";
+            case "PMT", "PERMIT_ISSUED", "PERMITISSUED" -> "PMT";
+            case "REG", "REGISTERED" -> "REG";
+            default -> normalized;
+        };
+    }
+
+    private boolean isTerminalJobStatus(String value) {
+        String normalized = normalizeJobStatus(value);
+        return normalized != null && TERMINAL_JOB_STATUSES.contains(normalized);
+    }
+
+    public boolean hasTerminalJobStatus(String value) {
+        return isTerminalJobStatus(value);
+    }
+
+    private boolean matchesTrackedDeclaration(
+            DeclarationListEntry entry,
+            String messageReference,
+            String expectedJobId) {
+        if (entry == null) {
+            return false;
+        }
+
+        String normalizedExpectedJobId = normalizeValue(expectedJobId);
+        String normalizedExpectedMessageReference = normalizeValue(messageReference);
+        String normalizedActualJobId = normalizeValue(entry.jobId());
+        String normalizedActualMessageReference = normalizeValue(entry.declarationNumber());
+
+        if (normalizedExpectedJobId != null && normalizedExpectedJobId.equals(normalizedActualJobId)) {
+            return true;
+        }
+        return normalizedExpectedMessageReference == null
+                || normalizedExpectedMessageReference.equals(normalizedActualMessageReference);
+    }
+
+    private String normalizeValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed.toUpperCase();
+    }
+
+    private void waitForDeclarationListRefresh() {
+        try {
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            waitForNewDeclarationButton();
+        } catch (PlaywrightException ignored) {
+        }
+        page.waitForTimeout(1000);
     }
 
     private void openDeclarationsMenuIfNeeded() {
@@ -371,6 +642,10 @@ public class DeclarationsPage {
         }
     }
 
-    public record DeclarationListEntry(String jobId, String jobStatus) {
+    public record DeclarationListEntry(
+            String jobId,
+            String jobStatus,
+            String declarationNumber,
+            String jobCreatedBy) {
     }
 }

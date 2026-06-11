@@ -1,4 +1,5 @@
 D:\Mohan\play-wright\src\test\java\base\BaseTest.java
+D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\AutomaticReportLauncher.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\CooDeclarationTestCase1Test.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\DeclarationNavigationTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationCascButtonTest.java
@@ -13,4 +14,5 @@ D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\LoginTest
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\OutDeclarationCpcFooterCheckboxTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\OutDeclarationTestCase1Test.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\PlaywrightFrameworkApplicationTests.java
+D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\StaticReportDataWriter.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\UserApiTest.java

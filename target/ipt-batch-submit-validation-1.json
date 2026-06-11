@@ -1,4 +1,13 @@
 {
-  "toastText": "",
-  "invalidElements": []
+  "toastText" : "",
+  "responseMessage" : "Declaration submitted successfully.",
+  "errorMessage" : "N/A",
+  "notificationMessages" : [ ],
+  "invalidElements" : [ ],
+  "jobId" : "5115",
+  "jobStatus" : "SUB",
+  "declarationType" : "12",
+  "declarationNumber" : "TDX2606110072",
+  "jobCreatedBy" : "mohan",
+  "responseSummary" : "Job ID: 5115\r\n\r\nMessage Ref: TDX2606110072\r\n\r\nDeclaration Type: 12\r\n\r\nStatus: SUB\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
 }

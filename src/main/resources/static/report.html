@@ -113,6 +113,21 @@
             background: var(--success-bg);
         }
 
+        .status-PMT {
+            color: var(--success);
+            background: var(--success-bg);
+        }
+
+        .status-SUB {
+            color: var(--success);
+            background: var(--success-bg);
+        }
+
+        .status-SNT {
+            color: var(--neutral);
+            background: var(--neutral-bg);
+        }
+
         .status-FAILURE {
             color: var(--failure);
             background: var(--failure-bg);
@@ -123,12 +138,32 @@
             background: var(--failure-bg);
         }
 
+        .status-FLD {
+            color: var(--failure);
+            background: var(--failure-bg);
+        }
+
+        .status-REJ {
+            color: var(--failure);
+            background: var(--failure-bg);
+        }
+
         .status-ISSUE {
             color: var(--issue);
             background: var(--issue-bg);
         }
 
         .status-DRAFT {
+            color: var(--neutral);
+            background: var(--neutral-bg);
+        }
+
+        .status-DRF {
+            color: var(--neutral);
+            background: var(--neutral-bg);
+        }
+
+        .status-REG {
             color: var(--neutral);
             background: var(--neutral-bg);
         }
@@ -301,7 +336,7 @@
 
     <div class="grid">
         <div class="panel">
-            <h2>Batch Results</h2>
+            <h2 id="batchResultsTitle">Results</h2>
             <div id="batchCases" class="cases"></div>
         </div>
 
@@ -355,6 +390,53 @@
     const batchFailures = document.getElementById('batchFailures');
     const batchDrafts = document.getElementById('batchDrafts');
     const batchCases = document.getElementById('batchCases');
+    const batchResultsTitle = document.getElementById('batchResultsTitle');
+    const API_BASE_STORAGE_KEY = 'tradenix.report.apiBase';
+    const queryParams = new URLSearchParams(window.location.search);
+    const focusJobId = normalizeQueryValue(queryParams.get('jobId'));
+    const focusMessageRef = normalizeQueryValue(queryParams.get('messageRef'));
+    const requestedReportPrefix = String(queryParams.get('reportPrefix') || '').trim();
+    const localReportScriptCandidates = [
+        '../../../../target/report-data.js',
+        '../../../../target/classes/static/report-data.js',
+        '../../report-data.js'
+    ];
+
+    function resolveApiBase() {
+        const params = new URLSearchParams(window.location.search);
+        const apiBaseFromQuery = params.get('apiBase');
+        if (apiBaseFromQuery) {
+            localStorage.setItem(API_BASE_STORAGE_KEY, apiBaseFromQuery);
+            return apiBaseFromQuery.replace(/\/$/, '');
+        }
+        if (window.location.protocol === 'file:') {
+            const stored = localStorage.getItem(API_BASE_STORAGE_KEY);
+            return (stored || 'http://localhost:8080').replace(/\/$/, '');
+        }
+        return '';
+    }
+
+    const apiBase = resolveApiBase();
+    const localArtifactBase = resolveLocalArtifactBase();
+
+    function normalizeQueryValue(value) {
+        const normalized = String(value || '').trim().toUpperCase();
+        return normalized || null;
+    }
+
+    function resolveLocalArtifactBase() {
+        if (window.location.protocol !== 'file:') {
+            return null;
+        }
+        const pathname = (window.location.pathname || '').replaceAll('\\', '/');
+        if (pathname.includes('/src/main/resources/static/')) {
+            return '../../../../target';
+        }
+        if (pathname.includes('/target/classes/static/')) {
+            return '../../';
+        }
+        return '../../../../target';
+    }
 
     function escapeHtml(value) {
         return String(value || '')
@@ -367,36 +449,252 @@
         if (!fileName) {
             return '';
         }
-        return `<a class="chip" href="/api/reports/artifacts/${encodeURIComponent(fileName)}" target="_blank">${escapeHtml(label)}: ${escapeHtml(fileName)}</a>`;
+        const href = !apiBase && localArtifactBase
+            ? `${localArtifactBase}/${encodeURIComponent(fileName)}`
+            : `${apiBase}/api/reports/artifacts/${encodeURIComponent(fileName)}`;
+        return `<a class="chip" href="${escapeHtml(href)}" target="_blank">${escapeHtml(label)}: ${escapeHtml(fileName)}</a>`;
+    }
+
+    function batchCaseMatchesRequestedPrefix(batchCase) {
+        if (!requestedReportPrefix) {
+            return true;
+        }
+        return [
+            batchCase?.diagnosticsFile,
+            batchCase?.screenshotFile,
+            batchCase?.statusScreenshotFile
+        ].some(value => String(value || '').startsWith(requestedReportPrefix));
+    }
+
+    function matchesFocusedCase(batchCase) {
+        const batchJobId = normalizeQueryValue(batchCase?.jobId);
+        const batchMessageRef = normalizeQueryValue(batchCase?.declarationNumber);
+        if (focusJobId && batchJobId !== focusJobId) {
+            return false;
+        }
+        if (focusMessageRef && batchMessageRef !== focusMessageRef) {
+            return false;
+        }
+        return (!!(focusJobId || focusMessageRef) || !!requestedReportPrefix)
+            && batchCaseMatchesRequestedPrefix(batchCase);
+    }
+
+    function summarizeBatchCases(batchCases) {
+        const summary = {
+            total: batchCases.length,
+            successes: 0,
+            issues: 0,
+            failures: 0,
+            drafts: 0
+        };
+
+        for (const batchCase of batchCases) {
+            const displayStatus = String(batchCase?.jobStatus || batchCase?.status || '').toUpperCase();
+            if (['PMT', 'SUB', 'REG', 'SUCCESS'].includes(displayStatus)) {
+                summary.successes += 1;
+            } else if (displayStatus === 'DRF') {
+                summary.drafts += 1;
+            } else if (['FLD', 'REJ', 'FAILURE'].includes(displayStatus)) {
+                summary.failures += 1;
+            } else if (['ISSUE', 'SNT'].includes(displayStatus)) {
+                summary.issues += 1;
+            }
+        }
+
+        return summary;
+    }
+
+    function applyFocusedCase(report) {
+        if (!focusJobId && !focusMessageRef && !requestedReportPrefix) {
+            return report;
+        }
+        const matchingBatchCases = (report?.batchCases || []).filter(matchesFocusedCase);
+        if (!matchingBatchCases.length) {
+            return report;
+        }
+
+        return {
+            ...report,
+            batchCases: matchingBatchCases,
+            batchSummary: summarizeBatchCases(matchingBatchCases),
+            primaryIssue: matchingBatchCases[0]?.message || report.primaryIssue
+        };
+    }
+
+    function reportMatchesRequestedContext(report) {
+        if (!focusJobId && !focusMessageRef && !requestedReportPrefix) {
+            return true;
+        }
+        const batchCases = Array.isArray(report?.batchCases) ? report.batchCases : [];
+        return batchCases.some(matchesFocusedCase);
+    }
+
+    function renderWaitingForRequestedReport(reportUrl) {
+        const contextParts = [];
+        if (focusJobId) {
+            contextParts.push(`Job ID ${focusJobId}`);
+        }
+        if (focusMessageRef) {
+            contextParts.push(`Message Ref ${focusMessageRef}`);
+        }
+        if (requestedReportPrefix) {
+            contextParts.push(`Module ${requestedReportPrefix}`);
+        }
+        const contextText = contextParts.join(' | ') || 'latest submission';
+
+        statusBadge.className = 'status-badge status-NO_REPORT';
+        statusBadge.textContent = 'LOADING';
+        issue.textContent = `Waiting for the completed report for ${contextText}.`;
+        source.textContent = `Requested context: ${contextText} | API endpoint: ${reportUrl || 'embedded local data'}`;
+        suiteName.textContent = 'Suite: waiting for matching report data';
+        updatedAt.textContent = 'Updated: -';
+        duration.textContent = 'Wrapper Duration: -';
+        batchResultsTitle.textContent = 'Results';
+        batchCases.innerHTML = '<div class="fine">A previous report was ignored because it did not match the latest requested job/module.</div>';
+        cases.innerHTML = '<div class="fine">Waiting for matching wrapper test data.</div>';
+        batchTotal.textContent = 0;
+        batchSuccess.textContent = 0;
+        batchIssues.textContent = 0;
+        batchFailures.textContent = 0;
+        batchDrafts.textContent = 0;
+        tests.textContent = 0;
+        failures.textContent = 0;
+        errors.textContent = 0;
+        skipped.textContent = 0;
+    }
+
+    function resolveResultsTitle(report) {
+        const suiteName = String(report?.suiteName || '').toUpperCase();
+        const batchCases = Array.isArray(report?.batchCases) ? report.batchCases : [];
+        const declarationTypeDisplays = batchCases
+            .map(batchCase => String(batchCase?.declarationTypeDisplay || batchCase?.declarationTypeCode || '').toUpperCase())
+            .filter(Boolean);
+        const diagnosticsTexts = batchCases
+            .map(batchCase => String(batchCase?.diagnosticsText || batchCase?.responseSummary || '').toUpperCase())
+            .filter(Boolean);
+
+        if (suiteName.includes('IPTDECLARATIONTESTCASE1TEST')
+            || declarationTypeDisplays.some(value => value.includes('DNG') || value.includes('IN-PAYMENT') || value === 'IPT')) {
+            return 'IN-Payment (IPT) Results';
+        }
+
+        if (suiteName.includes('COODECLARATIONTESTCASE1TEST')
+            || declarationTypeDisplays.some(value => value.includes('COO') || value.includes('CERTIFICATE OF ORIGIN'))
+            || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: COO') || value.includes('CERTIFICATE OF ORIGIN'))) {
+            return 'Certificate of Origin (COO) Results';
+        }
+
+        if (suiteName.includes('OUTDECLARATIONTESTCASE1TEST')
+            || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: 20') || value.includes('DECLARATION TYPE: OUT'))
+            || declarationTypeDisplays.some(value => value === '20' || value.includes('OUTWARD') || value === 'OUT')) {
+            return 'OUTWARD (OUT) Results';
+        }
+
+        return 'Batch Results';
+    }
+
+    function renderReport(report) {
+        const focusedReport = applyFocusedCase(report);
+        const batchSummary = focusedReport.batchSummary || {};
+        const selectedBatchCase = (focusedReport.batchCases || [])[0];
+        batchResultsTitle.textContent = resolveResultsTitle(focusedReport);
+
+        statusBadge.className = `status-badge status-${focusedReport.status || 'NO_REPORT'}`;
+        statusBadge.textContent = focusedReport.status || 'NO_REPORT';
+        issue.textContent = focusedReport.primaryIssue || '';
+        source.textContent = focusedReport.sourceFile
+            ? `Surefire XML: ${focusedReport.sourceFile} | API: ${apiBase ? `${apiBase}/api/reports/latest` : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`
+            : `Surefire XML: not available | API: ${apiBase ? `${apiBase}/api/reports/latest` : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`;
+        suiteName.textContent = focusedReport.suiteName ? `Suite: ${focusedReport.suiteName}` : 'Suite: not available';
+        updatedAt.textContent = focusedReport.updatedAt ? `Updated: ${focusedReport.updatedAt}` : 'Updated: -';
+        duration.textContent = focusedReport.durationSeconds ? `Wrapper Duration: ${focusedReport.durationSeconds} s` : 'Wrapper Duration: -';
+
+        batchTotal.textContent = batchSummary.total ?? 0;
+        batchSuccess.textContent = batchSummary.successes ?? 0;
+        batchIssues.textContent = batchSummary.issues ?? 0;
+        batchFailures.textContent = batchSummary.failures ?? 0;
+        batchDrafts.textContent = batchSummary.drafts ?? 0;
+
+        tests.textContent = focusedReport.tests ?? 0;
+        failures.textContent = focusedReport.failures ?? 0;
+        errors.textContent = focusedReport.errors ?? 0;
+        skipped.textContent = focusedReport.skipped ?? 0;
+
+        batchCases.innerHTML = (focusedReport.batchCases || []).map(renderBatchCase).join('')
+            || '<div class="fine">No batch declaration results available.</div>';
+        cases.innerHTML = (focusedReport.testCases || []).map(renderCase).join('')
+            || '<div class="fine">No wrapper test cases available.</div>';
+    }
+
+    async function loadLocalReportData() {
+        if (window.location.protocol !== 'file:') {
+            return null;
+        }
+
+        delete window.__REPORT_DATA__;
+        document.querySelectorAll('script[data-report-script="true"]').forEach(script => script.remove());
+
+        for (const candidate of localReportScriptCandidates) {
+            try {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = `${candidate}${candidate.includes('?') ? '&' : '?'}v=${Date.now()}`;
+                    script.dataset.reportScript = 'true';
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+                if (window.__REPORT_DATA__) {
+                    return window.__REPORT_DATA__;
+                }
+            } catch (error) {
+            }
+        }
+
+        return null;
     }
 
     function renderBatchCase(batchCase) {
         const diagnostics = batchCase.diagnosticsText
             ? `<pre>${escapeHtml(batchCase.diagnosticsText)}</pre>`
             : '';
-        const toast = batchCase.toastText
-            ? `<div class="fine" style="margin-top: 8px;">Toast: ${escapeHtml(batchCase.toastText)}</div>`
+        const responseSummary = batchCase.responseSummary
+            ? `<pre>${escapeHtml(batchCase.responseSummary)}</pre>`
             : '';
+        const responseMessage = batchCase.responseMessage || 'N/A';
+        const errorMessage = batchCase.errorMessage || 'N/A';
+        const hasErrorDetails = errorMessage && errorMessage !== 'N/A';
         return `
             <div class="case">
                 <div class="case-head">
                     <div>
-                        <div class="case-name">Declaration ${escapeHtml(batchCase.index)}</div>
+                        <div class="case-name">Declaration ${escapeHtml(batchCase.index)}${batchCase.jobId ? ` | Job ${escapeHtml(batchCase.jobId)}` : ''}</div>
                         <div class="case-class">${escapeHtml(batchCase.message || '')}</div>
                     </div>
                     <div class="status-badge status-${escapeHtml(batchCase.jobStatus || batchCase.status || 'NO_REPORT')}">${escapeHtml(batchCase.jobStatus || batchCase.status || 'UNKNOWN')}</div>
                 </div>
                 <div class="detail-row">
                     <div class="fine">Declaration Type: ${escapeHtml(batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-')}</div>
+                    <div class="fine">Message Ref: ${escapeHtml(batchCase.declarationNumber || '-')}</div>
                     <div class="fine">Status: ${escapeHtml(batchCase.jobStatus || '-')}</div>
                     <div class="fine">Job ID: ${escapeHtml(batchCase.jobId || '-')}</div>
+                    <div class="fine">Created By: ${escapeHtml(batchCase.jobCreatedBy || '-')}</div>
                     <div class="fine">Invalid Fields: ${escapeHtml(batchCase.invalidCount ?? 0)}</div>
                     <div class="fine">Updated: ${escapeHtml(batchCase.updatedAt || '-')}</div>
                 </div>
-                ${toast}
+                <div class="panel" style="margin-top: 12px; padding: 14px;">
+                    <div class="label">Status Details</div>
+                    <div class="fine" style="margin-top: 8px;">Response Message: ${escapeHtml(responseMessage)}</div>
+                </div>
+                <div class="panel" style="margin-top: 12px; padding: 14px; border-color: ${hasErrorDetails ? 'var(--failure)' : 'var(--border)'};">
+                    <div class="label">Error Details</div>
+                    <div class="fine" style="margin-top: 8px;">Error Message: ${escapeHtml(errorMessage)}</div>
+                </div>
+                ${responseSummary}
                 <div class="chips">
                     ${renderArtifactLink('Diagnostics', batchCase.diagnosticsFile)}
-                    ${renderArtifactLink('Screenshot', batchCase.screenshotFile)}
+                    ${renderArtifactLink('Submit Screenshot', batchCase.screenshotFile)}
+                    ${renderArtifactLink('Status Screenshot', batchCase.statusScreenshotFile)}
                 </div>
                 ${diagnostics}
             </div>
@@ -427,33 +725,50 @@
     }
 
     async function loadReport() {
-        const response = await fetch('/api/reports/latest', { cache: 'no-store' });
-        const report = await response.json();
-        const batchSummary = report.batchSummary || {};
-
-        statusBadge.className = `status-badge status-${report.status || 'NO_REPORT'}`;
-        statusBadge.textContent = report.status || 'NO_REPORT';
-        issue.textContent = report.primaryIssue || '';
-        source.textContent = report.sourceFile ? `Surefire XML: ${report.sourceFile}` : 'Surefire XML: not available';
-        suiteName.textContent = report.suiteName ? `Suite: ${report.suiteName}` : 'Suite: not available';
-        updatedAt.textContent = report.updatedAt ? `Updated: ${report.updatedAt}` : 'Updated: -';
-        duration.textContent = report.durationSeconds ? `Wrapper Duration: ${report.durationSeconds} s` : 'Wrapper Duration: -';
-
-        batchTotal.textContent = batchSummary.total ?? 0;
-        batchSuccess.textContent = batchSummary.successes ?? 0;
-        batchIssues.textContent = batchSummary.issues ?? 0;
-        batchFailures.textContent = batchSummary.failures ?? 0;
-        batchDrafts.textContent = batchSummary.drafts ?? 0;
-
-        tests.textContent = report.tests ?? 0;
-        failures.textContent = report.failures ?? 0;
-        errors.textContent = report.errors ?? 0;
-        skipped.textContent = report.skipped ?? 0;
-
-        batchCases.innerHTML = (report.batchCases || []).map(renderBatchCase).join('')
-            || '<div class="fine">No batch declaration results available.</div>';
-        cases.innerHTML = (report.testCases || []).map(renderCase).join('')
-            || '<div class="fine">No wrapper test cases available.</div>';
+        const reportUrl = `${apiBase}/api/reports/latest`;
+        const localReport = await loadLocalReportData();
+        if (localReport && reportMatchesRequestedContext(localReport)) {
+            renderReport(localReport);
+            return;
+        }
+        let report;
+        try {
+            const response = await fetch(reportUrl, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            report = await response.json();
+        } catch (error) {
+            if (localReport && !reportMatchesRequestedContext(localReport)) {
+                renderWaitingForRequestedReport(reportUrl);
+                return;
+            }
+            statusBadge.className = 'status-badge status-NO_REPORT';
+            statusBadge.textContent = 'NO_REPORT';
+            issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8080/report.html or append ?apiBase=http://localhost:8080 when using the file directly.`;
+            source.textContent = `API endpoint: ${reportUrl}`;
+            suiteName.textContent = 'Suite: not available';
+            updatedAt.textContent = 'Updated: -';
+            duration.textContent = 'Wrapper Duration: -';
+            batchResultsTitle.textContent = 'Results';
+            batchCases.innerHTML = '<div class="fine">No batch declaration results available.</div>';
+            cases.innerHTML = '<div class="fine">No wrapper test cases available.</div>';
+            batchTotal.textContent = 0;
+            batchSuccess.textContent = 0;
+            batchIssues.textContent = 0;
+            batchFailures.textContent = 0;
+            batchDrafts.textContent = 0;
+            tests.textContent = 0;
+            failures.textContent = 0;
+            errors.textContent = 0;
+            skipped.textContent = 0;
+            return;
+        }
+        if (!reportMatchesRequestedContext(report)) {
+            renderWaitingForRequestedReport(reportUrl);
+            return;
+        }
+        renderReport(report);
     }
 
     document.getElementById('refreshBtn').addEventListener('click', loadReport);

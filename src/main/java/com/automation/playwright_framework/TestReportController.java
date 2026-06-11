@@ -41,7 +41,8 @@ public class TestReportController {
     private static final String REPORT_ARTIFACT_PREFIX_PROPERTY = "tradenix.report.artifact.prefix";
     private static final List<String> TEST_DATA_PROPERTIES = List.of(
             "tradenix.out.test.data",
-            "tradenix.ipt.test.data");
+            "tradenix.ipt.test.data",
+            "tradenix.coo.test.data");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -193,6 +194,10 @@ public class TestReportController {
                 || normalizedSuite.contains("outdeclaration")) {
             return "out-batch-submit";
         }
+        if (normalizedPath.contains("/coo-") || normalizedPath.contains("\\coo-") || normalizedPath.contains("coo-declaration")
+                || normalizedSuite.contains("coodeclaration")) {
+            return "coo-batch-submit";
+        }
         return DEFAULT_ARTIFACT_PREFIX;
     }
 
@@ -208,6 +213,7 @@ public class TestReportController {
         Pattern failurePattern = artifactPattern(resolvedArtifactPrefix, "-failure-(\\d+)\\.json$");
         Pattern successScreenshotPattern = artifactPattern(resolvedArtifactPrefix, "-(\\d+)\\.png$");
         Pattern failureScreenshotPattern = artifactPattern(resolvedArtifactPrefix, "-failure-(\\d+)\\.png$");
+        Pattern statusScreenshotPattern = artifactPattern(resolvedArtifactPrefix, "-status-(\\d+)\\.png$");
         try (Stream<Path> files = Files.list(TARGET_DIR)) {
             files.filter(Files::isRegularFile).forEach(path -> accumulateBatchArtifact(
                     casesByIndex,
@@ -215,7 +221,8 @@ public class TestReportController {
                     validationPattern,
                     failurePattern,
                     successScreenshotPattern,
-                    failureScreenshotPattern));
+                    failureScreenshotPattern,
+                    statusScreenshotPattern));
         }
 
         List<BatchCaseResult> batchCases = new ArrayList<>();
@@ -233,13 +240,14 @@ public class TestReportController {
             batchCases.add(batchCase);
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
             String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
-            if ("PERMIT_ISSUED".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus)
+                    || "REG".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
-            } else if ("DRAFT".equals(displayStatus)) {
+            } else if ("DRF".equals(displayStatus)) {
                 draftCount++;
-            } else if ("FAILED".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
+            } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
                 failureCount++;
-            } else if ("ISSUE".equals(displayStatus)) {
+            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)) {
                 issueCount++;
             }
         }
@@ -265,12 +273,14 @@ public class TestReportController {
             Pattern validationPattern,
             Pattern failurePattern,
             Pattern successScreenshotPattern,
-            Pattern failureScreenshotPattern) {
+            Pattern failureScreenshotPattern,
+            Pattern statusScreenshotPattern) {
         String fileName = path.getFileName().toString();
         registerBatchPath(casesByIndex, path, fileName, validationPattern, BatchArtifactType.VALIDATION_JSON);
         registerBatchPath(casesByIndex, path, fileName, failurePattern, BatchArtifactType.FAILURE_JSON);
         registerBatchPath(casesByIndex, path, fileName, successScreenshotPattern, BatchArtifactType.SUCCESS_SCREENSHOT);
         registerBatchPath(casesByIndex, path, fileName, failureScreenshotPattern, BatchArtifactType.FAILURE_SCREENSHOT);
+        registerBatchPath(casesByIndex, path, fileName, statusScreenshotPattern, BatchArtifactType.STATUS_SCREENSHOT);
     }
 
     private void registerBatchPath(
@@ -291,6 +301,7 @@ public class TestReportController {
             case FAILURE_JSON -> accumulator.failureJson = path;
             case SUCCESS_SCREENSHOT -> accumulator.successScreenshot = path;
             case FAILURE_SCREENSHOT -> accumulator.failureScreenshot = path;
+            case STATUS_SCREENSHOT -> accumulator.statusScreenshot = path;
         }
     }
 
@@ -312,11 +323,11 @@ public class TestReportController {
             if (root.isArray()) {
                 for (int index = 0; index < root.size(); index++) {
                     JsonNode declaration = root.path(index);
-                    String code = blankToNull(declaration.path("header").path("declarationType").asText(null));
+                    String code = resolveDeclarationTypeCode(declaration);
                     batchMeta.put(index + 1, new BatchMetaInfo(code, mapDeclarationTypeDisplay(code)));
                 }
             } else if (root.isObject()) {
-                String code = blankToNull(root.path("header").path("declarationType").asText(null));
+                String code = resolveDeclarationTypeCode(root);
                 batchMeta.put(1, new BatchMetaInfo(code, mapDeclarationTypeDisplay(code)));
             }
             return batchMeta;
@@ -334,8 +345,18 @@ public class TestReportController {
             case "11" -> "11 - DUT";
             case "12" -> "12 - DNG";
             case "90" -> "90 - BKT";
+            case "20" -> "20 - OUT";
+            case "COO", "COODEC" -> "Certificate of Origin (COO)";
             default -> code;
         };
+    }
+
+    private String resolveDeclarationTypeCode(JsonNode declaration) {
+        return firstNonBlank(
+                blankToNull(declaration.path("header").path("declarationType").asText(null)),
+                blankToNull(declaration.path("header").path("applicationType").asText(null)),
+                blankToNull(declaration.path("header").path("commonAccessReference").asText(null)),
+                blankToNull(declaration.path("type").asText(null)));
     }
 
     private BatchCaseResult toBatchCase(int index, BatchCaseAccumulator accumulator, BatchMetaInfo batchMetaInfo) {
@@ -345,20 +366,24 @@ public class TestReportController {
 
         String status;
         String message;
-        String jobStatus = diagnostics.jobStatus();
+        String jobStatus = normalizeJobStatus(diagnostics.jobStatus());
         if (accumulator.failureJson != null) {
             status = "FAILURE";
             message = firstNonBlank(
+                    diagnostics.errorMessage(),
+                    diagnostics.responseSummary(),
                     diagnostics.toastText(),
                     diagnostics.invalidCount() > 0 ? "Validation failed with " + diagnostics.invalidCount() + " invalid fields." : null,
                     "Declaration failed during submission.");
         } else if (diagnosticsPath != null) {
             if (diagnostics.toastText() == null && diagnostics.invalidCount() == 0) {
                 status = "SUCCESS";
-                message = "Declaration submitted successfully.";
+                message = firstNonBlank(diagnostics.responseMessage(), "Declaration submitted successfully.");
             } else {
                 status = "ISSUE";
                 message = firstNonBlank(
+                        diagnostics.errorMessage(),
+                        diagnostics.responseSummary(),
                         diagnostics.toastText(),
                         diagnostics.invalidCount() > 0 ? "Validation found " + diagnostics.invalidCount() + " invalid fields." : null,
                         "Validation issue detected.");
@@ -370,13 +395,15 @@ public class TestReportController {
 
         if (jobStatus == null || jobStatus.isBlank()) {
             jobStatus = switch (status) {
-                case "SUCCESS" -> "PERMIT_ISSUED";
-                case "FAILURE", "ISSUE" -> "FAILED";
+                case "SUCCESS" -> "SUB";
+                case "FAILURE", "ISSUE" -> "FLD";
                 default -> "NO_REPORT";
             };
         }
 
-        long updatedAtMillis = Math.max(lastModifiedMillis(diagnosticsPath), lastModifiedMillis(screenshotPath));
+        long updatedAtMillis = Math.max(
+                Math.max(lastModifiedMillis(diagnosticsPath), lastModifiedMillis(screenshotPath)),
+                lastModifiedMillis(accumulator.statusScreenshot));
 
         return new BatchCaseResult(
                 index,
@@ -386,11 +413,17 @@ public class TestReportController {
                 batchMetaInfo != null ? batchMetaInfo.declarationTypeDisplay() : null,
                 jobStatus,
                 diagnostics.jobId(),
+                diagnostics.declarationNumber(),
+                diagnostics.jobCreatedBy(),
+                diagnostics.responseMessage(),
+                diagnostics.errorMessage(),
+                diagnostics.responseSummary(),
                 diagnostics.toastText(),
                 diagnostics.invalidCount(),
                 diagnostics.rawJson(),
                 fileName(diagnosticsPath),
                 fileName(screenshotPath),
+                fileName(accumulator.statusScreenshot),
                 updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null,
                 updatedAtMillis);
     }
@@ -404,13 +437,18 @@ public class TestReportController {
             String rawJson = Files.readString(diagnosticsPath);
             JsonNode root = objectMapper.readTree(rawJson);
             String jobId = blankToNull(root.path("jobId").asText(null));
-            String jobStatus = blankToNull(root.path("jobStatus").asText(null));
+            String jobStatus = normalizeJobStatus(blankToNull(root.path("jobStatus").asText(null)));
+            String declarationNumber = blankToNull(root.path("declarationNumber").asText(null));
+            String jobCreatedBy = blankToNull(root.path("jobCreatedBy").asText(null));
             String toastText = blankToNull(root.path("toastText").asText(null));
+            String responseMessage = blankToNull(root.path("responseMessage").asText(null));
+            String errorMessage = blankToNull(root.path("errorMessage").asText(null));
+            String responseSummary = blankToNull(root.path("responseSummary").asText(null));
             JsonNode invalidElementsNode = root.path("invalidElements");
             int invalidCount = invalidElementsNode.isArray() ? invalidElementsNode.size() : 0;
-            return new BatchDiagnostics(jobId, jobStatus, toastText, invalidCount, rawJson);
+            return new BatchDiagnostics(jobId, jobStatus, declarationNumber, jobCreatedBy, toastText, responseMessage, errorMessage, responseSummary, invalidCount, rawJson);
         } catch (Exception exception) {
-            return new BatchDiagnostics(null, null, null, 0, "Unable to parse diagnostics: " + exception.getMessage());
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, 0, "Unable to parse diagnostics: " + exception.getMessage());
         }
     }
 
@@ -529,6 +567,23 @@ public class TestReportController {
         return null;
     }
 
+    private String normalizeJobStatus(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().replace('-', '_').replace(' ', '_').toUpperCase();
+        return switch (normalized) {
+            case "DRF", "DRAFT" -> "DRF";
+            case "SUB", "SUBMITTED", "SUCCESS" -> "SUB";
+            case "SNT", "SENT" -> "SNT";
+            case "FLD", "FAILED", "FAILURE", "ISSUE" -> "FLD";
+            case "REJ", "REJECTED" -> "REJ";
+            case "PMT", "PERMIT_ISSUED", "PERMITISSUED" -> "PMT";
+            case "REG", "REGISTERED" -> "REG";
+            default -> normalized;
+        };
+    }
+
     private String fileName(Path path) {
         return path == null ? null : path.getFileName().toString();
     }
@@ -537,7 +592,8 @@ public class TestReportController {
         VALIDATION_JSON,
         FAILURE_JSON,
         SUCCESS_SCREENSHOT,
-        FAILURE_SCREENSHOT
+        FAILURE_SCREENSHOT,
+        STATUS_SCREENSHOT
     }
 
     private static final class BatchCaseAccumulator {
@@ -545,6 +601,7 @@ public class TestReportController {
         private Path failureJson;
         private Path successScreenshot;
         private Path failureScreenshot;
+        private Path statusScreenshot;
     }
 
     private record SurefireReportSummary(
@@ -569,12 +626,17 @@ public class TestReportController {
     private record BatchDiagnostics(
             String jobId,
             String jobStatus,
+            String declarationNumber,
+            String jobCreatedBy,
             String toastText,
+            String responseMessage,
+            String errorMessage,
+            String responseSummary,
             int invalidCount,
             String rawJson) {
 
         private static BatchDiagnostics empty() {
-            return new BatchDiagnostics(null, null, null, 0, null);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, 0, null);
         }
     }
 
@@ -613,11 +675,17 @@ public class TestReportController {
             String declarationTypeDisplay,
             String jobStatus,
             String jobId,
+            String declarationNumber,
+            String jobCreatedBy,
+            String responseMessage,
+            String errorMessage,
+            String responseSummary,
             String toastText,
             int invalidCount,
             String diagnosticsText,
             String diagnosticsFile,
             String screenshotFile,
+            String statusScreenshotFile,
             String updatedAt,
             long updatedAtMillis) {
     }

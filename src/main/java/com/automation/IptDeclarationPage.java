@@ -83,6 +83,45 @@ public class IptDeclarationPage {
         openSection("Invoice Info (V)");
     }
 
+    public String readCurrentMessageReference() {
+        try {
+            Object result = page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+
+                        const labels = Array.from(document.querySelectorAll('label, .form-label, p, span, div'))
+                            .filter(isVisible);
+                        const label = labels.find(element => upper(element.innerText || element.textContent) === 'MESSAGE REFERENCE');
+                        if (!label) {
+                            return null;
+                        }
+
+                        const container = label.closest('div, section, aside') || label.parentElement;
+                        const candidates = Array.from((container || document).querySelectorAll('p, span, div'))
+                            .filter(isVisible)
+                            .map(element => normalize(element.innerText || element.textContent))
+                            .filter(Boolean)
+                            .filter(value => upper(value) !== 'MESSAGE REFERENCE');
+                        return candidates.find(value => /^TDX\\d+/i.test(value)) || null;
+                    }
+                    """);
+            return result == null ? null : String.valueOf(result).trim();
+        } catch (PlaywrightException exception) {
+            return null;
+        }
+    }
+
     public String readSupplierManufacturerNameValue() {
         return normalize(readRenderedFieldValue(resolveSupplierManufacturerNameField()));
     }
@@ -92,6 +131,17 @@ public class IptDeclarationPage {
             return String.valueOf(page.evaluate("""
                     () => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
                         const describeElement = element => {
                             if (!element) {
                                 return '';
@@ -118,6 +168,22 @@ public class IptDeclarationPage {
                                 classes: normalize(element.getAttribute('class'))
                             });
                         };
+                        const uniqueTexts = values => {
+                            const seen = new Set();
+                            return values.filter(value => {
+                                const key = upper(value);
+                                if (!key || seen.has(key)) {
+                                    return false;
+                                }
+                                seen.add(key);
+                                return true;
+                            });
+                        };
+                        const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                        const containsAny = (value, candidates) => {
+                            const normalized = upper(value);
+                            return candidates.some(candidate => normalized.includes(candidate));
+                        };
 
                         const invalidSelectors = [
                             'input.ng-invalid',
@@ -137,12 +203,77 @@ public class IptDeclarationPage {
                             return style && style.display !== 'none' && style.visibility !== 'hidden';
                         });
 
-                        const toastText = Array.from(document.querySelectorAll('*'))
-                            .map(element => normalize(element.innerText || element.textContent))
-                            .find(text => text.includes('Validation Failed')) || '';
+                        const notificationSelectors = [
+                            '[role="alert"]',
+                            '[aria-live]',
+                            '.notification-container',
+                            '.notification-container *',
+                            '.alert',
+                            '.toast',
+                            '[class*="notification"]',
+                            '[class*="toast"]'
+                        ];
+                        const notificationTexts = uniqueTexts(Array.from(new Set(
+                                notificationSelectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))
+                            ))
+                            .filter(isVisible)
+                            .map(textOf)
+                            .filter(Boolean));
+
+                        const errorCandidates = uniqueTexts(Array.from(document.querySelectorAll('*'))
+                            .filter(element => isVisible(element) && !['HTML', 'BODY'].includes(element.tagName))
+                            .map(textOf)
+                            .filter(Boolean)
+                            .filter(text => text.length <= 2000)
+                            .filter(text => containsAny(text, [
+                                'VALIDATION FAILED',
+                                'FAILED TO UPLOAD',
+                                'ERROR',
+                                'UNSUPPORTED FILE TYPE',
+                                'MANDATORY',
+                                'PLEASE FILL IN ALL REQUIRED FIELDS'
+                            ])))
+                            .sort((left, right) => {
+                                const score = value => {
+                                    const normalized = upper(value);
+                                    if (normalized.includes('VALIDATION FAILED')) {
+                                        return 0;
+                                    }
+                                    if (normalized.includes('FAILED TO UPLOAD')) {
+                                        return 1;
+                                    }
+                                    if (normalized.includes('UNSUPPORTED FILE TYPE')) {
+                                        return 2;
+                                    }
+                                    return 3;
+                                };
+                                const scoreDiff = score(left) - score(right);
+                                if (scoreDiff !== 0) {
+                                    return scoreDiff;
+                                }
+                                return left.length - right.length;
+                            });
+
+                        const successCandidates = notificationTexts.filter(text => !containsAny(text, [
+                            'VALIDATION FAILED',
+                            'FAILED',
+                            'ERROR',
+                            'UNSUPPORTED FILE TYPE'
+                        ]));
+
+                        const responseMessage = successCandidates[0]
+                            || notificationTexts[0]
+                            || '';
+                        const errorMessage = errorCandidates[0]
+                            || notificationTexts.find(text => containsAny(text, ['FAILED', 'ERROR', 'VALIDATION']))
+                            || '';
+                        const toastText = errorMessage || responseMessage || '';
 
                         return JSON.stringify({
                             toastText,
+                            responseMessage,
+                            errorMessage,
+                            notificationMessages: notificationTexts,
                             invalidElements: invalidElements.map(describeElement)
                         }, null, 2);
                     }
