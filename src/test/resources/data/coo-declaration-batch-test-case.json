@@ -3,11 +3,11 @@
     "type": "COODEC",
     
         "header": {
-            "messageReference": "TDX2606100104",
+            "messageReference": "TDX2606110009",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260610",
-                "sequenceNumeric": "1103"
+                "date": "20260611",
+                "sequenceNumeric": "1008"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "COODEC",
@@ -46,6 +46,13 @@
                 }
             ]
         },
+        "supportingDocumentReference": [
+            {
+                "documentID": "001",
+                "filename": "s3://tradnixxmlfiles/declaration/ADAT.ADAT001/202535359H202606111008/attachments/TRADENETRESPONSE.COODCI_WORD.DOCX",
+                "downloadLink": "s3://tradnixxmlfiles/declaration/ADAT.ADAT001/202535359H202606111008/attachments/TRADENETRESPONSE.COODCI_WORD.DOCX"
+            }
+        ],
         "transport": {
             "outwardTransport": {
                 "transportMeans": {
@@ -139,5 +146,6 @@
         },
         "type": "COO"
     }
+
 
 ]
