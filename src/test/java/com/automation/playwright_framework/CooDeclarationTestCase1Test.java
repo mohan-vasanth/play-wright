@@ -37,6 +37,7 @@ public class CooDeclarationTestCase1Test extends BaseTest {
         System.setProperty("tradenix.coo.test.data", TEST_DATA_RESOURCE);
         System.setProperty("tradenix.report.artifact.prefix", REPORT_ARTIFACT_PREFIX);
         deleteExistingArtifacts(REPORT_ARTIFACT_PREFIX);
+        StaticReportDataWriter.clear();
 
         JsonNode testData = loadTestData(TEST_DATA_RESOURCE);
 
@@ -199,7 +200,8 @@ public class CooDeclarationTestCase1Test extends BaseTest {
     private void writeDeclarationOutcomeToDiagnostics(
             Path diagnosticsPath,
             JsonNode declaration,
-            DeclarationsPage.DeclarationListEntry declarationListEntry) {
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference) {
         try {
             JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
             com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
@@ -207,7 +209,9 @@ public class CooDeclarationTestCase1Test extends BaseTest {
                     : OBJECT_MAPPER.createObjectNode();
             String jobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
             String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
-            String declarationNumber = declarationListEntry != null ? declarationListEntry.declarationNumber() : null;
+            String declarationNumber = firstNonBlank(
+                    declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                    fallbackMessageReference);
             String jobCreatedBy = sanitizeJobCreatedBy(
                     declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
                     USER_USERNAME);
@@ -331,22 +335,137 @@ public class CooDeclarationTestCase1Test extends BaseTest {
             Path diagnosticsPath,
             Path statusScreenshotPath) {
         DeclarationsPage.DeclarationListEntry declarationListEntry = submittedEntry;
-        if (!isTerminalJobStatus(declarationsPage, declarationListEntry)) {
-            openDeclarationListWithRelogin(loginPage, declarationsPage);
-            declarationListEntry = declarationsPage.waitForDeclarationCompletion(
-                    firstNonBlank(
-                            declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
-                            messageReference),
-                    declarationListEntry != null ? declarationListEntry.jobId() : null,
-                    Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
+        try {
+            try {
+                if (!isTerminalJobStatus(declarationsPage, declarationListEntry)) {
+                    openDeclarationListWithRelogin(loginPage, declarationsPage);
+                    declarationListEntry = refreshTrackedDeclarationEntry(
+                            declarationsPage,
+                            declarationListEntry,
+                            messageReference);
+                    if (isTerminalJobStatus(declarationsPage, declarationListEntry)) {
+                        captureStepScreenshot(statusScreenshotPath);
+                        writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry, messageReference);
+                        return declarationListEntry;
+                    }
+                    declarationListEntry = declarationsPage.waitForDeclarationCompletion(
+                            firstNonBlank(
+                                    declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                                    messageReference),
+                            declarationListEntry != null ? declarationListEntry.jobId() : null,
+                            Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
+                }
+            } catch (com.microsoft.playwright.PlaywrightException ignored) {
+                declarationListEntry = recoverDeclarationListEntry(messageReference, declarationListEntry);
+            }
+            if (declarationListEntry == null) {
+                declarationListEntry = recoverDeclarationListEntry(messageReference, submittedEntry);
+            }
+            if (declarationListEntry == null) {
+                declarationListEntry = submittedEntry;
+            }
+            captureStepScreenshot(statusScreenshotPath);
+            writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry, messageReference);
+            return declarationListEntry;
+        } finally {
+            StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         }
-        if (declarationListEntry == null) {
-            declarationListEntry = submittedEntry;
+    }
+
+    private DeclarationsPage.DeclarationListEntry refreshTrackedDeclarationEntry(
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry currentEntry,
+            String fallbackMessageReference) {
+        DeclarationsPage.DeclarationListEntry refreshedByReference = readSubmittedDeclarationEntry(
+                declarationsPage,
+                firstNonBlank(
+                        currentEntry != null ? currentEntry.declarationNumber() : null,
+                        fallbackMessageReference));
+        if (hasTrackingDetails(refreshedByReference)) {
+            return refreshedByReference;
         }
-        captureStepScreenshot(statusScreenshotPath);
-        writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry);
-        StaticReportDataWriter.refresh();
-        return declarationListEntry;
+
+        DeclarationsPage.DeclarationListEntry latestEntry = declarationsPage.readLatestDeclarationListEntry();
+        if (hasTrackingDetails(latestEntry)) {
+            return latestEntry;
+        }
+
+        return currentEntry;
+    }
+
+    private boolean hasTrackingDetails(DeclarationsPage.DeclarationListEntry entry) {
+        return entry != null
+                && firstNonBlank(
+                entry.jobId(),
+                entry.declarationNumber(),
+                entry.jobStatus(),
+                entry.jobCreatedBy()) != null;
+    }
+
+    private DeclarationsPage.DeclarationListEntry recoverDeclarationListEntry(
+            String messageReference,
+            DeclarationsPage.DeclarationListEntry fallbackEntry) {
+        try {
+            if (!ensureActivePage()) {
+                return fallbackEntry;
+            }
+
+            LoginPage recoveryLoginPage = new LoginPage(page);
+            DeclarationsPage recoveryDeclarationsPage = new DeclarationsPage(page);
+            ensureLoggedIn(recoveryLoginPage);
+            recoveryDeclarationsPage.autoAcceptUnsavedChanges();
+            recoveryDeclarationsPage.openDeclarationList(COO_MENU_LABEL, COO_ROUTE);
+
+            String trackedMessageReference = firstNonBlank(
+                    fallbackEntry != null ? fallbackEntry.declarationNumber() : null,
+                    messageReference);
+            if (trackedMessageReference == null) {
+                return fallbackEntry;
+            }
+
+            DeclarationsPage.DeclarationListEntry recoveredEntry = recoveryDeclarationsPage.waitForDeclarationCompletion(
+                    trackedMessageReference,
+                    fallbackEntry != null ? fallbackEntry.jobId() : null,
+                    Long.getLong("tradenix.job.completion.timeout.ms", 60000L));
+            if (recoveredEntry != null) {
+                return recoveredEntry;
+            }
+
+            DeclarationsPage.DeclarationListEntry latestEntry = recoveryDeclarationsPage.readDeclarationListEntry(trackedMessageReference);
+            return latestEntry != null ? latestEntry : fallbackEntry;
+        } catch (Exception ignored) {
+            return fallbackEntry;
+        }
+    }
+
+    private boolean ensureActivePage() {
+        try {
+            if (page != null && !page.isClosed()) {
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (context != null) {
+                page = context.newPage();
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            if (browser != null) {
+                if (context == null) {
+                    context = browser.newContext();
+                }
+                page = context.newPage();
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+
+        return false;
     }
 
     private DeclarationsPage.DeclarationListEntry readSubmittedDeclarationEntry(

@@ -38,6 +38,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         System.setProperty("tradenix.ipt.test.data", TEST_DATA_RESOURCE);
         System.setProperty("tradenix.report.artifact.prefix", REPORT_ARTIFACT_PREFIX);
         deleteExistingArtifacts(REPORT_ARTIFACT_PREFIX);
+        StaticReportDataWriter.clear();
 
         JsonNode testData = loadTestData(TEST_DATA_RESOURCE);
 
@@ -335,22 +336,25 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Path diagnosticsPath,
             Path statusScreenshotPath) {
         DeclarationsPage.DeclarationListEntry declarationListEntry = submittedEntry;
-        if (!isTerminalJobStatus(declarationsPage, declarationListEntry)) {
-            openDeclarationListWithRelogin(loginPage, declarationsPage);
-            declarationListEntry = declarationsPage.waitForDeclarationCompletion(
-                    firstNonBlank(
-                            declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
-                            messageReference),
-                    declarationListEntry != null ? declarationListEntry.jobId() : null,
-                    Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
+        try {
+            if (!isTerminalJobStatus(declarationsPage, declarationListEntry)) {
+                openDeclarationListWithRelogin(loginPage, declarationsPage);
+                declarationListEntry = declarationsPage.waitForDeclarationCompletion(
+                        firstNonBlank(
+                                declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                                messageReference),
+                        declarationListEntry != null ? declarationListEntry.jobId() : null,
+                        Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
+            }
+            if (declarationListEntry == null) {
+                declarationListEntry = submittedEntry;
+            }
+            captureStepScreenshot(statusScreenshotPath);
+            writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry);
+            return declarationListEntry;
+        } finally {
+            StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         }
-        if (declarationListEntry == null) {
-            declarationListEntry = submittedEntry;
-        }
-        captureStepScreenshot(statusScreenshotPath);
-        writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry);
-        StaticReportDataWriter.refresh();
-        return declarationListEntry;
     }
 
     private DeclarationsPage.DeclarationListEntry readSubmittedDeclarationEntry(
