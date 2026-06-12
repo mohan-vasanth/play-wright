@@ -3,374 +3,815 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Report</title>
+    <title>Automation Report</title>
     <style>
         :root {
-            --bg: #f4f7fb;
-            --panel: #ffffff;
-            --text: #16324f;
-            --muted: #5f7186;
-            --border: #d7e0ea;
-            --success: #127a4a;
-            --success-bg: #e8f7ef;
-            --failure: #b42318;
-            --failure-bg: #fdecec;
-            --issue: #8a4b00;
-            --issue-bg: #fff4df;
-            --neutral: #1f6feb;
-            --neutral-bg: #eaf2ff;
+            --bg: #f8fafc;
+            --panel: rgba(255, 255, 255, 0.84);
+            --panel-solid: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --border: rgba(226, 232, 240, 0.95);
+            --primary: #2563eb;
+            --secondary: #0ea5e9;
+            --accent: #14b8a6;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --console-bg: #0f172a;
+            --console-text: #e2e8f0;
+            --shadow-lg: 0 28px 80px rgba(15, 23, 42, 0.12);
+            --shadow-md: 0 18px 40px rgba(15, 23, 42, 0.08);
+            --transition: 300ms ease;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        body {
-            margin: 0;
-            font-family: "Segoe UI", Arial, sans-serif;
-            background:
-                radial-gradient(circle at top right, #dcecff 0, transparent 30%),
-                linear-gradient(180deg, #f9fbfe 0, var(--bg) 100%);
-            color: var(--text);
+        html {
+            scroll-behavior: smooth;
         }
 
-        .wrap {
-            max-width: 1180px;
+        body {
+            margin: 0;
+            font-family: Inter, Poppins, "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(20, 184, 166, 0.14), transparent 22%),
+                linear-gradient(180deg, #fdfefe 0%, var(--bg) 48%, #eef5ff 100%);
+        }
+
+        a,
+        button {
+            font: inherit;
+        }
+
+        .page-shell {
+            max-width: 1380px;
             margin: 0 auto;
-            padding: 32px 20px 48px;
+            padding: 24px 20px 56px;
         }
 
         .topbar {
+            position: sticky;
+            top: 16px;
+            z-index: 50;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 16px;
-            margin-bottom: 24px;
+            gap: 20px;
+            padding: 18px 22px;
+            margin-bottom: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            border-radius: 22px;
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(20px);
+            box-shadow: var(--shadow-md);
         }
 
-        h1, h2, h3 {
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 58%, var(--accent) 100%);
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            box-shadow: 0 20px 42px rgba(37, 99, 235, 0.26);
+        }
+
+        .eyebrow {
+            margin: 0 0 6px;
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
             margin: 0;
         }
 
         h1 {
             font-size: 32px;
-            line-height: 1.1;
+            line-height: 1.05;
+            letter-spacing: -0.03em;
         }
 
         h2 {
             font-size: 22px;
-            margin-bottom: 14px;
+            line-height: 1.2;
+            letter-spacing: -0.03em;
         }
 
         .sub {
+            margin-top: 8px;
             color: var(--muted);
-            margin-top: 6px;
             font-size: 14px;
+            line-height: 1.7;
         }
 
-        button {
-            border: 1px solid #0b6bcb;
-            background: #0b86d1;
-            color: #fff;
-            border-radius: 10px;
-            padding: 10px 16px;
+        .actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button,
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 44px;
+            padding: 0 18px;
+            border: 1px solid transparent;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: #ffffff;
             font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
             cursor: pointer;
+            box-shadow: 0 16px 34px rgba(37, 99, 235, 0.22);
+            transition: transform var(--transition), box-shadow var(--transition), background var(--transition), opacity var(--transition);
+        }
+
+        button:hover,
+        .nav-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 38px rgba(14, 165, 233, 0.24);
+        }
+
+        .button-secondary {
+            background: rgba(255, 255, 255, 0.92);
+            color: var(--text);
+            border-color: var(--border);
+            box-shadow: none;
+        }
+
+        .button-secondary:hover {
+            box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
         }
 
         .panel {
+            border: 1px solid rgba(255, 255, 255, 0.72);
+            border-radius: 28px;
             background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(34, 68, 102, 0.08);
+            backdrop-filter: blur(18px);
+            box-shadow: var(--shadow-lg);
         }
 
-        .hero {
+        .report-grid {
             display: grid;
-            grid-template-columns: 1.4fr 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
+            gap: 24px;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.95fr);
+            gap: 24px;
+        }
+
+        .hero-card {
+            position: relative;
+            overflow: hidden;
+            padding: 30px;
+            background:
+                radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 34%),
+                linear-gradient(135deg, rgba(37, 99, 235, 0.96) 0%, rgba(14, 165, 233, 0.88) 54%, rgba(20, 184, 166, 0.82) 100%);
+            color: #ffffff;
+        }
+
+        .hero-card::after {
+            content: "";
+            position: absolute;
+            right: -90px;
+            top: -100px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-topline {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 22px;
+        }
+
+        .hero-context {
+            display: inline-flex;
+            align-items: center;
+            min-height: 34px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.14);
+            color: rgba(255, 255, 255, 0.82);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
         .status-badge {
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 14px;
+            gap: 10px;
+            min-height: 44px;
+            padding: 0 18px;
             border-radius: 999px;
-            font-weight: 700;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background: rgba(15, 23, 42, 0.16);
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
             font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
         }
 
-        .status-SUCCESS {
-            color: var(--success);
-            background: var(--success-bg);
+        .status-badge::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.08);
         }
 
+        .status-SUCCESS,
+        .status-PMT,
         .status-PERMIT_ISSUED {
-            color: var(--success);
-            background: var(--success-bg);
+            color: #d7ffe4;
         }
 
-        .status-PMT {
-            color: var(--success);
-            background: var(--success-bg);
-        }
-
-        .status-SUB {
-            color: var(--success);
-            background: var(--success-bg);
-        }
-
-        .status-SNT {
-            color: var(--neutral);
-            background: var(--neutral-bg);
-        }
-
-        .status-FAILURE {
-            color: var(--failure);
-            background: var(--failure-bg);
-        }
-
-        .status-FAILED {
-            color: var(--failure);
-            background: var(--failure-bg);
-        }
-
-        .status-FLD {
-            color: var(--failure);
-            background: var(--failure-bg);
-        }
-
-        .status-REJ {
-            color: var(--failure);
-            background: var(--failure-bg);
-        }
-
+        .status-SUB,
+        .status-SNT,
+        .status-REG,
         .status-ISSUE {
-            color: var(--issue);
-            background: var(--issue-bg);
+            color: #fff4c7;
         }
 
-        .status-DRAFT {
-            color: var(--neutral);
-            background: var(--neutral-bg);
+        .status-FAILED,
+        .status-FAILURE,
+        .status-FLD,
+        .status-REJ {
+            color: #ffe0e0;
         }
 
-        .status-DRF {
-            color: var(--neutral);
-            background: var(--neutral-bg);
+        .status-DRF,
+        .status-DRAFT,
+        .status-NO_REPORT,
+        .status-SKIPPED {
+            color: #d6e3ff;
         }
 
-        .status-REG {
-            color: var(--neutral);
-            background: var(--neutral-bg);
+        .hero-issue {
+            font-size: 30px;
+            line-height: 1.15;
+            letter-spacing: -0.04em;
+            max-width: 760px;
         }
 
-        .status-NO_REPORT, .status-SKIPPED {
-            color: var(--neutral);
-            background: var(--neutral-bg);
+        .hero-meta {
+            margin-top: 14px;
+            color: rgba(255, 255, 255, 0.84);
+            font-size: 14px;
+            line-height: 1.8;
+            white-space: pre-line;
+            word-break: break-word;
         }
 
-        .issue {
-            margin-top: 18px;
-            font-size: 18px;
-            line-height: 1.5;
-        }
-
-        .meta {
+        .summary-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
+            gap: 16px;
         }
 
-        .metric {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 14px;
-            background: #fbfdff;
+        .metric-card {
+            position: relative;
+            overflow: hidden;
+            padding: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.74);
+            border-radius: 22px;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+            color: #ffffff;
         }
 
-        .metric .label {
-            color: var(--muted);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
+        .metric-card::after {
+            content: "";
+            position: absolute;
+            right: -36px;
+            top: -28px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
         }
 
-        .metric .value {
-            font-size: 24px;
+        .metric-total {
+            background: linear-gradient(135deg, #2563eb 0%, #0ea5e9 100%);
+        }
+
+        .metric-success {
+            background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%);
+        }
+
+        .metric-issues {
+            background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+        }
+
+        .metric-failures {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+        }
+
+        .metric-drafts {
+            background: linear-gradient(135deg, #475569 0%, #64748b 100%);
+        }
+
+        .metric-label {
+            position: relative;
+            z-index: 1;
+            color: rgba(255, 255, 255, 0.76);
+            font-size: 11px;
             font-weight: 700;
-            margin-top: 8px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }
 
-        .grid {
+        .metric-value {
+            position: relative;
+            z-index: 1;
+            margin-top: 14px;
+            font-size: 34px;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+        }
+
+        .section-panel {
+            padding: 28px;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 22px;
+        }
+
+        .section-note {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .wrapper-meta {
             display: grid;
-            gap: 20px;
+            gap: 6px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        .wrapper-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .wrapper-card {
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+        }
+
+        .wrapper-card .metric-label {
+            color: var(--muted);
+        }
+
+        .wrapper-card .metric-value {
+            color: var(--text);
+            font-size: 28px;
         }
 
         .cases {
             display: grid;
-            gap: 12px;
+            gap: 16px;
         }
 
-        .case {
+        .accordion-case {
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 16px;
-            background: #fff;
+            border-radius: 24px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.74);
+            overflow: hidden;
         }
 
-        .case-head {
+        .accordion-case summary {
+            list-style: none;
+        }
+
+        .accordion-case summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .case-summary {
             display: flex;
             justify-content: space-between;
-            gap: 12px;
             align-items: flex-start;
-            margin-bottom: 8px;
+            gap: 18px;
+            padding: 22px 24px;
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+
+        .accordion-case[open] .case-summary,
+        .accordion-case:hover .case-summary {
+            background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(14, 165, 233, 0.02));
+        }
+
+        .case-kicker {
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
         }
 
         .case-name {
-            font-weight: 700;
-            font-size: 18px;
+            margin-top: 8px;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
         }
 
-        .case-class, .fine {
+        .case-class,
+        .fine {
+            margin-top: 8px;
             color: var(--muted);
             font-size: 13px;
+            line-height: 1.7;
+            word-break: break-word;
         }
 
-        .detail-row {
+        .case-summary-right {
+            display: grid;
+            justify-items: end;
+            gap: 14px;
+            flex: 0 0 auto;
+        }
+
+        .summary-job {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .summary-chevron {
+            display: inline-grid;
+            place-items: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-size: 20px;
+            line-height: 1;
+            transition: transform var(--transition), background var(--transition), color var(--transition);
+        }
+
+        .accordion-case[open] .summary-chevron {
+            transform: rotate(45deg);
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--primary);
+        }
+
+        .case-body {
+            padding: 0 24px 24px;
+        }
+
+        .case-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .info-card {
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: rgba(248, 250, 252, 0.88);
+        }
+
+        .info-card.error-card {
+            border-color: rgba(239, 68, 68, 0.18);
+            background: rgba(254, 242, 242, 0.9);
+        }
+
+        .info-card.api-card,
+        .info-card.diagnostics-card {
+            grid-column: span 2;
+        }
+
+        .info-title {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text);
+        }
+
+        .info-list {
+            display: grid;
             gap: 10px;
-            margin-top: 12px;
+            margin-top: 14px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: baseline;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .info-row span:first-child {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .info-row span:last-child {
+            color: var(--text);
+            text-align: right;
+            font-weight: 700;
+            word-break: break-word;
+        }
+
+        .info-paragraph {
+            margin-top: 14px;
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.8;
+            word-break: break-word;
         }
 
         .chips {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 18px;
         }
 
         .chip {
             display: inline-flex;
             align-items: center;
-            border: 1px solid var(--border);
+            gap: 8px;
+            min-height: 36px;
+            padding: 0 14px;
+            border: 1px solid rgba(37, 99, 235, 0.16);
             border-radius: 999px;
-            padding: 6px 10px;
-            background: #f8fbff;
-            color: var(--text);
+            background: rgba(37, 99, 235, 0.06);
+            color: var(--primary);
             font-size: 12px;
+            font-weight: 700;
             text-decoration: none;
         }
 
-        pre {
-            margin: 12px 0 0;
-            padding: 12px;
-            border-radius: 12px;
-            background: #0f1720;
-            color: #dde7f1;
-            overflow: auto;
-            white-space: pre-wrap;
-            font-size: 12px;
+        .chip:hover {
+            background: rgba(14, 165, 233, 0.1);
         }
 
-        @media (max-width: 760px) {
-            .hero {
+        .code-block {
+            margin-top: 14px;
+            padding: 16px;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(30, 41, 59, 0.94), rgba(15, 23, 42, 1)),
+                var(--console-bg);
+            color: var(--console-text);
+            font-family: "Cascadia Code", Consolas, "Courier New", monospace;
+            font-size: 12px;
+            line-height: 1.75;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
+        }
+
+        .empty-state {
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        @media (max-width: 1180px) {
+            .hero-grid {
                 grid-template-columns: 1fr;
             }
 
-            .meta,
-            .detail-row {
-                grid-template-columns: 1fr 1fr;
+            .wrapper-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 860px) {
+            .page-shell {
+                padding: 16px 14px 44px;
             }
 
             .topbar {
+                position: static;
+            }
+
+            .summary-grid,
+            .case-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-card.api-card,
+            .info-card.diagnostics-card {
+                grid-column: span 1;
+            }
+
+            .case-summary {
                 flex-direction: column;
-                align-items: flex-start;
+            }
+
+            .case-summary-right {
+                width: 100%;
+                justify-items: start;
+            }
+        }
+
+        @media (max-width: 560px) {
+            h1 {
+                font-size: 26px;
+            }
+
+            .topbar,
+            .actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .nav-link,
+            button {
+                width: 100%;
+            }
+
+            .wrapper-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero-card,
+            .section-panel {
+                padding: 22px;
+            }
+
+            .hero-issue {
+                font-size: 24px;
             }
         }
     </style>
 </head>
 <body>
-<div class="wrap">
-    <div class="topbar">
-        <div>
-            <h1>Automation Report</h1>
-            <div class="sub">Batch declaration results from the latest Maven run</div>
+<div class="page-shell">
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark">AR</div>
+            <div>
+                <p class="eyebrow">Playwright Automation Analytics</p>
+                <h1>Automation Report</h1>
+                <p class="sub">Track final declaration outcomes, backend statuses, diagnostics, screenshots, and wrapper execution details from the latest automation run.</p>
+            </div>
         </div>
-        <a href="test-launcher.html" style="text-decoration:none;border:1px solid #0b6bcb;background:#fff;color:#0b86d1;border-radius:10px;padding:10px 16px;font-size:14px;font-family:inherit;cursor:pointer;">Launch Test</a>
-        <button id="refreshBtn" type="button">Refresh</button>
-    </div>
+        <div class="actions">
+            <a href="test-launcher.html" class="nav-link button-secondary">Launch Test</a>
+            <button id="refreshBtn" type="button">Refresh Report</button>
+        </div>
+    </header>
 
-    <div class="hero">
-        <div class="panel">
-            <div id="statusBadge" class="status-badge status-NO_REPORT">Loading</div>
-            <div id="issue" class="issue">Fetching latest report...</div>
-            <div id="source" class="fine" style="margin-top: 14px;"></div>
-        </div>
-        <div class="meta">
-            <div class="metric">
-                <div class="label">Declarations</div>
-                <div id="batchTotal" class="value">0</div>
-            </div>
-            <div class="metric">
-                <div class="label">Success</div>
-                <div id="batchSuccess" class="value">0</div>
-            </div>
-            <div class="metric">
-                <div class="label">Issues</div>
-                <div id="batchIssues" class="value">0</div>
-            </div>
-            <div class="metric">
-                <div class="label">Failures</div>
-                <div id="batchFailures" class="value">0</div>
-            </div>
-            <div class="metric">
-                <div class="label">Drafts</div>
-                <div id="batchDrafts" class="value">0</div>
-            </div>
-        </div>
-    </div>
+    <main class="report-grid">
+        <section class="hero-grid">
+            <article class="panel hero-card">
+                <div class="hero-content">
+                    <div class="hero-topline">
+                        <div id="statusBadge" class="status-badge status-NO_REPORT">Loading</div>
+                        <div class="hero-context" id="heroContext">Latest Execution Context</div>
+                    </div>
+                    <div id="issue" class="hero-issue">Fetching latest report...</div>
+                    <div id="source" class="hero-meta" style="margin-top:14px;"></div>
+                </div>
+            </article>
 
-    <div class="grid">
-        <div class="panel">
-            <h2 id="batchResultsTitle">Results</h2>
+            <section class="summary-grid">
+                <div class="metric-card metric-total">
+                    <div class="metric-label">Total Jobs</div>
+                    <div id="batchTotal" class="metric-value">0</div>
+                </div>
+                <div class="metric-card metric-success">
+                    <div class="metric-label">Success</div>
+                    <div id="batchSuccess" class="metric-value">0</div>
+                </div>
+                <div class="metric-card metric-issues">
+                    <div class="metric-label">Pending / Issues</div>
+                    <div id="batchIssues" class="metric-value">0</div>
+                </div>
+                <div class="metric-card metric-failures">
+                    <div class="metric-label">Failed</div>
+                    <div id="batchFailures" class="metric-value">0</div>
+                </div>
+                <div class="metric-card metric-drafts">
+                    <div class="metric-label">Drafts</div>
+                    <div id="batchDrafts" class="metric-value">0</div>
+                </div>
+            </section>
+        </section>
+
+        <section class="panel section-panel">
+            <div class="section-head">
+                <div>
+                    <h2 id="batchResultsTitle">Results</h2>
+                    <div class="section-note">Expandable declaration result cards with job details, status details, error details, response summaries, and captured artifacts.</div>
+                </div>
+            </div>
             <div id="batchCases" class="cases"></div>
-        </div>
+        </section>
 
-        <div class="panel">
-            <h2>JUnit Wrapper</h2>
-            <div id="suiteName" class="fine"></div>
-            <div id="updatedAt" class="fine" style="margin-top: 6px;"></div>
-            <div id="duration" class="fine" style="margin-top: 6px;"></div>
-            <div class="detail-row" style="margin-top: 16px;">
-                <div class="metric">
-                    <div class="label">Wrapper Tests</div>
-                    <div id="tests" class="value">0</div>
-                </div>
-                <div class="metric">
-                    <div class="label">Wrapper Failures</div>
-                    <div id="failures" class="value">0</div>
-                </div>
-                <div class="metric">
-                    <div class="label">Wrapper Errors</div>
-                    <div id="errors" class="value">0</div>
-                </div>
-                <div class="metric">
-                    <div class="label">Wrapper Skipped</div>
-                    <div id="skipped" class="value">0</div>
+        <section class="panel section-panel">
+            <div class="section-head">
+                <div>
+                    <h2>JUnit Wrapper</h2>
+                    <div class="wrapper-meta">
+                        <div id="suiteName"></div>
+                        <div id="updatedAt"></div>
+                        <div id="duration"></div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div class="panel">
-            <h2>Wrapper Test Cases</h2>
+            <div class="wrapper-grid">
+                <div class="wrapper-card">
+                    <div class="metric-label">Wrapper Tests</div>
+                    <div id="tests" class="metric-value">0</div>
+                </div>
+                <div class="wrapper-card">
+                    <div class="metric-label">Wrapper Failures</div>
+                    <div id="failures" class="metric-value">0</div>
+                </div>
+                <div class="wrapper-card">
+                    <div class="metric-label">Wrapper Errors</div>
+                    <div id="errors" class="metric-value">0</div>
+                </div>
+                <div class="wrapper-card">
+                    <div class="metric-label">Wrapper Skipped</div>
+                    <div id="skipped" class="metric-value">0</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel section-panel">
+            <div class="section-head">
+                <div>
+                    <h2>Wrapper Test Cases</h2>
+                    <div class="section-note">Wrapper-level execution details captured from the JUnit output used to orchestrate the declaration run.</div>
+                </div>
+            </div>
             <div id="cases" class="cases"></div>
-        </div>
-    </div>
+        </section>
+    </main>
 </div>
 
 <script>
@@ -392,6 +833,7 @@
     const batchDrafts = document.getElementById('batchDrafts');
     const batchCases = document.getElementById('batchCases');
     const batchResultsTitle = document.getElementById('batchResultsTitle');
+    const heroContext = document.getElementById('heroContext');
     const API_BASE_STORAGE_KEY = 'tradenix.report.apiBase';
     const queryParams = new URLSearchParams(window.location.search);
     const focusJobId = normalizeQueryValue(queryParams.get('jobId'));
@@ -509,13 +951,13 @@
 
         for (const batchCase of batchCases) {
             const displayStatus = String(batchCase?.jobStatus || batchCase?.status || '').toUpperCase();
-            if (['PMT', 'SUB', 'REG', 'SUCCESS'].includes(displayStatus)) {
+            if (['PMT', 'SUCCESS'].includes(displayStatus)) {
                 summary.successes += 1;
             } else if (displayStatus === 'DRF') {
                 summary.drafts += 1;
             } else if (['FLD', 'REJ', 'FAILURE'].includes(displayStatus)) {
                 summary.failures += 1;
-            } else if (['ISSUE', 'SNT'].includes(displayStatus)) {
+            } else if (['ISSUE', 'SNT', 'SUB', 'REG'].includes(displayStatus)) {
                 summary.issues += 1;
             }
         }
@@ -548,10 +990,10 @@
         return batchCases.some(matchesFocusedCase);
     }
 
-    function renderWaitingForRequestedReport(reportUrl) {
+    function resolveHeroContextText() {
         const contextParts = [];
         if (focusJobId) {
-            contextParts.push(`Job ID ${focusJobId}`);
+            contextParts.push(`Job ${focusJobId}`);
         }
         if (focusMessageRef) {
             contextParts.push(`Message Ref ${focusMessageRef}`);
@@ -559,8 +1001,13 @@
         if (requestedReportPrefix) {
             contextParts.push(`Module ${requestedReportPrefix}`);
         }
-        const contextText = contextParts.join(' | ') || 'latest submission';
+        return contextParts.length ? contextParts.join(' | ') : 'Latest Execution Context';
+    }
 
+    function renderWaitingForRequestedReport(reportUrl) {
+        const contextText = resolveHeroContextText();
+
+        heroContext.textContent = contextText;
         statusBadge.className = 'status-badge status-NO_REPORT';
         statusBadge.textContent = 'LOADING';
         issue.textContent = `Waiting for the completed report for ${contextText}.`;
@@ -569,8 +1016,8 @@
         updatedAt.textContent = 'Updated: -';
         duration.textContent = 'Wrapper Duration: -';
         batchResultsTitle.textContent = 'Results';
-        batchCases.innerHTML = '<div class="fine">A previous report was ignored because it did not match the latest requested job/module.</div>';
-        cases.innerHTML = '<div class="fine">Waiting for matching wrapper test data.</div>';
+        batchCases.innerHTML = '<div class="empty-state">A previous report was ignored because it did not match the latest requested job or module context.</div>';
+        cases.innerHTML = '<div class="empty-state">Waiting for matching wrapper test data.</div>';
         batchTotal.textContent = 0;
         batchSuccess.textContent = 0;
         batchIssues.textContent = 0;
@@ -584,30 +1031,30 @@
     }
 
     function resolveResultsTitle(report) {
-        const suiteName = String(report?.suiteName || '').toUpperCase();
-        const batchCases = Array.isArray(report?.batchCases) ? report.batchCases : [];
-        const declarationTypeDisplays = batchCases
+        const suite = String(report?.suiteName || '').toUpperCase();
+        const batchList = Array.isArray(report?.batchCases) ? report.batchCases : [];
+        const declarationTypeDisplays = batchList
             .map(batchCase => String(batchCase?.declarationTypeDisplay || batchCase?.declarationTypeCode || '').toUpperCase())
             .filter(Boolean);
-        const diagnosticsTexts = batchCases
+        const diagnosticsTexts = batchList
             .map(batchCase => String(batchCase?.diagnosticsText || batchCase?.responseSummary || '').toUpperCase())
             .filter(Boolean);
 
-        if (suiteName.includes('IPTDECLARATIONTESTCASE1TEST')
+        if (suite.includes('IPTDECLARATIONTESTCASE1TEST')
             || declarationTypeDisplays.some(value => value.includes('DNG') || value.includes('IN-PAYMENT') || value === 'IPT')) {
-            return 'IN-Payment (IPT) Results';
+            return 'IPT Declaration Results';
         }
 
-        if (suiteName.includes('COODECLARATIONTESTCASE1TEST')
+        if (suite.includes('COODECLARATIONTESTCASE1TEST')
             || declarationTypeDisplays.some(value => value.includes('COO') || value.includes('CERTIFICATE OF ORIGIN'))
             || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: COO') || value.includes('CERTIFICATE OF ORIGIN'))) {
-            return 'Certificate of Origin (COO) Results';
+            return 'COO Declaration Results';
         }
 
-        if (suiteName.includes('OUTDECLARATIONTESTCASE1TEST')
+        if (suite.includes('OUTDECLARATIONTESTCASE1TEST')
             || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: 20') || value.includes('DECLARATION TYPE: OUT'))
             || declarationTypeDisplays.some(value => value === '20' || value.includes('OUTWARD') || value === 'OUT')) {
-            return 'OUTWARD (OUT) Results';
+            return 'OUT Declaration Results';
         }
 
         return 'Batch Results';
@@ -619,11 +1066,12 @@
         const batchSummary = focusedReport.batchSummary || {};
         const selectedBatchCase = (focusedReport.batchCases || [])[0];
         const reportUrl = buildReportUrl();
-        batchResultsTitle.textContent = resolveResultsTitle(focusedReport);
 
+        heroContext.textContent = resolveHeroContextText();
+        batchResultsTitle.textContent = resolveResultsTitle(focusedReport);
         statusBadge.className = `status-badge status-${focusedReport.status || 'NO_REPORT'}`;
         statusBadge.textContent = focusedReport.status || 'NO_REPORT';
-        issue.textContent = focusedReport.primaryIssue || '';
+        issue.textContent = focusedReport.primaryIssue || 'No issue summary available.';
         source.textContent = focusedReport.sourceFile
             ? `Surefire XML: ${focusedReport.sourceFile} | API: ${apiBase ? reportUrl : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`
             : `Surefire XML: not available | API: ${apiBase ? reportUrl : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`;
@@ -642,10 +1090,12 @@
         errors.textContent = focusedReport.errors ?? 0;
         skipped.textContent = focusedReport.skipped ?? 0;
 
-        batchCases.innerHTML = (focusedReport.batchCases || []).map(renderBatchCase).join('')
-            || '<div class="fine">No batch declaration results available.</div>';
-        cases.innerHTML = (focusedReport.testCases || []).map(renderCase).join('')
-            || '<div class="fine">No wrapper test cases available.</div>';
+        batchCases.innerHTML = (focusedReport.batchCases || []).map((batchCase, index) =>
+            renderBatchCase(batchCase, index === 0)).join('')
+            || '<div class="empty-state">No batch declaration results available.</div>';
+        cases.innerHTML = (focusedReport.testCases || []).map((testCase, index) =>
+            renderCase(testCase, index === 0)).join('')
+            || '<div class="empty-state">No wrapper test cases available.</div>';
     }
 
     function stopAutoRefresh() {
@@ -686,80 +1136,134 @@
                 if (window.__REPORT_DATA__) {
                     return window.__REPORT_DATA__;
                 }
-            } catch (error) {
+            } catch (_) {
             }
         }
 
         return null;
     }
 
-    function renderBatchCase(batchCase) {
-        const diagnostics = batchCase.diagnosticsText
-            ? `<pre>${escapeHtml(batchCase.diagnosticsText)}</pre>`
-            : '';
+    function renderBatchCase(batchCase, expanded) {
         const responseSummary = batchCase.responseSummary
-            ? `<pre>${escapeHtml(batchCase.responseSummary)}</pre>`
-            : '';
+            ? `<div class="code-block">${escapeHtml(batchCase.responseSummary)}</div>`
+            : '<div class="info-paragraph">No response summary was captured for this declaration.</div>';
+        const diagnostics = batchCase.diagnosticsText
+            ? `<div class="code-block">${escapeHtml(batchCase.diagnosticsText)}</div>`
+            : '<div class="info-paragraph">No raw diagnostics payload was captured for this declaration.</div>';
         const responseMessage = batchCase.responseMessage || 'N/A';
         const errorMessage = batchCase.errorMessage || 'N/A';
-        const hasErrorDetails = errorMessage && errorMessage !== 'N/A';
+        const declarationType = batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-';
+        const detailsOpen = expanded ? 'open' : '';
+
         return `
-            <div class="case">
-                <div class="case-head">
+            <details class="accordion-case" ${detailsOpen}>
+                <summary class="case-summary">
                     <div>
-                        <div class="case-name">Declaration ${escapeHtml(batchCase.index)}${batchCase.jobId ? ` | Job ${escapeHtml(batchCase.jobId)}` : ''}</div>
-                        <div class="case-class">${escapeHtml(batchCase.message || '')}</div>
+                        <div class="case-kicker">Declaration ${escapeHtml(batchCase.index)}</div>
+                        <div class="case-name">${escapeHtml(batchCase.message || 'Declaration execution result')}</div>
+                        <div class="case-class">${escapeHtml(declarationType)}${batchCase.declarationNumber ? ` | Message Ref ${escapeHtml(batchCase.declarationNumber)}` : ''}</div>
                     </div>
-                    <div class="status-badge status-${escapeHtml(batchCase.jobStatus || batchCase.status || 'NO_REPORT')}">${escapeHtml(batchCase.jobStatus || batchCase.status || 'UNKNOWN')}</div>
+                    <div class="case-summary-right">
+                        <div class="status-badge status-${escapeHtml(batchCase.jobStatus || batchCase.status || 'NO_REPORT')}">${escapeHtml(batchCase.jobStatus || batchCase.status || 'UNKNOWN')}</div>
+                        <div class="summary-job">${batchCase.jobId ? `Job ID ${escapeHtml(batchCase.jobId)}` : 'Job ID Pending'}</div>
+                        <div class="summary-chevron">+</div>
+                    </div>
+                </summary>
+
+                <div class="case-body">
+                    <div class="case-grid">
+                        <section class="info-card">
+                            <div class="info-title">Job Details</div>
+                            <div class="info-list">
+                                <div class="info-row"><span>Declaration Type</span><span>${escapeHtml(declarationType)}</span></div>
+                                <div class="info-row"><span>Job ID</span><span>${escapeHtml(batchCase.jobId || '-')}</span></div>
+                                <div class="info-row"><span>Message Reference</span><span>${escapeHtml(batchCase.declarationNumber || '-')}</span></div>
+                                <div class="info-row"><span>Created By</span><span>${escapeHtml(batchCase.jobCreatedBy || '-')}</span></div>
+                                <div class="info-row"><span>Updated</span><span>${escapeHtml(batchCase.updatedAt || '-')}</span></div>
+                            </div>
+                        </section>
+
+                        <section class="info-card">
+                            <div class="info-title">Status Details</div>
+                            <div class="info-list">
+                                <div class="info-row"><span>Final Job Status</span><span>${escapeHtml(batchCase.jobStatus || '-')}</span></div>
+                                <div class="info-row"><span>Report Status</span><span>${escapeHtml(batchCase.status || '-')}</span></div>
+                                <div class="info-row"><span>Invalid Fields</span><span>${escapeHtml(batchCase.invalidCount ?? 0)}</span></div>
+                            </div>
+                            <div class="info-paragraph">Response Message: ${escapeHtml(responseMessage)}</div>
+                        </section>
+
+                        <section class="info-card error-card">
+                            <div class="info-title">Error Details</div>
+                            <div class="info-paragraph">Error Message: ${escapeHtml(errorMessage)}</div>
+                        </section>
+
+                        <section class="info-card">
+                            <div class="info-title">Artifacts</div>
+                            <div class="chips">
+                                ${renderArtifactLink('Diagnostics', batchCase.diagnosticsFile)}
+                                ${renderArtifactLink('Submit Screenshot', batchCase.screenshotFile)}
+                                ${renderArtifactLink('Status Screenshot', batchCase.statusScreenshotFile)}
+                            </div>
+                        </section>
+
+                        <section class="info-card api-card">
+                            <div class="info-title">API Response</div>
+                            ${responseSummary}
+                        </section>
+
+                        <section class="info-card diagnostics-card">
+                            <div class="info-title">Raw Diagnostics</div>
+                            ${diagnostics}
+                        </section>
+                    </div>
                 </div>
-                <div class="detail-row">
-                    <div class="fine">Declaration Type: ${escapeHtml(batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-')}</div>
-                    <div class="fine">Message Ref: ${escapeHtml(batchCase.declarationNumber || '-')}</div>
-                    <div class="fine">Status: ${escapeHtml(batchCase.jobStatus || '-')}</div>
-                    <div class="fine">Job ID: ${escapeHtml(batchCase.jobId || '-')}</div>
-                    <div class="fine">Created By: ${escapeHtml(batchCase.jobCreatedBy || '-')}</div>
-                    <div class="fine">Invalid Fields: ${escapeHtml(batchCase.invalidCount ?? 0)}</div>
-                    <div class="fine">Updated: ${escapeHtml(batchCase.updatedAt || '-')}</div>
-                </div>
-                <div class="panel" style="margin-top: 12px; padding: 14px;">
-                    <div class="label">Status Details</div>
-                    <div class="fine" style="margin-top: 8px;">Response Message: ${escapeHtml(responseMessage)}</div>
-                </div>
-                <div class="panel" style="margin-top: 12px; padding: 14px; border-color: ${hasErrorDetails ? 'var(--failure)' : 'var(--border)'};">
-                    <div class="label">Error Details</div>
-                    <div class="fine" style="margin-top: 8px;">Error Message: ${escapeHtml(errorMessage)}</div>
-                </div>
-                ${responseSummary}
-                <div class="chips">
-                    ${renderArtifactLink('Diagnostics', batchCase.diagnosticsFile)}
-                    ${renderArtifactLink('Submit Screenshot', batchCase.screenshotFile)}
-                    ${renderArtifactLink('Status Screenshot', batchCase.statusScreenshotFile)}
-                </div>
-                ${diagnostics}
-            </div>
+            </details>
         `;
     }
 
-    function renderCase(testCase) {
+    function renderCase(testCase, expanded) {
         const detail = testCase.detail
-            ? `<pre>${escapeHtml(testCase.detail)}</pre>`
-            : '';
+            ? `<div class="code-block">${escapeHtml(testCase.detail)}</div>`
+            : '<div class="info-paragraph">No wrapper stack trace or detail payload was captured for this test case.</div>';
         const message = testCase.message
-            ? `<div class="fine" style="margin-top: 8px;">${escapeHtml(testCase.message)}</div>`
-            : '';
+            ? `<div class="info-paragraph">Message: ${escapeHtml(testCase.message)}</div>`
+            : '<div class="info-paragraph">No wrapper message was recorded for this test case.</div>';
+        const detailsOpen = expanded ? 'open' : '';
+
         return `
-            <div class="case">
-                <div class="case-head">
+            <details class="accordion-case" ${detailsOpen}>
+                <summary class="case-summary">
                     <div>
+                        <div class="case-kicker">Wrapper Test Case</div>
                         <div class="case-name">${escapeHtml(testCase.name || 'Unnamed test')}</div>
-                        <div class="case-class">${escapeHtml(testCase.className || '')}</div>
+                        <div class="case-class">${escapeHtml(testCase.className || 'No class name available')}</div>
                     </div>
-                    <div class="status-badge status-${escapeHtml(testCase.status || 'NO_REPORT')}">${escapeHtml(testCase.status || 'UNKNOWN')}</div>
+                    <div class="case-summary-right">
+                        <div class="status-badge status-${escapeHtml(testCase.status || 'NO_REPORT')}">${escapeHtml(testCase.status || 'UNKNOWN')}</div>
+                        <div class="summary-job">Duration ${escapeHtml(testCase.durationSeconds || '0')} s</div>
+                        <div class="summary-chevron">+</div>
+                    </div>
+                </summary>
+
+                <div class="case-body">
+                    <div class="case-grid">
+                        <section class="info-card">
+                            <div class="info-title">Wrapper Status</div>
+                            <div class="info-list">
+                                <div class="info-row"><span>Status</span><span>${escapeHtml(testCase.status || '-')}</span></div>
+                                <div class="info-row"><span>Duration</span><span>${escapeHtml(testCase.durationSeconds || '0')} s</span></div>
+                            </div>
+                            ${message}
+                        </section>
+
+                        <section class="info-card api-card">
+                            <div class="info-title">Wrapper Detail</div>
+                            ${detail}
+                        </section>
+                    </div>
                 </div>
-                <div class="fine">Duration: ${escapeHtml(testCase.durationSeconds || '0')} s</div>
-                ${message}
-                ${detail}
-            </div>
+            </details>
         `;
     }
 
@@ -783,11 +1287,12 @@
                     throw new Error(`HTTP ${response.status}`);
                 }
                 report = await response.json();
-            } catch (error) {
+            } catch (_) {
                 if (localReport && !reportMatchesRequestedContext(localReport)) {
                     renderWaitingForRequestedReport(reportUrl);
                     return;
                 }
+                heroContext.textContent = resolveHeroContextText();
                 statusBadge.className = 'status-badge status-NO_REPORT';
                 statusBadge.textContent = 'NO_REPORT';
                 issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8080/report.html or append ?apiBase=http://localhost:8080 when using the file directly.`;
@@ -796,8 +1301,8 @@
                 updatedAt.textContent = 'Updated: -';
                 duration.textContent = 'Wrapper Duration: -';
                 batchResultsTitle.textContent = 'Results';
-                batchCases.innerHTML = '<div class="fine">No batch declaration results available.</div>';
-                cases.innerHTML = '<div class="fine">No wrapper test cases available.</div>';
+                batchCases.innerHTML = '<div class="empty-state">No batch declaration results available.</div>';
+                cases.innerHTML = '<div class="empty-state">No wrapper test cases available.</div>';
                 batchTotal.textContent = 0;
                 batchSuccess.textContent = 0;
                 batchIssues.textContent = 0;
@@ -824,6 +1329,8 @@
         stopAutoRefresh();
         loadReport();
     });
+
+    heroContext.textContent = resolveHeroContextText();
     loadReport();
 </script>
 </body>

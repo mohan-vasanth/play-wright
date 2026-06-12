@@ -1,14 +1,14 @@
 -------------------------------------------------------------------------------
 Test set: com.automation.playwright_framework.IptDeclarationTestCase1Test
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 401.4 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationTestCase1Test
-com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData -- Time elapsed: 400.9 s <<< FAILURE!
-org.opentest4j.AssertionFailedError: expected: <NAME> but was: <ADATA>
-	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:158)
-	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:139)
-	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:201)
-	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:184)
-	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:179)
-	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1188)
-	at com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData(IptDeclarationTestCase1Test.java:105)
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 98.04 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationTestCase1Test
+com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData -- Time elapsed: 97.87 s <<< ERROR!
+java.lang.IllegalStateException: Party dropdown suggestion was not selected for row: Inward Carrier Expected: CHGI, Actual row text: Inward Carrier, Current field value: CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD
+	at com.automation.IptDeclarationPage.fillPartyRow(IptDeclarationPage.java:581)
+	at com.automation.IptDeclarationPage.fillPartyInfo(IptDeclarationPage.java:540)
+	at com.automation.IptDeclarationPage.lambda$populateDraftFrom$2(IptDeclarationPage.java:64)
+	at com.automation.IptDeclarationPage.fillSectionAndAdvance(IptDeclarationPage.java:1385)
+	at com.automation.IptDeclarationPage.populateDraftFrom(IptDeclarationPage.java:64)
+	at com.automation.IptDeclarationPage.populateFrom(IptDeclarationPage.java:54)
+	at com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData(IptDeclarationTestCase1Test.java:69)
 
