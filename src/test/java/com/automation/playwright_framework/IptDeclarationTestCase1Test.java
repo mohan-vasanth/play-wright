@@ -30,7 +30,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private static final String IPT_MENU_LABEL = "In-Payment (IPT)";
     private static final String TEST_DATA_RESOURCE = System.getProperty(
             "tradenix.ipt.test.data",
-            "data/ipt-declaration-test-case-1.json");
+            "IPT/ipt-declaration-test-case-1.json");
+    private static final String SELECTED_PERMIT_TYPE = normalizePermitType(
+            System.getProperty("tradenix.ipt.permit.type"));
     private static final String REPORT_ARTIFACT_PREFIX = "ipt-batch-submit";
 
     @Test
@@ -66,9 +68,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         iptDeclarationPage.populateFrom(testData);
         if (shouldSubmitDeclaration) {
-            Path diagnosticsPath = Paths.get("target", "ipt-submit-validation-diagnostics.json");
+            Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-1.json");
             captureDiagnosticsArtifacts(
-                    Paths.get("target", "ipt-submission-after-submit.png"),
+                    Paths.get("target", REPORT_ARTIFACT_PREFIX + "-1.png"),
                     diagnosticsPath,
                     iptDeclarationPage);
             DeclarationsPage.DeclarationListEntry submittedEntry = readSubmittedDeclarationEntry(
@@ -81,10 +83,21 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     messageReference,
                     submittedEntry,
                     diagnosticsPath,
-                    Paths.get("target", "ipt-submission-status.png"));
+                    Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-1.png"));
             openGeneratedReport(finalEntry, 1);
             return;
         }
+        Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-1.json");
+        captureDiagnosticsArtifacts(
+                Paths.get("target", REPORT_ARTIFACT_PREFIX + "-1.png"),
+                diagnosticsPath,
+                iptDeclarationPage);
+        writeDraftOutcomeToDiagnostics(
+                diagnosticsPath,
+                testData,
+                firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)));
+        StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
+        openGeneratedReport(null, 1);
         iptDeclarationPage.openInvoiceInfoSection();
         page.screenshot(new com.microsoft.playwright.Page.ScreenshotOptions()
                 .setFullPage(true)
@@ -187,6 +200,15 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     }
 
     private static JsonNode loadTestData(String resourcePath) {
+        Path filePath = Paths.get(resourcePath);
+        if (Files.exists(filePath)) {
+            try (InputStream inputStream = Files.newInputStream(filePath)) {
+                return OBJECT_MAPPER.readTree(inputStream);
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to read test data from file: " + resourcePath, exception);
+            }
+        }
+
         InputStream resourceStream = IptDeclarationTestCase1Test.class.getClassLoader().getResourceAsStream(resourcePath);
         if (resourceStream == null) {
             resourceStream = IptDeclarationTestCase1Test.class.getResourceAsStream("/" + resourcePath);
@@ -217,18 +239,23 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
                     USER_USERNAME);
             String declarationType = resolveDeclarationType(declaration);
+            String permitType = firstNonBlank(SELECTED_PERMIT_TYPE, declaration.path("permitType").asText(null));
             String resolvedJobStatus = firstNonBlank(jobStatus, inferStatusFromDiagnostics(root));
+            String toastText = firstNonBlank(root.path("toastText").asText(null));
+            String capturedResponseMessage = firstNonBlank(root.path("responseMessage").asText(null));
+            String capturedErrorMessage = firstNonBlank(root.path("errorMessage").asText(null));
+            boolean terminalIssueStatus = "REG".equals(resolvedJobStatus) || "FLD".equals(resolvedJobStatus);
+            boolean genericSubmitMessage = isGenericSubmitMessage(capturedResponseMessage);
             String responseMessage = firstNonBlank(
-                    root.path("responseMessage").asText(null),
-                    resolvedJobStatus != null && ("SUB".equals(resolvedJobStatus) || "PMT".equals(resolvedJobStatus) || "REG".equals(resolvedJobStatus))
+                    terminalIssueStatus && genericSubmitMessage ? null : capturedResponseMessage,
+                    "SUB".equals(resolvedJobStatus) || "PMT".equals(resolvedJobStatus)
                             ? "Declaration submitted successfully."
-                            : null);
+                            : null,
+                    terminalIssueStatus ? toastText : null);
             String errorMessage = firstNonBlank(
-                    root.path("errorMessage").asText(null),
-                    "FLD".equals(resolvedJobStatus) ? root.path("toastText").asText(null) : null);
-            if ("FLD".equals(resolvedJobStatus) && responseMessage != null && !responseMessage.isBlank()) {
-                errorMessage = responseMessage;
-            }
+                    capturedErrorMessage,
+                    terminalIssueStatus ? toastText : null,
+                    terminalIssueStatus && !genericSubmitMessage ? capturedResponseMessage : null);
 
             if (jobId != null && !jobId.isBlank()) {
                 root.put("jobId", jobId);
@@ -238,6 +265,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             }
             if (declarationType != null && !declarationType.isBlank()) {
                 root.put("declarationType", declarationType);
+            }
+            if (permitType != null && !permitType.isBlank()) {
+                root.put("permitType", permitType);
             }
             if (declarationNumber != null && !declarationNumber.isBlank()) {
                 root.put("declarationNumber", declarationNumber);
@@ -251,6 +281,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     jobId,
                     declarationNumber,
                     declarationType,
+                    permitType,
                     resolvedJobStatus,
                     jobCreatedBy,
                     firstNonBlank(responseMessage, "N/A"),
@@ -280,10 +311,17 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         return "N/A";
     }
 
+    private boolean isGenericSubmitMessage(String value) {
+        String normalized = firstNonBlank(value);
+        return normalized != null
+                && normalized.toUpperCase().replace(".", "").equals("DECLARATION SUBMITTED SUCCESSFULLY");
+    }
+
     private String formatResponseSummary(
             String jobId,
             String declarationNumber,
             String declarationType,
+            String permitType,
             String jobStatus,
             String jobCreatedBy,
             String responseMessage,
@@ -294,6 +332,8 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                 "Message Ref: " + firstNonBlank(declarationNumber, "N/A"),
                 "",
                 "Declaration Type: " + firstNonBlank(declarationType, "N/A"),
+                "",
+                "Permit Type: " + firstNonBlank(permitType, "N/A"),
                 "",
                 "Status: " + firstNonBlank(jobStatus, "N/A"),
                 "",
@@ -325,6 +365,59 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             return firstNonBlank(fallbackUsername, normalizedCandidate);
         }
         return normalizedCandidate;
+    }
+
+    private void writeDraftOutcomeToDiagnostics(
+            Path diagnosticsPath,
+            JsonNode declaration,
+            String fallbackMessageReference) {
+        try {
+            JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
+            com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) current
+                    : OBJECT_MAPPER.createObjectNode();
+            String declarationType = resolveDeclarationType(declaration);
+            String declarationNumber = firstNonBlank(
+                    fallbackMessageReference,
+                    declaration.path("header").path("messageReference").asText(null));
+            String jobCreatedBy = firstNonBlank(USER_USERNAME);
+            root.put("jobStatus", "DRF");
+            if (declarationType != null && !declarationType.isBlank()) {
+                root.put("declarationType", declarationType);
+            }
+            if (declarationNumber != null && !declarationNumber.isBlank()) {
+                root.put("declarationNumber", declarationNumber);
+            }
+            if (jobCreatedBy != null && !jobCreatedBy.isBlank()) {
+                root.put("jobCreatedBy", jobCreatedBy);
+            }
+            root.put("responseMessage", "Declaration draft prepared successfully.");
+            root.put("errorMessage", "N/A");
+            root.put("responseSummary", formatResponseSummary(
+                    null,
+                    declarationNumber,
+                    declarationType,
+                    SELECTED_PERMIT_TYPE,
+                    "DRF",
+                    jobCreatedBy,
+                    "Declaration draft prepared successfully.",
+                    "N/A"));
+            Files.writeString(diagnosticsPath, OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static String normalizePermitType(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase().replace("PERMIT", "").replaceAll("[^A-Z]", "");
+        return switch (normalized) {
+            case "IG" -> "IG Permit";
+            case "ID" -> "ID Permit";
+            case "DP" -> "DP Permit";
+            default -> value.trim();
+        };
     }
 
     private DeclarationsPage.DeclarationListEntry finalizeSubmittedDeclaration(

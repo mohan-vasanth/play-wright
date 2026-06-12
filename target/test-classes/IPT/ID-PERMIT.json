@@ -1,0 +1,228 @@
+{
+    "type": "IPTDEC",
+    
+        "header": {
+            "messageReference": "TDX2606120114",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1115"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "12",
+            "declarationIndicator": true
+        },
+        "licence": [
+            {
+                "referenceID": "IP03L1886"
+            }
+        ],
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "THQ",
+                "locationName": "TUAS HQ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "arrivalDate": "20260626",
+                "loadingPort": "MYJHB"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198700002E"
+                },
+                "partyName": {
+                    "name": "FORESPAND FOOD ENTER PRISE PTE LTD"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "001",
+                "invoiceDate": "20260520",
+                "supplierManufacturerParty": {
+                    "name": "NAME"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "10000",
+                        "currencyID": "USD"
+                    },
+                    "exchangeRate": "1.3553"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "13553",
+                    "gstAmountSgd": "1219.77"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "10000",
+            "sumOfItemAmount": "10000",
+            "totalInvoiceCifValue": "13553",
+            "totalCifFobValue": "13553",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "LTR"
+            },
+            "totalGrossWeight": {
+                "value": "1",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "1220.4",
+                "totalExciseDutyAmount": "7.04",
+                "totalAmountPayable": "1227.44"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": true,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                true
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "22042111",
+                "goodsDescription": "WINE OF FRESH GRAPES OF ALCOHOLIC STRENGTH NOT EXCEEDING 15% VOL IN CONTAINERS OF 2L OR LESS (LTR)",
+                "originCountry": "AU",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "INHAWB22042111",
+                "itemInvoiceNumber": "001",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "dutiableQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "hsQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "alcoholPercent": "8"
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "13553",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "10000",
+                            "currencyID": "USD"
+                        },
+                        "exchangeRate": "1.3553"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "13553",
+                    "itemCifFobValueSgd": "13553"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "1220.4"
+                    },
+                    "exciseDuty": {
+                        "dutyRate": "88",
+                        "dutyRateUnit": "LPA",
+                        "dutyAmount": "7.04"
+                    }
+                },
+                "packingDescription": {
+                    "outerPackQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    }
+                },
+                "cascProduct": [
+                    {
+                        "cascProductCode": "ZBP0BA0QVDG",
+                        "cascProductQuantity": {
+                            "value": "1",
+                            "unitCode": "LTR"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "AU99999"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "IPT"
+    }

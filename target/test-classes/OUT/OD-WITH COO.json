@@ -1,0 +1,341 @@
+{
+    "type": "OUTDEC",
+    
+        "type": "OUT",
+        "header": {
+            "messageReference": "TDX2606120125",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1126"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "OUTDEC",
+            "declarationType": "40",
+            "declarationIndicator": true,
+            "remarks": {
+                "freeText": "ADATA TEST CASE 1"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "KR",
+                            "processingCodeTwo": "TESTAEO2002"
+                        }
+                    ]
+                }
+            ]
+        },
+        "certificate": {
+            "applicationProductType": "NH",
+            "currencyCode": "USD",
+            "certificateDetail": [
+                {
+                    "sequenceNumeric": 1,
+                    "certificateType": "29"
+                }
+            ]
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "receiptLocation": {
+                "locationCode": "PPZ",
+                "locationName": "PASIR PANJANG FTZ"
+            }
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "ASSA22312",
+                        "transportIdentifier": "ASD1231312"
+                    },
+                    "mawboucroblNumber": "SAD12321"
+                },
+                "arrivalDate": "20260624",
+                "loadingPort": "NZAKL"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "SSF21312",
+                        "transportIdentifier": "SD1221"
+                    },
+                    "mawboucroblNumber": "SAA1232132"
+                },
+                "departureDate": "20260625",
+                "dischargePort": "NZAKL",
+                "finalDestinationCountry": "NZ",
+                "additionalVesselInformation": {
+                    "vesselType": "CS",
+                    "netRegisterTonnage": "213",
+                    "loadingNextPort": "NZAKL"
+                }
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "exporterParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "200200381C"
+                    },
+                    "partyName": {
+                        "name": "ABES GROUP COMPANY PTE LTD"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD1",
+                            "ADD2"
+                        ]
+                    },
+                    "countryCode": "SG"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "200200381C"
+                },
+                "partyName": {
+                    "name": "ABES GROUP COMPANYPTELTD ABES GROUP COMPANYPTELTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "NAME1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD2",
+                            "ADD3"
+                        ]
+                    },
+                    "cityName": "SAMPLECITY",
+                    "countrySubentityCode": "21312",
+                    "countrySubentity": "SAA",
+                    "postalZone": "21312",
+                    "countryCode": "SG"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE. LTD. NAMASIVAYAM GUNESPARAN"
+                }
+            },
+            "manufacturerParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198003808K"
+                    },
+                    "partyName": {
+                        "name": "ARMSTRONG INDUSTRIAL CORP"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD1",
+                            "ADD3"
+                        ]
+                    },
+                    "cityName": "TRICHY",
+                    "countrySubentityCode": "TN",
+                    "countrySubentity": "TAMILNADU",
+                    "postalZone": "620001",
+                    "countryCode": "IN"
+                }
+            },
+            "endUserParty": {
+                "partyName": {
+                    "name": "ENDNAME1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ENDADD1",
+                            "ENDADDRE2"
+                        ]
+                    },
+                    "cityName": "ENDCITY",
+                    "countrySubentityCode": "12312",
+                    "countrySubentity": "ENDPROVIDER",
+                    "postalZone": "SGD",
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "unitPriceTermType": "FOB",
+                "supplierManufacturerParty": {
+                    "adValoremIndicator": false,
+                    "preferentialDutyRateIndicator": false
+                },
+                "freightCharge": {
+                    "includeOtherTaxableCharge": false
+                },
+                "insuranceCharge": {
+                    "amount": {
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1",
+                    "chargePercent": "1",
+                    "includeOtherTaxableCharge": false
+                },
+                "gst": 9
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "totalInvoiceCifValue": "0.00",
+            "totalCifFobValue": "32000.00",
+            "totalOuterPack": {
+                "value": "5",
+                "unitCode": "BOX"
+            },
+            "totalGrossWeight": {
+                "value": "1.000",
+                "unitCode": "TNE"
+            }
+        },
+        "formMetaData": {
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "additionalRecipientIdIsActive": false,
+            "transportEquipmentIsActive": false,
+            "certificateIsActive": false,
+            "declarationIndicator": false,
+            "aeoIsActive": true,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "unitPrices": [
+                "0"
+            ],
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "itemCoIsActive": [
+                true
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "84152010",
+                "goodsDescription": "AIR CONDITIONERS USED FOR PERSONS IN MOTOR VEHICLES OF COOLING CAPACITY NOT OVER 26.38KW (NMB)",
+                "originCountry": "SG",
+                "brandName": "BMW",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "1231",
+                "outHawbHucrHblNumber": "21312",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "5",
+                        "unitCode": "NMB"
+                    },
+                    "hsQuantity": {
+                        "value": "5",
+                        "unitCode": "NMB"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "32000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "32000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemCifFobValueSgd": "32000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxAmount": "0"
+                    }
+                },
+                "itemCertificate": {
+                    "itemCertificateQuantity": {
+                        "value": "5",
+                        "unitCode": "NMB"
+                    },
+                    "itemValue": 22860,
+                    "itemCertificateDescription": [
+                        {
+                            "line": [
+                                "MOTOR VEHICLES AIR CONDITIONERS"
+                            ]
+                        }
+                    ],
+                    "manufacturingCostDate": "20260424",
+                    "itemInvoiceNumber": "QWER123",
+                    "itemInvoiceDate": "20180720",
+                    "originCriterion": [
+                        "RVC"
+                    ]
+                },
+                "hsImportCa": "-",
+                "hsExportCa": "-",
+                "hsTranshipmentCa": "-"
+            }
+        ]
+    }

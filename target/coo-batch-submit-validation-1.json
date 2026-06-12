@@ -1,13 +1,13 @@
 {
-  "toastText" : "Validation Failed:",
-  "responseMessage" : "Validation Failed: Please fill in all required fields before submitting: ConsigneeParty must be present ExporterParty must be present ItemCertificate is mandatory ExporterParty is mandatory ConsigneeParty is mandatory ManufacturerParty is required for the selected CertificateType(s) Unsupported file type: DOCX ItemCertificate is mandatory for each item At least one OriginCriterion is mandatory for the selected CertificateType(s) Please check all tabs for complete the required fields marked in red.",
-  "errorMessage" : "Validation Failed:",
-  "notificationMessages" : [ "Validation Failed: Please fill in all required fields before submitting: ConsigneeParty must be present ExporterParty must be present ItemCertificate is mandatory ExporterParty is mandatory ConsigneeParty is mandatory ManufacturerParty is required for the selected CertificateType(s) Unsupported file type: DOCX ItemCertificate is mandatory for each item At least one OriginCriterion is mandatory for the selected CertificateType(s) Please check all tabs for complete the required fields marked in red." ],
-  "invalidElements" : [ "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-77\",\"type\":\"text\",\"ariaInvalid\":\"\",\"classes\":\"clr-input ng-untouched ng-pristine ng-invalid\"}", "{\"label\":\"\",\"text\":\"\",\"placeholder\":\"Enter description (max 350 chars, auto-splits at word boundaries)\",\"name\":\"\",\"formControlName\":\"\",\"id\":\"clr-form-control-61\",\"type\":\"\",\"ariaInvalid\":\"\",\"classes\":\"ng-untouched ng-pristine ng-invalid clr-textarea\"}" ],
-  "jobId" : "5209",
-  "jobStatus" : "DRF",
+  "toastText" : "",
+  "responseMessage" : "Declaration submitted successfully.",
+  "errorMessage" : "N/A",
+  "notificationMessages" : [ ],
+  "invalidElements" : [ ],
+  "jobId" : "5280",
+  "jobStatus" : "PMT",
   "declarationType" : "COO",
-  "declarationNumber" : "TDX2606120076",
+  "declarationNumber" : "TDX2606120148",
   "jobCreatedBy" : "mohan",
-  "responseSummary" : "Job ID: 5209\r\n\r\nMessage Ref: TDX2606120076\r\n\r\nDeclaration Type: COO\r\n\r\nStatus: DRF\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Validation Failed: Please fill in all required fields before submitting: ConsigneeParty must be present ExporterParty must be present ItemCertificate is mandatory ExporterParty is mandatory ConsigneeParty is mandatory ManufacturerParty is required for the selected CertificateType(s) Unsupported file type: DOCX ItemCertificate is mandatory for each item At least one OriginCriterion is mandatory for the selected CertificateType(s) Please check all tabs for complete the required fields marked in red.\r\n\r\nError Message: Validation Failed:"
+  "responseSummary" : "Job ID: 5280\r\n\r\nMessage Ref: TDX2606120148\r\n\r\nDeclaration Type: COO\r\n\r\nStatus: PMT\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
 }

@@ -1,0 +1,211 @@
+{
+    "type": "IPTDEC",
+
+        "header": {
+            "messageReference": "TDX2606120115",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1116"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "10",
+            "declarationIndicator": true,
+            "previousPermitNumber": "IM6D164000E"
+        },
+        "cargo": {
+            "cargoPackingType": "9",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": true,
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "TRIU6719798",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "1",
+                    "transportEquipmentSeal": {
+                        "sealID": "KSC547522"
+                    }
+                }
+            ]
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "2513S",
+                        "transportIdentifier": "KMTC SHIMIZU"
+                    },
+                    "mawboucroblNumber": "KMTCPUSJ548945"
+                },
+                "arrivalDate": "20260626",
+                "loadingPort": "THBKK"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198402847H"
+                },
+                "partyName": {
+                    "name": "BAYSWATER SHIPPING FORWARDING PTE LTD"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE. LTD. NAMASIVAYAM GUNESPARAN"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "-",
+                "invoiceDate": "20260424",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "15693.11",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "15693.11",
+                    "gstAmountSgd": "1412.38"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "15693.11",
+            "sumOfItemAmount": "15693.11",
+            "totalInvoiceCifValue": "15693.11",
+            "totalCifFobValue": "15693.11",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BUN"
+            },
+            "totalGrossWeight": {
+                "value": "0.99",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "1412.38",
+                "totalAmountPayable": "1412.38"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": true,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "95067000",
+                "goodsDescription": "ICE SKATES ROLLER SKATES INCL SKATING BOOTS WITH SKATES ATTACHED (TPR)",
+                "originCountry": "ID",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "INH123456",
+                "itemInvoiceNumber": "-",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    },
+                    "hsQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "15693.11",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "15693.11",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "15693.11",
+                    "itemCifFobValueSgd": "15693.11"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "1412.38"
+                    }
+                }
+            }
+        ],
+        "type": "IPT"
+    }

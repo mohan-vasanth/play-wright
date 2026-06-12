@@ -1,19 +1,29 @@
 package com.automation.playwright_framework;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Stream;
 
 @RestController
 @CrossOrigin(originPatterns = "*")
@@ -21,9 +31,62 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class TestLauncherController {
 
     private static final int NO_EXIT_CODE = -999;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Map<String, LauncherTypeConfig> TYPE_CONFIGS = Map.ofEntries(
+            Map.entry("ipt", new LauncherTypeConfig(
+                    "ipt",
+                    "In Payment (IPT)",
+                    "ipt-batch-submit",
+                    "IPT",
+                    "IptDeclarationTestCase1Test",
+                    "tradenix.ipt.test.data",
+                    List.of(),
+                    false,
+                    true)),
+            Map.entry("inp", new LauncherTypeConfig(
+                    "inp",
+                    "In Non-Payment (INP)",
+                    null,
+                    "INP",
+                    null,
+                    null,
+                    List.of(),
+                    false,
+                    false)),
+            Map.entry("tnp", new LauncherTypeConfig(
+                    "tnp",
+                    "Transhipment (TNP)",
+                    null,
+                    "TNP",
+                    null,
+                    null,
+                    List.of(),
+                    false,
+                    false)),
+            Map.entry("out", new LauncherTypeConfig(
+                    "out",
+                    "Out Declaration (OUT)",
+                    "out-batch-submit",
+                    "OUT",
+                    "OutDeclarationTestCase1Test",
+                    "tradenix.out.test.data",
+                    List.of(),
+                    false,
+                    true)),
+            Map.entry("coo", new LauncherTypeConfig(
+                    "coo",
+                    "COO Declaration",
+                    "coo-batch-submit",
+                    "COO",
+                    "CooDeclarationTestCase1Test",
+                    "tradenix.coo.test.data",
+                    List.of("-Dplaywright.headless=false", "-Dplaywright.slowmo.ms=250"),
+                    false,
+                    true)));
 
     private volatile Process activeProcess = null;
     private volatile String activeType = null;
+    private volatile String activePermitType = null;
     private volatile Integer lastExitCode = null;
     private volatile long activeRunStartedAtMillis = Long.MIN_VALUE;
     private final List<String> lineBuffer = new CopyOnWriteArrayList<>();
@@ -34,72 +97,103 @@ public class TestLauncherController {
         this.testReportController = testReportController;
     }
 
+    @GetMapping("/json-options")
+    public ResponseEntity<?> jsonOptions(@RequestParam String type) {
+        LauncherTypeConfig config = resolveTypeConfig(type);
+        if (config == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Unknown declaration type: " + type));
+        }
+
+        try {
+            return ResponseEntity.ok(Map.of(
+                    "type", config.type(),
+                    "moduleLabel", config.moduleLabel(),
+                    "resourceFolder", config.resourceFolder(),
+                    "requiresPermitType", config.requiresPermitType(),
+                    "executable", config.executable(),
+                    "files", listJsonFiles(config)));
+        } catch (IOException exception) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "Unable to list JSON files for " + config.type() + ": " + exception.getMessage()));
+        }
+    }
+
     @PostMapping("/start")
-    public ResponseEntity<?> start(@RequestParam String type) {
+    public ResponseEntity<?> start(
+            @RequestParam String type,
+            @RequestParam(required = false) String jsonResource,
+            @RequestParam(required = false) MultipartFile jsonFile) {
         synchronized (this) {
-            if (!type.equals("ipt") && !type.equals("out") && !type.equals("coo")) {
-                return ResponseEntity.badRequest().body(Map.of("error", "type must be 'ipt', 'out' or 'coo'"));
+            LauncherTypeConfig config = resolveTypeConfig(type);
+            if (config == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Unknown declaration type: " + type));
             }
+            if (!config.executable()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "error", config.moduleLabel() + " automation runner is not implemented in this project yet."));
+            }
+
             LauncherStatusResponse currentStatus = buildStatusResponse();
             if (currentStatus.running()) {
                 return ResponseEntity.status(409).body(Map.of(
                         "error", "already running",
                         "type", currentStatus.type(),
+                        "permitType", currentStatus.permitType() != null ? currentStatus.permitType() : "",
                         "running", currentStatus.running(),
                         "displayState", currentStatus.displayState(),
                         "jobId", currentStatus.jobId() != null ? currentStatus.jobId() : "",
                         "jobStatus", currentStatus.jobStatus() != null ? currentStatus.jobStatus() : ""));
             }
 
-            lineBuffer.clear();
-            lastExitCode = null;
-            activeType = type;
-            activeRunStartedAtMillis = System.currentTimeMillis();
-
-            java.io.File projectRoot = Paths.get(System.getProperty("user.dir")).toFile();
-            String mvnwPath = new java.io.File(projectRoot, "mvnw.cmd").getAbsolutePath();
-
-            List<String> cmd;
-            if (type.equals("ipt")) {
-                cmd = List.of("cmd.exe", "/c", mvnwPath, "-Dtest=IptDeclarationTestCase1Test",
-                        "-Dtradenix.ipt.test.data=data/ipt-declaration-test-case-1.json", "test");
-            } else if (type.equals("out")) {
-                cmd = List.of("cmd.exe", "/c", mvnwPath, "-Dtest=OutDeclarationTestCase1Test",
-                        "-Dtradenix.out.test.data=data/out-declaration-batch-test-case.json", "test");
-            } else {
-                // COO Declaration test — matches run-coo-declaration.cmd
-                cmd = List.of("cmd.exe", "/c", mvnwPath, "-Dtest=CooDeclarationTestCase1Test",
-                        "-Dtradenix.coo.test.data=data/coo-declaration-batch-test-case.json",
-                        "-Dplaywright.headless=false", "-Dplaywright.slowmo.ms=250", "test");
+            String resolvedJsonPath;
+            try {
+                resolvedJsonPath = resolveJsonInput(config, jsonResource, jsonFile);
+            } catch (IllegalArgumentException exception) {
+                return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
+            } catch (IOException exception) {
+                return ResponseEntity.status(500).body(Map.of(
+                        "error", "Failed to prepare JSON input: " + exception.getMessage()));
             }
 
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.directory(projectRoot);
-            pb.redirectErrorStream(true);
+            lineBuffer.clear();
+            lastExitCode = null;
+            activeType = config.type();
+            activePermitType = null;
+            activeRunStartedAtMillis = System.currentTimeMillis();
+
+            Path projectRoot = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
+            String mvnwPath = projectRoot.resolve("mvnw.cmd").toString();
+            List<String> command = buildCommand(config, mvnwPath, resolvedJsonPath);
+
+            ProcessBuilder processBuilder = new ProcessBuilder(command);
+            processBuilder.directory(projectRoot.toFile());
+            processBuilder.redirectErrorStream(true);
 
             try {
-                activeProcess = pb.start();
-            } catch (IOException e) {
-                return ResponseEntity.status(500).body(Map.of("error", "Failed to start process: " + e.getMessage()));
+                activeProcess = processBuilder.start();
+            } catch (IOException exception) {
+                return ResponseEntity.status(500).body(Map.of(
+                        "error", "Failed to start process: " + exception.getMessage()));
             }
 
             Process process = activeProcess;
             Thread reader = new Thread(() -> {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                try (BufferedReader bufferedReader =
+                             new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
-                    while ((line = br.readLine()) != null) {
+                    while ((line = bufferedReader.readLine()) != null) {
                         lineBuffer.add(line);
-                        final String finalLine = line;
+                        String finalLine = line;
                         for (SseEmitter emitter : activeEmitters) {
                             try {
                                 emitter.send(SseEmitter.event().data(finalLine));
-                            } catch (IOException ex) {
+                            } catch (IOException exception) {
                                 activeEmitters.remove(emitter);
                             }
                         }
                     }
                     lastExitCode = process.waitFor();
-                } catch (IOException | InterruptedException e) {
+                } catch (IOException | InterruptedException exception) {
                     lastExitCode = -1;
                     Thread.currentThread().interrupt();
                 } finally {
@@ -107,7 +201,8 @@ public class TestLauncherController {
                         try {
                             emitter.send(SseEmitter.event().data("__DONE__"));
                             emitter.complete();
-                        } catch (IOException ignored) {}
+                        } catch (IOException ignored) {
+                        }
                     }
                     activeEmitters.clear();
                 }
@@ -128,8 +223,8 @@ public class TestLauncherController {
             for (String line : snapshot) {
                 emitter.send(SseEmitter.event().data(line));
             }
-        } catch (IOException e) {
-            emitter.completeWithError(e);
+        } catch (IOException exception) {
+            emitter.completeWithError(exception);
             return emitter;
         }
 
@@ -141,7 +236,8 @@ public class TestLauncherController {
                         emitter.send(SseEmitter.event().data("__DONE__"));
                     }
                     emitter.complete();
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {
+                }
                 return emitter;
             }
             activeEmitters.add(emitter);
@@ -149,7 +245,6 @@ public class TestLauncherController {
 
         emitter.onCompletion(() -> activeEmitters.remove(emitter));
         emitter.onTimeout(() -> activeEmitters.remove(emitter));
-
         return emitter;
     }
 
@@ -160,18 +255,20 @@ public class TestLauncherController {
 
     private LauncherStatusResponse buildStatusResponse() {
         boolean running = activeProcess != null && activeProcess.isAlive();
-        String type = activeType != null ? activeType : "";
-        String moduleLabel = moduleLabel(type);
+        String normalizedType = activeType != null ? activeType : "";
+        LauncherTypeConfig config = TYPE_CONFIGS.get(normalizedType);
+        String moduleLabel = config != null ? config.moduleLabel() : normalizedType;
         int exitCode = lastExitCode != null ? lastExitCode : NO_EXIT_CODE;
-        String reportPrefix = reportPrefixForType(type);
-        JobReportSnapshot jobSnapshot = resolveJobSnapshot(type, reportPrefix, activeRunStartedAtMillis);
+        String reportPrefix = config != null ? config.reportPrefix() : null;
+        JobReportSnapshot jobSnapshot = resolveJobSnapshot(reportPrefix, activeRunStartedAtMillis);
         String displayState = resolveDisplayState(running, exitCode, jobSnapshot);
         boolean executionActive = running || (jobSnapshot != null && !jobSnapshot.terminal());
 
         return new LauncherStatusResponse(
                 running,
-                type,
+                normalizedType,
                 moduleLabel,
+                activePermitType,
                 exitCode,
                 reportPrefix,
                 displayState,
@@ -182,13 +279,14 @@ public class TestLauncherController {
                 jobSnapshot != null ? jobSnapshot.reportStatus() : null);
     }
 
-    private JobReportSnapshot resolveJobSnapshot(String type, String reportPrefix, long runStartedAtMillis) {
-        if (type == null || type.isBlank() || reportPrefix == null || reportPrefix.isBlank()) {
+    private JobReportSnapshot resolveJobSnapshot(String reportPrefix, long runStartedAtMillis) {
+        if (reportPrefix == null || reportPrefix.isBlank()) {
             return null;
         }
 
         try {
-            TestReportController.TestReportResponse report = testReportController.buildLatestReport(reportPrefix, null, null);
+            TestReportController.TestReportResponse report =
+                    testReportController.buildLatestReport(reportPrefix, null, null);
             return report.batchCases().stream()
                     .filter(batchCase -> batchCase.updatedAtMillis() >= runStartedAtMillis)
                     .max(Comparator.comparingLong(TestReportController.BatchCaseResult::updatedAtMillis))
@@ -223,16 +321,16 @@ public class TestLauncherController {
 
     private String mapJobState(String jobStatus) {
         String normalizedJobStatus = normalizeJobStatus(jobStatus);
-        if (normalizedJobStatus != null) {
-            return switch (normalizedJobStatus) {
-                case "SUB" -> "PENDING";
-                case "SNT" -> "IN_PROGRESS";
-                case "PMT", "REG" -> "SUCCESS";
-                case "DRF", "FLD", "REJ" -> "FAILED";
-                default -> null;
-            };
+        if (normalizedJobStatus == null) {
+            return null;
         }
-        return null;
+        return switch (normalizedJobStatus) {
+            case "SUB" -> "PENDING";
+            case "SNT" -> "IN_PROGRESS";
+            case "PMT" -> "SUCCESS";
+            case "DRF", "REG", "FLD", "REJ" -> "FAILED";
+            default -> null;
+        };
     }
 
     private String normalizeJobStatus(String value) {
@@ -252,38 +350,137 @@ public class TestLauncherController {
         };
     }
 
-    private String reportPrefixForType(String type) {
+    private List<Map<String, String>> listJsonFiles(LauncherTypeConfig config) throws IOException {
+        Path folder = resourceFolderPath(config);
+        if (!Files.exists(folder)) {
+            return List.of();
+        }
+
+        try (Stream<Path> files = Files.walk(folder)) {
+            return files
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().toLowerCase().endsWith(".json"))
+                    .sorted()
+                    .map(path -> Map.of(
+                            "name", folder.relativize(path).toString().replace('\\', '/'),
+                            "resourcePath", folder.relativize(path).toString().replace('\\', '/')))
+                    .toList();
+        }
+    }
+
+    private List<String> buildCommand(
+            LauncherTypeConfig config,
+            String mvnwPath,
+            String resolvedJsonPath) {
+        List<String> command = new ArrayList<>();
+        command.add("cmd.exe");
+        command.add("/c");
+        command.add(mvnwPath);
+        command.add("-Dtest=" + config.testClass());
+        command.add("-D" + config.testDataProperty() + "=" + resolvedJsonPath);
+        command.addAll(config.extraArgs());
+        command.add("test");
+        return List.copyOf(command);
+    }
+
+    private String resolveJsonInput(
+            LauncherTypeConfig config,
+            String jsonResource,
+            MultipartFile jsonFile) throws IOException {
+        if (jsonFile != null && !jsonFile.isEmpty()) {
+            return storeUploadedJson(config, jsonFile).toString();
+        }
+        if (jsonResource != null && !jsonResource.isBlank()) {
+            return resolveJsonResourcePath(config, jsonResource).toString();
+        }
+        throw new IllegalArgumentException("Select a JSON from the folder or upload a JSON file manually.");
+    }
+
+    private Path resolveJsonResourcePath(LauncherTypeConfig config, String jsonResource) {
+        String normalizedResource = jsonResource.trim().replace('\\', '/');
+        if (normalizedResource.startsWith(config.resourceFolder() + "/")) {
+            normalizedResource = normalizedResource.substring(config.resourceFolder().length() + 1);
+        }
+        if (normalizedResource.isBlank()) {
+            throw new IllegalArgumentException("Selected JSON resource is empty.");
+        }
+        if (!normalizedResource.toLowerCase().endsWith(".json")) {
+            throw new IllegalArgumentException("Selected repository file must be a .json file.");
+        }
+
+        Path folder = resourceFolderPath(config);
+        Path candidate = folder.resolve(normalizedResource).normalize();
+        if (!candidate.startsWith(folder)) {
+            throw new IllegalArgumentException("Selected JSON resource is outside the allowed folder.");
+        }
+        if (!Files.isRegularFile(candidate)) {
+            throw new IllegalArgumentException("Selected JSON resource was not found: " + normalizedResource);
+        }
+        return candidate.toAbsolutePath().normalize();
+    }
+
+    private Path storeUploadedJson(
+            LauncherTypeConfig config,
+            MultipartFile jsonFile) throws IOException {
+        String originalFileName = jsonFile.getOriginalFilename() != null
+                ? jsonFile.getOriginalFilename().trim()
+                : "";
+        String fileName = originalFileName.isBlank() ? config.type() + "-input.json" : originalFileName;
+        if (!fileName.toLowerCase().endsWith(".json")) {
+            throw new IllegalArgumentException("Uploaded file must be a .json file.");
+        }
+
+        byte[] fileBytes = jsonFile.getBytes();
+        if (fileBytes.length == 0) {
+            throw new IllegalArgumentException("Uploaded JSON file is empty.");
+        }
+        OBJECT_MAPPER.readTree(fileBytes);
+
+        String sanitizedFileName = fileName.replaceAll("[^A-Za-z0-9._-]", "_");
+        Path uploadDirectory = Paths.get("target", "launcher-uploads", config.type());
+        Files.createDirectories(uploadDirectory);
+
+        Path outputPath = uploadDirectory.resolve(System.currentTimeMillis() + "-" + sanitizedFileName)
+                .toAbsolutePath()
+                .normalize();
+        Files.write(outputPath, fileBytes);
+        return outputPath;
+    }
+
+    private LauncherTypeConfig resolveTypeConfig(String type) {
         if (type == null || type.isBlank()) {
             return null;
         }
-        return switch (type.trim().toLowerCase()) {
-            case "ipt" -> "ipt-batch-submit";
-            case "out" -> "out-batch-submit";
-            case "coo" -> "coo-batch-submit";
-            default -> null;
-        };
+        return TYPE_CONFIGS.get(type.trim().toLowerCase());
     }
 
-    private String moduleLabel(String type) {
-        if (type == null || type.isBlank()) {
-            return "";
-        }
-        return switch (type.trim().toLowerCase()) {
-            case "ipt" -> "In Payment (IPT)";
-            case "out" -> "Out Declaration (OUT)";
-            case "coo" -> "COO Declaration";
-            default -> type;
-        };
+    private Path resourceFolderPath(LauncherTypeConfig config) {
+        return Paths.get("src", "test", "resources", config.resourceFolder())
+                .toAbsolutePath()
+                .normalize();
     }
 
     private boolean isTerminalDisplayState(String value) {
         return "SUCCESS".equals(value) || "FAILED".equals(value);
     }
 
+    private record LauncherTypeConfig(
+            String type,
+            String moduleLabel,
+            String reportPrefix,
+            String resourceFolder,
+            String testClass,
+            String testDataProperty,
+            List<String> extraArgs,
+            boolean requiresPermitType,
+            boolean executable) {
+    }
+
     public record LauncherStatusResponse(
             boolean running,
             String type,
             String moduleLabel,
+            String permitType,
             int exitCode,
             String reportPrefix,
             String displayState,
