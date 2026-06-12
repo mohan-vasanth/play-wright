@@ -29,7 +29,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     private static final String OUT_MENU_LABEL = "Out Payment (OUT)";
     private static final String TEST_DATA_RESOURCE = System.getProperty(
             "tradenix.out.test.data",
-            "data/out-declaration-batch-test-case.json");
+            "OUT/out-declaration-batch-test-case.json");
     private static final String REPORT_ARTIFACT_PREFIX = "out-batch-submit";
 
     @Test
@@ -66,9 +66,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         outDeclarationPage.populateDraftFrom(testData);
         if (shouldSubmitDeclaration) {
             outDeclarationPage.submitDeclaration();
-            Path diagnosticsPath = Paths.get("target", "out-submit-validation-diagnostics.json");
+            Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-1.json");
             captureDiagnosticsArtifacts(
-                    Paths.get("target", "out-submission-after-submit.png"),
+                    Paths.get("target", REPORT_ARTIFACT_PREFIX + "-1.png"),
                     diagnosticsPath,
                     outDeclarationPage);
             DeclarationsPage.DeclarationListEntry submittedEntry = readSubmittedDeclarationEntry(
@@ -81,9 +81,21 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     messageReference,
                     submittedEntry,
                     diagnosticsPath,
-                    Paths.get("target", "out-submission-status.png"));
+                    Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-1.png"));
             openGeneratedReport(finalEntry, 1);
+            return;
         }
+        Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-1.json");
+        captureDiagnosticsArtifacts(
+                Paths.get("target", REPORT_ARTIFACT_PREFIX + "-1.png"),
+                diagnosticsPath,
+                outDeclarationPage);
+        writeDraftOutcomeToDiagnostics(
+                diagnosticsPath,
+                testData,
+                firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)));
+        StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
+        openGeneratedReport(null, 1);
     }
 
     private void submitBatchDeclarations(
@@ -181,6 +193,15 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     }
 
     private static JsonNode loadTestData(String resourcePath) {
+        Path filePath = Paths.get(resourcePath);
+        if (Files.exists(filePath)) {
+            try (InputStream inputStream = Files.newInputStream(filePath)) {
+                return OBJECT_MAPPER.readTree(inputStream);
+            } catch (IOException exception) {
+                throw new IllegalStateException("Unable to read test data from file: " + resourcePath, exception);
+            }
+        }
+
         InputStream resourceStream = OutDeclarationTestCase1Test.class.getClassLoader().getResourceAsStream(resourcePath);
         if (resourceStream == null) {
             resourceStream = OutDeclarationTestCase1Test.class.getResourceAsStream("/" + resourcePath);
@@ -212,17 +233,21 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     USER_USERNAME);
             String declarationType = resolveDeclarationType(declaration);
             String resolvedJobStatus = firstNonBlank(jobStatus, inferStatusFromDiagnostics(root));
+            String toastText = firstNonBlank(root.path("toastText").asText(null));
+            String capturedResponseMessage = firstNonBlank(root.path("responseMessage").asText(null));
+            String capturedErrorMessage = firstNonBlank(root.path("errorMessage").asText(null));
+            boolean terminalIssueStatus = "REG".equals(resolvedJobStatus) || "FLD".equals(resolvedJobStatus);
+            boolean genericSubmitMessage = isGenericSubmitMessage(capturedResponseMessage);
             String responseMessage = firstNonBlank(
-                    root.path("responseMessage").asText(null),
-                    resolvedJobStatus != null && ("SUB".equals(resolvedJobStatus) || "PMT".equals(resolvedJobStatus) || "REG".equals(resolvedJobStatus))
+                    terminalIssueStatus && genericSubmitMessage ? null : capturedResponseMessage,
+                    "SUB".equals(resolvedJobStatus) || "PMT".equals(resolvedJobStatus)
                             ? "Declaration submitted successfully."
-                            : null);
+                            : null,
+                    terminalIssueStatus ? toastText : null);
             String errorMessage = firstNonBlank(
-                    root.path("errorMessage").asText(null),
-                    "FLD".equals(resolvedJobStatus) ? root.path("toastText").asText(null) : null);
-            if ("FLD".equals(resolvedJobStatus) && responseMessage != null && !responseMessage.isBlank()) {
-                errorMessage = responseMessage;
-            }
+                    capturedErrorMessage,
+                    terminalIssueStatus ? toastText : null,
+                    terminalIssueStatus && !genericSubmitMessage ? capturedResponseMessage : null);
 
             if (jobId != null && !jobId.isBlank()) {
                 root.put("jobId", jobId);
@@ -274,6 +299,12 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         return "N/A";
     }
 
+    private boolean isGenericSubmitMessage(String value) {
+        String normalized = firstNonBlank(value);
+        return normalized != null
+                && normalized.toUpperCase().replace(".", "").equals("DECLARATION SUBMITTED SUCCESSFULLY");
+    }
+
     private String formatResponseSummary(
             String jobId,
             String declarationNumber,
@@ -319,6 +350,45 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             return firstNonBlank(fallbackUsername, normalizedCandidate);
         }
         return normalizedCandidate;
+    }
+
+    private void writeDraftOutcomeToDiagnostics(
+            Path diagnosticsPath,
+            JsonNode declaration,
+            String fallbackMessageReference) {
+        try {
+            JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
+            com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
+                    ? (com.fasterxml.jackson.databind.node.ObjectNode) current
+                    : OBJECT_MAPPER.createObjectNode();
+            String declarationType = resolveDeclarationType(declaration);
+            String declarationNumber = firstNonBlank(
+                    fallbackMessageReference,
+                    declaration.path("header").path("messageReference").asText(null));
+            String jobCreatedBy = firstNonBlank(USER_USERNAME);
+            root.put("jobStatus", "DRF");
+            if (declarationType != null && !declarationType.isBlank()) {
+                root.put("declarationType", declarationType);
+            }
+            if (declarationNumber != null && !declarationNumber.isBlank()) {
+                root.put("declarationNumber", declarationNumber);
+            }
+            if (jobCreatedBy != null && !jobCreatedBy.isBlank()) {
+                root.put("jobCreatedBy", jobCreatedBy);
+            }
+            root.put("responseMessage", "Declaration draft prepared successfully.");
+            root.put("errorMessage", "N/A");
+            root.put("responseSummary", formatResponseSummary(
+                    null,
+                    declarationNumber,
+                    declarationType,
+                    "DRF",
+                    jobCreatedBy,
+                    "Declaration draft prepared successfully.",
+                    "N/A"));
+            Files.writeString(diagnosticsPath, OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root));
+        } catch (Exception ignored) {
+        }
     }
 
     private DeclarationsPage.DeclarationListEntry finalizeSubmittedDeclaration(

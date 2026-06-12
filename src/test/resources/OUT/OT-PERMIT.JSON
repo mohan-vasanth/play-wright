@@ -1,0 +1,208 @@
+{
+    "type": "OUTDEC",
+    
+        "type": "OUT",
+        "header": {
+            "messageReference": "TDX2606120124",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1125"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "OUTDEC",
+            "declarationType": "40",
+            "declarationIndicator": true
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "THQ",
+                "locationName": "TUAS HQ"
+            },
+            "blanketStartDate": "20260608"
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "arrivalDate": "20260701",
+                "loadingPort": "SGSIN"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "departureDate": "20260728",
+                "dischargePort": "MYJHB",
+                "finalDestinationCountry": "IN"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "exporterParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198003808K"
+                    },
+                    "partyName": {
+                        "name": "ARMSTRONG INDUSTRIAL CORP"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "TOLLGATE",
+                            "LALGUDI"
+                        ]
+                    },
+                    "cityName": "TRICHY",
+                    "countrySubentityCode": "TN",
+                    "countrySubentity": "TAMILNADU",
+                    "postalZone": "620001",
+                    "countryCode": "IN"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "TESTING FOR CONSIGNEE"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD1 ADD2 SAMPLECITY"
+                        ]
+                    },
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "1",
+                "invoiceDate": "20260502",
+                "unitPriceTermType": "FOB",
+                "supplierManufacturerParty": {
+                    "adValoremIndicator": false,
+                    "preferentialDutyRateIndicator": false
+                },
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "4364.3",
+                        "currencyID": "TWD"
+                    },
+                    "exchangeRate": "4.3643"
+                },
+                "freightCharge": {
+                    "includeOtherTaxableCharge": false
+                },
+                "insuranceCharge": {
+                    "amount": {
+                        "value": "190.47",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1",
+                    "chargePercent": "1",
+                    "includeOtherTaxableCharge": false
+                },
+                "gst": 9
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "totalInvoiceCifValue": "4364.30",
+            "totalCifFobValue": "4364.30",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "100",
+                "unitCode": "KGM"
+            }
+        },
+        "formMetaData": {
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "additionalRecipientIdIsActive": false,
+            "transportEquipmentIsActive": false,
+            "certificateIsActive": false,
+            "declarationIndicator": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "unitPrices": [],
+            "editUnitPrice": [],
+            "shippingMarksIsActive": [],
+            "itemPackingIsActive": [],
+            "tariffLotIdentificationIsActive": [],
+            "itemCoIsActive": []
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "39269099",
+                "goodsDescription": "TICLES OF PLASTICS & ARTICLES OF OTHER MATERIALS OF 3901 TO 3914 (KGM)",
+                "originCountry": "SG",
+                "dangerousGoodsIndicator": false,
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "80",
+                        "unitCode": "KGM"
+                    },
+                    "hsQuantity": {
+                        "value": "80",
+                        "unitCode": "KGM"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "4364.3",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "1000",
+                            "currencyID": "TWD"
+                        },
+                        "exchangeRate": "4.3643"
+                    }
+                },
+                "itemCalculation": {
+                    "itemCifFobValueSgd": "4364.3"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxAmount": "0"
+                    }
+                },
+                "hsImportCa": "-",
+                "hsExportCa": "-",
+                "hsTranshipmentCa": "-"
+            }
+        ]
+    }

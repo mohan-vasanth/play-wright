@@ -248,9 +248,9 @@ public class TestReportController {
             return null;
         }
         return switch (artifactPrefix.trim().toLowerCase()) {
-            case "out-batch-submit" -> "data/out-declaration-batch-test-case.json";
-            case "coo-batch-submit" -> "data/coo-declaration-batch-test-case.json";
-            case "ipt-batch-submit" -> "data/ipt-declaration-test-case-1.json";
+            case "out-batch-submit" -> "OUT/out-declaration-batch-test-case.json";
+            case "coo-batch-submit" -> "COO/coo-declaration-batch-test-case.json";
+            case "ipt-batch-submit" -> "IPT/ipt-declaration-test-case-1.json";
             default -> null;
         };
     }
@@ -294,14 +294,14 @@ public class TestReportController {
             batchCases.add(batchCase);
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
             String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
-            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus)
-                    || "REG".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+            if ("PMT".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
             } else if ("DRF".equals(displayStatus)) {
                 draftCount++;
             } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
                 failureCount++;
-            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)) {
+            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)
+                    || "SUB".equals(displayStatus) || "REG".equals(displayStatus)) {
                 issueCount++;
             }
         }
@@ -333,14 +333,14 @@ public class TestReportController {
         for (BatchCaseResult batchCase : matchingCases) {
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
             String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
-            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus)
-                    || "REG".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+            if ("PMT".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
             } else if ("DRF".equals(displayStatus)) {
                 draftCount++;
             } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
                 failureCount++;
-            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)) {
+            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)
+                    || "SUB".equals(displayStatus) || "REG".equals(displayStatus)) {
                 issueCount++;
             }
         }

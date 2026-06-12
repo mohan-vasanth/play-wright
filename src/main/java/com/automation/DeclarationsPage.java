@@ -20,7 +20,7 @@ public class DeclarationsPage {
             "REJ", "REJECTED",
             "REG", "REGISTERED");
     private static final List<String> TERMINAL_JOB_STATUSES = List.of(
-            "DRF", "SUB", "PMT", "FLD", "REJ", "REG");
+            "DRF", "PMT", "FLD", "REJ", "REG");
     private final Page page;
     private static final String DECLARATIONS_MENU = "text=Declarations";
     private static final String NEW_DECLARATION_BUTTON = "button:has-text('NEW DECLARATION')";
