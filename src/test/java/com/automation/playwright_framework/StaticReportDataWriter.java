@@ -1,7 +1,6 @@
 package com.automation.playwright_framework;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.ResponseEntity;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -15,14 +14,17 @@ final class StaticReportDataWriter {
     private StaticReportDataWriter() {
     }
 
-    static void refresh() {
+    static void clear() {
+        try {
+            Files.deleteIfExists(REPORT_DATA_PATH);
+        } catch (Exception ignored) {
+        }
+    }
+
+    static void refresh(String reportPrefix) {
         try {
             TestReportController controller = new TestReportController();
-            ResponseEntity<TestReportController.TestReportResponse> response = controller.latest();
-            TestReportController.TestReportResponse body = response.getBody();
-            if (body == null) {
-                return;
-            }
+            TestReportController.TestReportResponse body = controller.buildLatestReport(reportPrefix, null, null);
 
             Files.createDirectories(REPORT_DATA_PATH.getParent());
             String payload = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(body);

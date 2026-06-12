@@ -110,6 +110,9 @@
 
         .status-IDLE    { color: var(--muted);    background: #f0f3f7; }
         .status-RUNNING { color: var(--running);  background: var(--running-bg); }
+        .status-IN_PROGRESS { color: var(--neutral); background: var(--neutral-bg); }
+        .status-PENDING { color: var(--issue); background: var(--issue-bg); }
+        .status-SUCCESS { color: var(--success); background: var(--success-bg); }
         .status-COMPLETED { color: var(--success); background: var(--success-bg); }
         .status-FAILED  { color: var(--failure);  background: var(--failure-bg); }
 
@@ -148,6 +151,7 @@
         .fine {
             color: var(--muted);
             font-size: 13px;
+            white-space: pre-line;
         }
 
         .status-row {
@@ -171,8 +175,7 @@
             <div class="sub">Run Playwright automation tests and monitor output in real-time</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <a href="report.html" id="viewReportBtn" class="nav-link" style="display:none">View Report</a>
-            <a href="report.html" class="nav-link" style="background:#fff;color:#0b86d1;border-color:#0b6bcb;">Report</a>
+            <a href="report.html" id="reportBtn" class="nav-link" style="background:#fff;color:#0b86d1;border-color:#0b6bcb;">Report</a>
         </div>
     </div>
 
@@ -215,6 +218,59 @@
 <script>
     let isRunning = false;
     let currentEventSource = null;
+    let statusPollHandle = null;
+    const API_BASE_STORAGE_KEY = 'tradenix.report.apiBase';
+
+    function resolveApiBase() {
+        const params = new URLSearchParams(window.location.search);
+        const apiBaseFromQuery = params.get('apiBase');
+        if (apiBaseFromQuery) {
+            localStorage.setItem(API_BASE_STORAGE_KEY, apiBaseFromQuery);
+            return apiBaseFromQuery.replace(/\/$/, '');
+        }
+        if (window.location.protocol === 'file:') {
+            const stored = localStorage.getItem(API_BASE_STORAGE_KEY);
+            return (stored || 'http://localhost:8080').replace(/\/$/, '');
+        }
+        return '';
+    }
+
+    const apiBase = resolveApiBase();
+
+    function apiUrl(path) {
+        return `${apiBase}${path}`;
+    }
+
+    function reportPrefixForType(type) {
+        if (type === 'ipt') {
+            return 'ipt-batch-submit';
+        }
+        if (type === 'out') {
+            return 'out-batch-submit';
+        }
+        if (type === 'coo') {
+            return 'coo-batch-submit';
+        }
+        return '';
+    }
+
+    function buildReportHref(type) {
+        const params = new URLSearchParams();
+        if (window.location.protocol === 'file:' && apiBase) {
+            params.set('apiBase', apiBase);
+        }
+        const reportPrefix = reportPrefixForType(type);
+        if (reportPrefix) {
+            params.set('reportPrefix', reportPrefix);
+        }
+        const queryString = params.toString();
+        return queryString ? `report.html?${queryString}` : 'report.html';
+    }
+
+    function setReportLinks(type) {
+        const href = buildReportHref(type);
+        document.getElementById('reportBtn').href = href;
+    }
 
     async function startTest(type) {
         if (isRunning) {
@@ -222,27 +278,58 @@
             return;
         }
 
-        setStatus('RUNNING', type);
+        setStatus({
+            displayState: 'RUNNING',
+            type,
+            moduleLabel: moduleLabelForType(type),
+            jobId: '',
+            jobStatus: '',
+            messageRef: ''
+        });
         setBtnsDisabled(true);
         showTerminal();
         clearTerminalContent();
-        document.getElementById('viewReportBtn').style.display = 'none';
+        setReportLinks(type);
+        startStatusPolling();
 
         let resp;
         try {
-            resp = await fetch('/api/launcher/start?type=' + type, { method: 'POST' });
+            resp = await fetch(apiUrl('/api/launcher/start?type=' + type), { method: 'POST' });
         } catch (e) {
-            appendLine('ERROR: Could not reach the server. Is the Spring Boot app running?');
-            setStatus('FAILED', type);
+            appendLine('ERROR: Could not reach the server at ' + apiUrl('') + '. Is the Spring Boot app running?');
+            stopStatusPolling();
+            setStatus({
+                displayState: 'FAILED',
+                type,
+                moduleLabel: moduleLabelForType(type),
+                jobId: '',
+                jobStatus: '',
+                messageRef: ''
+            });
             setBtnsDisabled(false);
             return;
         }
 
         if (resp.status === 409) {
             const data = await resp.json();
-            appendLine('A test is already running on the server (type: ' + data.type + '). Connecting to its output...');
-            isRunning = true;
-            connectStream();
+            appendLine(data.running
+                ? 'A test is already running on the server (type: ' + data.type + '). Connecting to its output...'
+                : 'A declaration execution is still in progress on the server (type: ' + data.type + '). Monitoring job status...');
+            isRunning = Boolean(data.running);
+            setReportLinks(data.type);
+            applyLauncherStatus({
+                running: Boolean(data.running),
+                type: data.type,
+                moduleLabel: moduleLabelForType(data.type),
+                displayState: data.displayState || 'RUNNING',
+                executionActive: true,
+                jobId: data.jobId || '',
+                jobStatus: data.jobStatus || '',
+                messageRef: ''
+            });
+            if (data.running) {
+                connectStream();
+            }
             return;
         }
 
@@ -250,7 +337,15 @@
             let msg = 'Unknown error';
             try { const data = await resp.json(); msg = data.error || msg; } catch (_) {}
             appendLine('ERROR: ' + msg);
-            setStatus('FAILED', type);
+            stopStatusPolling();
+            setStatus({
+                displayState: 'FAILED',
+                type,
+                moduleLabel: moduleLabelForType(type),
+                jobId: '',
+                jobStatus: '',
+                messageRef: ''
+            });
             setBtnsDisabled(false);
             return;
         }
@@ -265,7 +360,7 @@
             currentEventSource = null;
         }
 
-        currentEventSource = new EventSource('/api/launcher/stream');
+        currentEventSource = new EventSource(apiUrl('/api/launcher/stream'));
 
         currentEventSource.onmessage = function(e) {
             if (e.data === '__DONE__') {
@@ -287,17 +382,50 @@
 
     async function fetchStatus() {
         try {
-            const resp = await fetch('/api/launcher/status');
+            const resp = await fetch(apiUrl('/api/launcher/status'));
             const data = await resp.json();
-            isRunning = false;
-            const succeeded = data.exitCode === 0;
-            setStatus(succeeded ? 'COMPLETED' : 'FAILED', data.type);
-            document.getElementById('viewReportBtn').style.display = '';
-            setBtnsDisabled(false);
+            applyLauncherStatus(data);
         } catch (e) {
+            stopStatusPolling();
             isRunning = false;
-            setStatus('FAILED', '');
+            setStatus({
+                displayState: 'FAILED',
+                type: '',
+                moduleLabel: '',
+                jobId: '',
+                jobStatus: '',
+                messageRef: ''
+            });
             setBtnsDisabled(false);
+        }
+    }
+
+    function applyLauncherStatus(data) {
+        isRunning = Boolean(data.running);
+        setReportLinks(data.type || '');
+        setStatus(data);
+        setBtnsDisabled(Boolean(data.running));
+
+        if (shouldContinuePolling(data)) {
+            startStatusPolling();
+        } else {
+            stopStatusPolling();
+        }
+    }
+
+    function shouldContinuePolling(data) {
+        return Boolean(data.running) || ['RUNNING', 'IN_PROGRESS', 'PENDING'].includes(String(data.displayState || ''));
+    }
+
+    function startStatusPolling() {
+        stopStatusPolling();
+        statusPollHandle = window.setTimeout(fetchStatus, 2000);
+    }
+
+    function stopStatusPolling() {
+        if (statusPollHandle !== null) {
+            window.clearTimeout(statusPollHandle);
+            statusPollHandle = null;
         }
     }
 
@@ -325,40 +453,76 @@
         document.getElementById('btnCoo').disabled = disabled;
     }
 
-    function setStatus(state, type) {
+    function setStatus(data) {
         const badge = document.getElementById('statusBadge');
         const msg = document.getElementById('statusMsg');
+        const state = String(data.displayState || 'IDLE');
+        const normalizedState = state === 'COMPLETED' ? 'SUCCESS' : state;
+        const label = data.moduleLabel || moduleLabelForType(data.type);
+        const stateLabel = normalizedState.replaceAll('_', ' ');
+        const jobId = String(data.jobId || '').trim();
+        const jobStatus = String(data.jobStatus || '').trim();
+        const messageRef = String(data.messageRef || '').trim();
 
-        badge.className = 'status-badge status-' + state;
-        badge.textContent = state;
+        badge.className = 'status-badge status-' + normalizedState;
+        badge.textContent = stateLabel;
 
-        const label = type === 'ipt' ? 'In Payment (IPT)' : type === 'out' ? 'Out Declaration (OUT)' : type === 'coo' ? 'COO Declaration' : '';
+        if (normalizedState === 'IDLE') {
+            msg.textContent = 'No test running. Select a test below to begin.';
+            return;
+        }
 
-        const messages = {
-            IDLE: 'No test running. Select a test below to begin.',
-            RUNNING: (label ? label + ' test is running...' : 'Test is running...'),
-            COMPLETED: (label ? label + ' test completed successfully.' : 'Test completed successfully.'),
-            FAILED: (label ? label + ' test finished with errors.' : 'Test finished with errors.')
-        };
+        if (!jobId && ['RUNNING', 'IN_PROGRESS', 'PENDING'].includes(normalizedState)) {
+            msg.textContent = [
+                (label || 'Declaration Test') + ' Process Started',
+                'Status: ' + stateLabel,
+                normalizedState === 'RUNNING'
+                    ? ((label || 'Declaration') + ' process is running...')
+                    : ((label || 'Declaration') + ' submission in progress...'),
+                'Waiting for status update...'
+            ].join('\n');
+            return;
+        }
 
-        msg.textContent = messages[state] || state;
+        const lines = [label || 'Declaration Test'];
+        if (jobId) {
+            lines.push('Job ID: ' + jobId);
+        }
+        lines.push('Status: ' + stateLabel);
+        if (jobStatus && jobStatus !== normalizedState) {
+            lines.push('Backend Job Status: ' + jobStatus);
+        }
+        if (messageRef) {
+            lines.push('Message Ref: ' + messageRef);
+        }
+        if (!jobId && normalizedState === 'FAILED') {
+            lines.push('Final backend status was not confirmed.');
+        }
+        msg.textContent = lines.join('\n');
+    }
+
+    function moduleLabelForType(type) {
+        return type === 'ipt'
+            ? 'In Payment (IPT)'
+            : type === 'out'
+                ? 'Out Declaration (OUT)'
+                : type === 'coo'
+                    ? 'COO Declaration'
+                    : '';
     }
 
     window.addEventListener('DOMContentLoaded', async function() {
+        setReportLinks('');
         try {
-            const resp = await fetch('/api/launcher/status');
+            const resp = await fetch(apiUrl('/api/launcher/status'));
             const data = await resp.json();
 
-            if (data.running) {
-                isRunning = true;
-                setStatus('RUNNING', data.type);
-                setBtnsDisabled(true);
+            applyLauncherStatus(data);
+            if (data.executionActive) {
                 showTerminal();
+            }
+            if (data.running) {
                 connectStream();
-            } else if (data.exitCode !== -999) {
-                const succeeded = data.exitCode === 0;
-                setStatus(succeeded ? 'COMPLETED' : 'FAILED', data.type);
-                document.getElementById('viewReportBtn').style.display = '';
             }
         } catch (_) {
             // server not reachable yet — stay in idle state

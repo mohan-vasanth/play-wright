@@ -423,6 +423,21 @@
     const apiBase = resolveApiBase();
     const localArtifactBase = resolveLocalArtifactBase();
 
+    function buildReportUrl() {
+        const params = new URLSearchParams();
+        if (focusJobId) {
+            params.set('jobId', focusJobId);
+        }
+        if (focusMessageRef) {
+            params.set('messageRef', focusMessageRef);
+        }
+        if (requestedReportPrefix) {
+            params.set('reportPrefix', requestedReportPrefix);
+        }
+        const queryString = params.toString();
+        return `${apiBase}/api/reports/latest${queryString ? `?${queryString}` : ''}`;
+    }
+
     function normalizeQueryValue(value) {
         const normalized = String(value || '').trim().toUpperCase();
         return normalized || null;
@@ -603,14 +618,15 @@
         const focusedReport = applyFocusedCase(report);
         const batchSummary = focusedReport.batchSummary || {};
         const selectedBatchCase = (focusedReport.batchCases || [])[0];
+        const reportUrl = buildReportUrl();
         batchResultsTitle.textContent = resolveResultsTitle(focusedReport);
 
         statusBadge.className = `status-badge status-${focusedReport.status || 'NO_REPORT'}`;
         statusBadge.textContent = focusedReport.status || 'NO_REPORT';
         issue.textContent = focusedReport.primaryIssue || '';
         source.textContent = focusedReport.sourceFile
-            ? `Surefire XML: ${focusedReport.sourceFile} | API: ${apiBase ? `${apiBase}/api/reports/latest` : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`
-            : `Surefire XML: not available | API: ${apiBase ? `${apiBase}/api/reports/latest` : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`;
+            ? `Surefire XML: ${focusedReport.sourceFile} | API: ${apiBase ? reportUrl : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`
+            : `Surefire XML: not available | API: ${apiBase ? reportUrl : 'embedded local data'}${selectedBatchCase?.jobId ? ` | Job ID: ${selectedBatchCase.jobId}` : ''}`;
         suiteName.textContent = focusedReport.suiteName ? `Suite: ${focusedReport.suiteName}` : 'Suite: not available';
         updatedAt.textContent = focusedReport.updatedAt ? `Updated: ${focusedReport.updatedAt}` : 'Updated: -';
         duration.textContent = focusedReport.durationSeconds ? `Wrapper Duration: ${focusedReport.durationSeconds} s` : 'Wrapper Duration: -';
@@ -752,7 +768,7 @@
             return;
         }
         loadInProgress = true;
-        const reportUrl = `${apiBase}/api/reports/latest`;
+        const reportUrl = buildReportUrl();
         try {
             const localReport = await loadLocalReportData();
             if (localReport && reportMatchesRequestedContext(localReport)) {

@@ -7,8 +7,10 @@ import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.w3c.dom.Document;
@@ -32,6 +34,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @RestController
+@CrossOrigin(originPatterns = "*")
 @RequestMapping("/api/reports")
 public class TestReportController {
 
@@ -47,40 +50,69 @@ public class TestReportController {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @GetMapping(value = "/latest", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<TestReportResponse> latest() {
+    public ResponseEntity<TestReportResponse> latest(
+            @RequestParam(required = false) String reportPrefix,
+            @RequestParam(required = false) String jobId,
+            @RequestParam(required = false, name = "messageRef") String messageReference) {
         try {
-            SurefireReportSummary surefireReport = readLatestSurefireReport();
-            BatchReportSummary batchReport = readBatchReport(
-                    surefireReport != null ? surefireReport.testDataResourcePath() : null,
-                    surefireReport != null ? surefireReport.artifactPrefix() : null);
-
-            if (surefireReport == null && batchReport.batchCases().isEmpty()) {
-                return ResponseEntity.ok(TestReportResponse.noReport("No test report artifacts found in target."));
-            }
-
-            String status = resolveOverallStatus(surefireReport, batchReport);
-            String primaryIssue = resolvePrimaryIssue(status, surefireReport, batchReport);
-            long updatedAtMillis = Math.max(
-                    surefireReport != null ? surefireReport.updatedAtMillis() : Long.MIN_VALUE,
-                    batchReport.updatedAtMillis());
-
-            return ResponseEntity.ok(new TestReportResponse(
-                    status,
-                    surefireReport != null ? surefireReport.suiteName() : null,
-                    surefireReport != null ? surefireReport.sourceFile() : null,
-                    surefireReport != null ? surefireReport.tests() : 0,
-                    surefireReport != null ? surefireReport.failures() : 0,
-                    surefireReport != null ? surefireReport.errors() : 0,
-                    surefireReport != null ? surefireReport.skipped() : 0,
-                    surefireReport != null ? surefireReport.durationSeconds() : null,
-                    updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null,
-                    primaryIssue,
-                    surefireReport != null ? surefireReport.testCases() : List.of(),
-                    batchReport.summary(),
-                    batchReport.batchCases()));
+            return ResponseEntity.ok(buildLatestReport(reportPrefix, jobId, messageReference));
         } catch (Exception exception) {
             return ResponseEntity.ok(TestReportResponse.noReport("Unable to read latest report: " + exception.getMessage()));
         }
+    }
+
+    TestReportResponse buildLatestReport(String reportPrefix, String jobId, String messageReference) throws Exception {
+        String normalizedReportPrefix = blankToNull(reportPrefix);
+        String normalizedJobId = normalizeFilterValue(jobId);
+        String normalizedMessageReference = normalizeFilterValue(messageReference);
+
+        SurefireReportSummary surefireReport = readLatestSurefireReport(normalizedReportPrefix);
+        String resolvedArtifactPrefix = firstNonBlank(
+                normalizedReportPrefix,
+                surefireReport != null ? surefireReport.artifactPrefix() : null,
+                DEFAULT_ARTIFACT_PREFIX);
+        String testDataResourcePath = firstNonBlank(
+                surefireReport != null ? surefireReport.testDataResourcePath() : null,
+                inferTestDataResourcePath(resolvedArtifactPrefix));
+
+        BatchReportSummary batchReport = readBatchReport(testDataResourcePath, resolvedArtifactPrefix);
+        if (normalizedJobId != null || normalizedMessageReference != null) {
+            batchReport = filterBatchReport(batchReport, normalizedJobId, normalizedMessageReference);
+            if (batchReport.batchCases().isEmpty()) {
+                surefireReport = null;
+            }
+        }
+
+        if (surefireReport != null
+                && normalizedReportPrefix != null
+                && batchReport.updatedAtMillis() > surefireReport.updatedAtMillis()) {
+            surefireReport = null;
+        }
+
+        if (surefireReport == null && batchReport.batchCases().isEmpty()) {
+            return TestReportResponse.noReport("No test report artifacts found in target.");
+        }
+
+        String status = resolveOverallStatus(surefireReport, batchReport);
+        String primaryIssue = resolvePrimaryIssue(status, surefireReport, batchReport);
+        long updatedAtMillis = Math.max(
+                surefireReport != null ? surefireReport.updatedAtMillis() : Long.MIN_VALUE,
+                batchReport.updatedAtMillis());
+
+        return new TestReportResponse(
+                status,
+                surefireReport != null ? surefireReport.suiteName() : null,
+                surefireReport != null ? surefireReport.sourceFile() : null,
+                surefireReport != null ? surefireReport.tests() : 0,
+                surefireReport != null ? surefireReport.failures() : 0,
+                surefireReport != null ? surefireReport.errors() : 0,
+                surefireReport != null ? surefireReport.skipped() : 0,
+                surefireReport != null ? surefireReport.durationSeconds() : null,
+                updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null,
+                primaryIssue,
+                surefireReport != null ? surefireReport.testCases() : List.of(),
+                batchReport.summary(),
+                batchReport.batchCases());
     }
 
     @GetMapping("/artifacts/{fileName:.+}")
@@ -106,27 +138,34 @@ public class TestReportController {
         }
     }
 
-    private SurefireReportSummary readLatestSurefireReport() throws Exception {
+    private SurefireReportSummary readLatestSurefireReport(String requestedArtifactPrefix) throws Exception {
         if (!Files.isDirectory(SUREFIRE_REPORTS_DIR)) {
             return null;
         }
 
-        Path latestReport;
         try (Stream<Path> reportPaths = Files.list(SUREFIRE_REPORTS_DIR)) {
-            latestReport = reportPaths
+            List<Path> candidateReports = reportPaths
                     .filter(path -> path.getFileName().toString().startsWith("TEST-"))
                     .filter(path -> path.getFileName().toString().endsWith(".xml"))
-                    .max(Comparator.comparingLong(this::lastModifiedMillis))
-                    .orElse(null);
+                    .sorted(Comparator.comparingLong(this::lastModifiedMillis).reversed())
+                    .toList();
+
+            for (Path candidateReport : candidateReports) {
+                SurefireReportSummary summary = parseSurefireReport(candidateReport);
+                if (requestedArtifactPrefix == null
+                        || requestedArtifactPrefix.equalsIgnoreCase(summary.artifactPrefix())) {
+                    return summary;
+                }
+            }
         }
 
-        if (latestReport == null) {
-            return null;
-        }
+        return null;
+    }
 
+    private SurefireReportSummary parseSurefireReport(Path reportPath) throws Exception {
         Document document = DocumentBuilderFactory.newInstance()
                 .newDocumentBuilder()
-                .parse(latestReport.toFile());
+                .parse(reportPath.toFile());
         document.getDocumentElement().normalize();
 
         Element suite = document.getDocumentElement();
@@ -139,8 +178,7 @@ public class TestReportController {
         String testDataResourcePath = readSuiteProperty(suite, TEST_DATA_PROPERTIES);
         String artifactPrefix = firstNonBlank(
                 readSuiteProperty(suite, REPORT_ARTIFACT_PREFIX_PROPERTY),
-                inferArtifactPrefix(testDataResourcePath, suiteName),
-                DEFAULT_ARTIFACT_PREFIX);
+                inferArtifactPrefix(testDataResourcePath, suiteName));
 
         List<TestCaseResult> testCases = new ArrayList<>();
         NodeList testCaseNodes = suite.getElementsByTagName("testcase");
@@ -153,7 +191,7 @@ public class TestReportController {
 
         return new SurefireReportSummary(
                 suiteName,
-                latestReport.getFileName().toString(),
+                reportPath.getFileName().toString(),
                 tests,
                 failures,
                 errors,
@@ -161,7 +199,7 @@ public class TestReportController {
                 duration,
                 testDataResourcePath,
                 artifactPrefix,
-                lastModifiedMillis(latestReport),
+                lastModifiedMillis(reportPath),
                 testCases);
     }
 
@@ -198,7 +236,23 @@ public class TestReportController {
                 || normalizedSuite.contains("coodeclaration")) {
             return "coo-batch-submit";
         }
-        return DEFAULT_ARTIFACT_PREFIX;
+        if (normalizedPath.contains("/ipt-") || normalizedPath.contains("\\ipt-") || normalizedPath.contains("ipt-declaration")
+                || normalizedSuite.contains("iptdeclaration")) {
+            return "ipt-batch-submit";
+        }
+        return null;
+    }
+
+    private String inferTestDataResourcePath(String artifactPrefix) {
+        if (artifactPrefix == null || artifactPrefix.isBlank()) {
+            return null;
+        }
+        return switch (artifactPrefix.trim().toLowerCase()) {
+            case "out-batch-submit" -> "data/out-declaration-batch-test-case.json";
+            case "coo-batch-submit" -> "data/coo-declaration-batch-test-case.json";
+            case "ipt-batch-submit" -> "data/ipt-declaration-test-case-1.json";
+            default -> null;
+        };
     }
 
     private BatchReportSummary readBatchReport(String testDataResourcePath, String artifactPrefix) throws Exception {
@@ -261,6 +315,61 @@ public class TestReportController {
                         draftCount),
                 batchCases,
                 updatedAtMillis);
+    }
+
+    private BatchReportSummary filterBatchReport(
+            BatchReportSummary batchReport,
+            String normalizedJobId,
+            String normalizedMessageReference) {
+        List<BatchCaseResult> matchingCases = batchReport.batchCases().stream()
+                .filter(batchCase -> matchesFilter(batchCase, normalizedJobId, normalizedMessageReference))
+                .toList();
+
+        int successCount = 0;
+        int issueCount = 0;
+        int failureCount = 0;
+        int draftCount = 0;
+        long updatedAtMillis = Long.MIN_VALUE;
+        for (BatchCaseResult batchCase : matchingCases) {
+            updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
+            String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
+            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus)
+                    || "REG".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+                successCount++;
+            } else if ("DRF".equals(displayStatus)) {
+                draftCount++;
+            } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
+                failureCount++;
+            } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)) {
+                issueCount++;
+            }
+        }
+
+        return new BatchReportSummary(
+                new BatchSummary(
+                        matchingCases.size(),
+                        successCount,
+                        issueCount,
+                        failureCount,
+                        draftCount),
+                matchingCases,
+                updatedAtMillis);
+    }
+
+    private boolean matchesFilter(
+            BatchCaseResult batchCase,
+            String normalizedJobId,
+            String normalizedMessageReference) {
+        if (normalizedJobId == null && normalizedMessageReference == null) {
+            return true;
+        }
+
+        String batchJobId = normalizeFilterValue(batchCase.jobId());
+        String batchMessageReference = normalizeFilterValue(batchCase.declarationNumber());
+        if (normalizedJobId != null && !normalizedJobId.equals(batchJobId)) {
+            return false;
+        }
+        return normalizedMessageReference == null || normalizedMessageReference.equals(batchMessageReference);
     }
 
     private Pattern artifactPattern(String artifactPrefix, String suffixPattern) {
@@ -597,6 +706,14 @@ public class TestReportController {
             case "REG", "REGISTERED" -> "REG";
             default -> normalized;
         };
+    }
+
+    private String normalizeFilterValue(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim().toUpperCase();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private String fileName(Path path) {
