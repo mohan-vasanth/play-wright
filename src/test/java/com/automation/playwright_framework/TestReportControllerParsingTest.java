@@ -7,11 +7,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 class TestReportControllerParsingTest {
 
     @Test
-    void readDiagnosticsParsesDeclarationTypeAndSummaryFallbackFields() throws Exception {
+    void readDiagnosticsClearsPmtNumberForNonPmtStatuses() throws Exception {
         Path diagnosticsFile = Files.createTempFile("out-batch-submit-validation-", ".json");
         Files.writeString(diagnosticsFile, """
                 {
@@ -41,7 +42,7 @@ class TestReportControllerParsingTest {
             assertEquals("40", declarationTypeCode.invoke(diagnostics));
             assertEquals("TDX2606150012", declarationNumber.invoke(diagnostics));
             assertEquals("FLD", jobStatus.invoke(diagnostics));
-            assertEquals("OD6F274299A", pmtNumber.invoke(diagnostics));
+            assertNull(pmtNumber.invoke(diagnostics));
             assertEquals("mohan", jobCreatedBy.invoke(diagnostics));
         } finally {
             Files.deleteIfExists(diagnosticsFile);
@@ -73,7 +74,7 @@ class TestReportControllerParsingTest {
             String expected = "PERMIT/AMENDMENT/CANCELLATION/REFUND APPLICATION NOT APPROVED\n1. PLS PROVIDE CORRECT DATE OF DEPARTURE";
             assertEquals(expected, responseMessage.invoke(diagnostics));
             assertEquals(expected, errorMessage.invoke(diagnostics));
-            assertEquals("OD6F274299A", pmtNumber.invoke(diagnostics));
+            assertNull(pmtNumber.invoke(diagnostics));
         } finally {
             Files.deleteIfExists(diagnosticsFile);
         }
@@ -97,6 +98,30 @@ class TestReportControllerParsingTest {
 
             Method pmtNumber = diagnostics.getClass().getDeclaredMethod("pmtNumber");
             assertEquals("OD6F274299A", pmtNumber.invoke(diagnostics));
+        } finally {
+            Files.deleteIfExists(diagnosticsFile);
+        }
+    }
+
+    @Test
+    void readDiagnosticsRejectsMessageReferenceAsPmtNumberEvenForPmtStatus() throws Exception {
+        Path diagnosticsFile = Files.createTempFile("out-batch-submit-validation-", ".json");
+        Files.writeString(diagnosticsFile, """
+                {
+                  "jobStatus": "PMT",
+                  "declarationNumber": "TDX2606150066",
+                  "pmtNumber": "TDX2606150066"
+                }
+                """);
+
+        try {
+            TestReportController controller = new TestReportController();
+            Method method = TestReportController.class.getDeclaredMethod("readDiagnostics", Path.class);
+            method.setAccessible(true);
+            Object diagnostics = method.invoke(controller, diagnosticsFile);
+
+            Method pmtNumber = diagnostics.getClass().getDeclaredMethod("pmtNumber");
+            assertNull(pmtNumber.invoke(diagnostics));
         } finally {
             Files.deleteIfExists(diagnosticsFile);
         }

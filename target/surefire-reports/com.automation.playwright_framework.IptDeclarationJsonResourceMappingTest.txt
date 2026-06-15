@@ -1,0 +1,13 @@
+-------------------------------------------------------------------------------
+Test set: com.automation.playwright_framework.IptDeclarationJsonResourceMappingTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.215 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationJsonResourceMappingTest
+com.automation.playwright_framework.IptDeclarationJsonResourceMappingTest.idPermitJsonIncludesSupplyIndicatorAsBooleanTrue -- Time elapsed: 0.009 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: cargo.supplyIndicator must be a JSON boolean ==> expected: <true> but was: <false>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:158)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:139)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:69)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:41)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:228)
+	at com.automation.playwright_framework.IptDeclarationJsonResourceMappingTest.idPermitJsonIncludesSupplyIndicatorAsBooleanTrue(IptDeclarationJsonResourceMappingTest.java:21)
+

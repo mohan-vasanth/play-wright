@@ -1,0 +1,14 @@
+-------------------------------------------------------------------------------
+Test set: com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 2, Skipped: 0, Time elapsed: 0.194 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest
+com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.readsSupplierManufacturerNameFromInvoiceNode -- Time elapsed: 0.027 s <<< ERROR!
+java.lang.IllegalArgumentException: Resource not found: data/ipt-declaration-test-case-1.json
+	at com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.loadFirstDeclaration(IptDeclarationInvoiceJsonMappingTest.java:56)
+	at com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.readsSupplierManufacturerNameFromInvoiceNode(IptDeclarationInvoiceJsonMappingTest.java:19)
+
+com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.readsCascCodeOneFromBatchItem -- Time elapsed: 0.004 s <<< ERROR!
+java.lang.IllegalArgumentException: Resource not found: data/ipt-declaration-batch-test-case.json
+	at com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.loadFirstDeclaration(IptDeclarationInvoiceJsonMappingTest.java:56)
+	at com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.readsCascCodeOneFromBatchItem(IptDeclarationInvoiceJsonMappingTest.java:33)
+

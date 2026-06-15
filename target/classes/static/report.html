@@ -917,6 +917,17 @@
         return `<a class="chip" href="${escapeHtml(href)}" target="_blank">${escapeHtml(label)}: ${escapeHtml(fileName)}</a>`;
     }
 
+    function shouldDisplayPmtNumber(jobStatus, pmtNumber, declarationNumber) {
+        const normalizedStatus = String(jobStatus || '').trim().toUpperCase();
+        const normalizedPmtNumber = String(pmtNumber || '').trim().toUpperCase();
+        const normalizedDeclarationNumber = String(declarationNumber || '').trim().toUpperCase();
+        return normalizedStatus === 'PMT'
+            && normalizedPmtNumber
+            && normalizedPmtNumber !== 'N/A'
+            && normalizedPmtNumber !== normalizedDeclarationNumber
+            && !/^TDX\d+$/.test(normalizedPmtNumber);
+    }
+
     function batchCaseMatchesRequestedPrefix(batchCase) {
         if (!requestedReportPrefix) {
             return true;
@@ -1158,6 +1169,9 @@
         const errorMessage = batchCase.errorMessage || 'N/A';
         const declarationType = batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-';
         const pmtNumber = batchCase.pmtNumber || 'N/A';
+        const pmtNumberRow = shouldDisplayPmtNumber(batchCase.jobStatus, batchCase.pmtNumber, batchCase.declarationNumber)
+            ? `<div class="info-row"><span>PMT Number</span><span>${escapeHtml(pmtNumber)}</span></div>`
+            : '';
         const detailsOpen = expanded ? 'open' : '';
 
         return `
@@ -1192,7 +1206,7 @@
                             <div class="info-title">Status Details</div>
                             <div class="info-list">
                                 <div class="info-row"><span>Final Job Status</span><span>${escapeHtml(batchCase.jobStatus || '-')}</span></div>
-                                <div class="info-row"><span>PMT Number</span><span>${escapeHtml(pmtNumber)}</span></div>
+                                ${pmtNumberRow}
                                 <div class="info-row"><span>Report Status</span><span>${escapeHtml(batchCase.status || '-')}</span></div>
                                 <div class="info-row"><span>Invalid Fields</span><span>${escapeHtml(batchCase.invalidCount ?? 0)}</span></div>
                             </div>

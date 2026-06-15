@@ -1,0 +1,668 @@
+[
+
+    {
+    "type": "IPTDEC",
+    
+        "header": {
+            "messageReference": "TDX2606120133",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1134"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "10",
+            "declarationIndicator": true,
+            "remarks": {
+                "freeText": "ADATA SET1"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "KR",
+                            "processingCodeTwo": "TESTAEO2002"
+                        }
+                    ]
+                }
+            ]
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "7896YTU",
+                        "transportIdentifier": "8756KJHVB"
+                    },
+                    "mawboucroblNumber": "7865"
+                },
+                "arrivalDate": "20260418",
+                "loadingPort": "HKHKG"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHGI "
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "SET1",
+                "invoiceDate": "20260410",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "854",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "854",
+                    "gstAmountSgd": "76.86"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "854",
+            "sumOfItemAmount": "854",
+            "totalInvoiceCifValue": "854",
+            "totalCifFobValue": "854",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BOX"
+            },
+            "totalGrossWeight": {
+                "value": "29",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "76.86",
+                "totalAmountPayable": "76.86"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": true,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "42050010",
+                "goodsDescription": "BOOT LACES & MATS OF LEATHER OR COMPOSITION LEATHER (TEN)",
+                "originCountry": "HK",
+                "brandName": "UNBRANDED",
+                "modelDescription": "1996",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "HAWB1234",
+                "itemInvoiceNumber": "SET1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "100",
+                        "unitCode": "TEN"
+                    },
+                    "hsQuantity": {
+                        "value": "100",
+                        "unitCode": "TEN"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "854",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "854",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "854",
+                    "itemCifFobValueSgd": "854"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "76.86"
+                    }
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "TEST"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "IPT"
+    },
+    {
+    "type": "IPTDEC",
+
+        "header": {
+            "messageReference": "TDX2606120115",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1116"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "10",
+            "declarationIndicator": true,
+            "previousPermitNumber": "IM6D164000E"
+        },
+        "cargo": {
+            "cargoPackingType": "9",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": true,
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "TRIU6719798",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "1",
+                    "transportEquipmentSeal": {
+                        "sealID": "KSC547522"
+                    }
+                }
+            ]
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "2513S",
+                        "transportIdentifier": "KMTC SHIMIZU"
+                    },
+                    "mawboucroblNumber": "KMTCPUSJ548945"
+                },
+                "arrivalDate": "20260626",
+                "loadingPort": "THBKK"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198402847H"
+                },
+                "partyName": {
+                    "name": "BAYSWATER "
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA "
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD "
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "-",
+                "invoiceDate": "20260424",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "15693.11",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "15693.11",
+                    "gstAmountSgd": "1412.38"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "15693.11",
+            "sumOfItemAmount": "15693.11",
+            "totalInvoiceCifValue": "15693.11",
+            "totalCifFobValue": "15693.11",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BUN"
+            },
+            "totalGrossWeight": {
+                "value": "0.99",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "1412.38",
+                "totalAmountPayable": "1412.38"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": true,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "95067000",
+                "goodsDescription": "ICE SKATES ROLLER SKATES INCL SKATING BOOTS WITH SKATES ATTACHED (TPR)",
+                "originCountry": "ID",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "INH123456",
+                "itemInvoiceNumber": "-",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    },
+                    "hsQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "15693.11",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "15693.11",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "15693.11",
+                    "itemCifFobValueSgd": "15693.11"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "1412.38"
+                    }
+                }
+            }
+        ],
+        "type": "IPT"
+    },
+    {
+    "type": "IPTDEC",
+    
+        "header": {
+            "messageReference": "TDX2606120114",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1115"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "12",
+            "declarationIndicator": true
+        },
+        "licence": [
+            {
+                "referenceID": "IP03L1886"
+            }
+        ],
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "THQ",
+                "locationName": "TUAS HQ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "supplyIndicator": true,
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "arrivalDate": "20260626",
+                "loadingPort": "MYJHB"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198700002E"
+                },
+                "partyName": {
+                    "name": "FORESPAND FOOD ENTER PRISE PTE LTD"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "001",
+                "invoiceDate": "20260520",
+                "supplierManufacturerParty": {
+                    "name": "NAME"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "10000",
+                        "currencyID": "USD"
+                    },
+                    "exchangeRate": "1.3553"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "13553",
+                    "gstAmountSgd": "1219.77"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "10000",
+            "sumOfItemAmount": "10000",
+            "totalInvoiceCifValue": "13553",
+            "totalCifFobValue": "13553",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "LTR"
+            },
+            "totalGrossWeight": {
+                "value": "1",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "1220.4",
+                "totalExciseDutyAmount": "7.04",
+                "totalAmountPayable": "1227.44"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": true,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                true
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "22042111",
+                "goodsDescription": "WINE OF FRESH GRAPES OF ALCOHOLIC STRENGTH NOT EXCEEDING 15% VOL IN CONTAINERS OF 2L OR LESS (LTR)",
+                "originCountry": "AU",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "INHAWB22042111",
+                "itemInvoiceNumber": "001",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "dutiableQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "hsQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    },
+                    "alcoholPercent": "8"
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "13553",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "10000",
+                            "currencyID": "USD"
+                        },
+                        "exchangeRate": "1.3553"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "13553",
+                    "itemCifFobValueSgd": "13553"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "1220.4"
+                    },
+                    "exciseDuty": {
+                        "dutyRate": "88",
+                        "dutyRateUnit": "LPA",
+                        "dutyAmount": "7.04"
+                    }
+                },
+                "packingDescription": {
+                    "outerPackQuantity": {
+                        "value": "1",
+                        "unitCode": "LTR"
+                    }
+                },
+                "cascProduct": [
+                    {
+                        "cascProductCode": "ZBP0BA0QVDG",
+                        "cascProductQuantity": {
+                            "value": "1",
+                            "unitCode": "LTR"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "AU99999"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "IPT"
+    }
+
+
+
+
+]

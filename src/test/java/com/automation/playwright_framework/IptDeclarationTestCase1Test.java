@@ -241,6 +241,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Path diagnosticsPath,
             JsonNode declaration,
             DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference,
             DeclarationsPage.DeclarationResponseDetails responseDetails) {
         try {
             JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
@@ -249,7 +250,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     : OBJECT_MAPPER.createObjectNode();
             String jobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
             String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
-            String declarationNumber = declarationListEntry != null ? declarationListEntry.declarationNumber() : null;
+            String declarationNumber = firstNonBlank(
+                    declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                    fallbackMessageReference);
             String pmtNumber = firstNonBlank(
                     declarationListEntry != null ? declarationListEntry.permitNumber() : null,
                     responseDetails != null ? responseDetails.permitNumber() : null);
@@ -258,6 +261,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     USER_USERNAME);
             String declarationType = resolveDeclarationType(declaration);
             String permitType = firstNonBlank(SELECTED_PERMIT_TYPE, declaration.path("permitType").asText(null));
+            Boolean supplyIndicator = resolveSupplyIndicator(root, declaration);
             String resolvedJobStatus = firstNonBlank(jobStatus, inferStatusFromDiagnostics(root));
             String toastText = firstNonBlank(root.path("toastText").asText(null));
             String capturedResponseMessage = firstNonBlank(root.path("responseMessage").asText(null));
@@ -304,6 +308,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             if (jobCreatedBy != null && !jobCreatedBy.isBlank()) {
                 root.put("jobCreatedBy", jobCreatedBy);
             }
+            if (supplyIndicator != null) {
+                root.put("supplyIndicator", supplyIndicator);
+            }
             if (pmtNumber != null && !pmtNumber.isBlank()) {
                 root.put("pmtNumber", pmtNumber);
             }
@@ -345,6 +352,33 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             return "SUB";
         }
         return "N/A";
+    }
+
+    private Boolean resolveSupplyIndicator(JsonNode diagnosticsRoot, JsonNode declaration) {
+        Boolean diagnosticsValue = asBooleanFlag(diagnosticsRoot != null ? diagnosticsRoot.path("supplyIndicator") : null);
+        if (diagnosticsValue != null) {
+            return diagnosticsValue;
+        }
+        return asBooleanFlag(declaration.path("cargo").path("supplyIndicator"));
+    }
+
+    private Boolean asBooleanFlag(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        if (node.isBoolean()) {
+            return node.booleanValue();
+        }
+        if (node.isTextual()) {
+            String value = node.asText("").trim();
+            if ("true".equalsIgnoreCase(value)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(value)) {
+                return false;
+            }
+        }
+        return null;
     }
 
     private boolean isGenericSubmitMessage(String value) {
@@ -420,6 +454,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     fallbackMessageReference,
                     declaration.path("header").path("messageReference").asText(null));
             String jobCreatedBy = firstNonBlank(USER_USERNAME);
+            Boolean supplyIndicator = resolveSupplyIndicator(root, declaration);
             root.put("jobStatus", "DRF");
             if (declarationType != null && !declarationType.isBlank()) {
                 root.put("declarationType", declarationType);
@@ -429,6 +464,9 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             }
             if (jobCreatedBy != null && !jobCreatedBy.isBlank()) {
                 root.put("jobCreatedBy", jobCreatedBy);
+            }
+            if (supplyIndicator != null) {
+                root.put("supplyIndicator", supplyIndicator);
             }
             root.put("responseMessage", "Declaration draft prepared successfully.");
             root.put("errorMessage", "N/A");
@@ -470,9 +508,13 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Path statusScreenshotPath) {
         DeclarationsPage.DeclarationListEntry declarationListEntry = submittedEntry;
         try {
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
+            declarationListEntry = refreshTrackedDeclarationEntry(
+                    declarationsPage,
+                    declarationListEntry,
+                    messageReference);
             if (!isTerminalJobStatus(declarationsPage, declarationListEntry)
                     && !hasTerminalDiagnosticStatus(diagnosticsPath)) {
-                openDeclarationListWithRelogin(loginPage, declarationsPage);
                 declarationListEntry = declarationsPage.waitForDeclarationCompletion(
                         firstNonBlank(
                                 declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
@@ -483,13 +525,23 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             if (declarationListEntry == null) {
                 declarationListEntry = submittedEntry;
             }
+            declarationListEntry = resolveDeclarationWithPermitNumber(
+                    loginPage,
+                    declarationsPage,
+                    declarationListEntry,
+                    messageReference);
             DeclarationsPage.DeclarationResponseDetails responseDetails = readTerminalResponseDetails(
                     loginPage,
                     declarationsPage,
                     declarationListEntry,
                     messageReference);
             captureStepScreenshot(statusScreenshotPath);
-            writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry, responseDetails);
+            writeDeclarationOutcomeToDiagnostics(
+                    diagnosticsPath,
+                    declaration,
+                    declarationListEntry,
+                    messageReference,
+                    responseDetails);
             return declarationListEntry;
         } finally {
             StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
@@ -504,6 +556,87 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private DeclarationsPage.DeclarationListEntry refreshTrackedDeclarationEntry(
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry currentEntry,
+            String fallbackMessageReference) {
+        DeclarationsPage.DeclarationListEntry refreshedByReference = readSubmittedDeclarationEntry(
+                declarationsPage,
+                firstNonBlank(
+                        currentEntry != null ? currentEntry.declarationNumber() : null,
+                        fallbackMessageReference));
+        if (hasTrackingDetails(refreshedByReference)) {
+            return refreshedByReference;
+        }
+
+        DeclarationsPage.DeclarationListEntry latestEntry = declarationsPage.readLatestDeclarationListEntry();
+        if (hasTrackingDetails(latestEntry)) {
+            return latestEntry;
+        }
+
+        return currentEntry;
+    }
+
+    private boolean hasTrackingDetails(DeclarationsPage.DeclarationListEntry entry) {
+        return entry != null
+                && firstNonBlank(
+                entry.jobId(),
+                entry.declarationNumber(),
+                entry.jobStatus(),
+                entry.jobCreatedBy()) != null;
+    }
+
+    private DeclarationsPage.DeclarationListEntry resolveDeclarationWithPermitNumber(
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference) {
+        DeclarationsPage.DeclarationListEntry currentEntry = declarationListEntry;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            if (!isPermitNumberPending(currentEntry)) {
+                return currentEntry;
+            }
+
+            DeclarationsPage.DeclarationResponseDetails responseDetails = readTerminalResponseDetails(
+                    loginPage,
+                    declarationsPage,
+                    currentEntry,
+                    fallbackMessageReference);
+            String pmtNumber = firstNonBlank(
+                    currentEntry != null ? currentEntry.permitNumber() : null,
+                    responseDetails != null ? responseDetails.permitNumber() : null);
+            if (pmtNumber != null) {
+                return withPermitNumber(currentEntry, fallbackMessageReference, pmtNumber);
+            }
+
+            page.waitForTimeout(1500);
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
+            currentEntry = readSubmittedDeclarationEntry(
+                    declarationsPage,
+                    firstNonBlank(
+                            currentEntry != null ? currentEntry.declarationNumber() : null,
+                            fallbackMessageReference));
+        }
+        return currentEntry;
+    }
+
+    private DeclarationsPage.DeclarationListEntry withPermitNumber(
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference,
+            String pmtNumber) {
+        if (pmtNumber == null || pmtNumber.isBlank()) {
+            return declarationListEntry;
+        }
+        return new DeclarationsPage.DeclarationListEntry(
+                declarationListEntry != null ? declarationListEntry.jobId() : null,
+                declarationListEntry != null ? declarationListEntry.jobStatus() : "PMT",
+                firstNonBlank(
+                        declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                        fallbackMessageReference),
+                declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
+                pmtNumber);
     }
 
     private boolean isTerminalJobStatus(

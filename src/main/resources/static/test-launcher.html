@@ -937,7 +937,7 @@
                             <div class="metric-label">Permit / Input Mode</div>
                             <div class="metric-value" id="statusPermit">JSON Driven</div>
                         </div>
-                        <div class="metric-tile">
+                        <div class="metric-tile" id="statusPmtNumberTile">
                             <div class="metric-label">PMT Number</div>
                             <div class="metric-value" id="statusPmtNumber">N/A</div>
                         </div>
@@ -1688,6 +1688,17 @@
         ].join('|');
     }
 
+    function shouldDisplayPmtNumber(jobStatus, pmtNumber, messageRef) {
+        const normalizedStatus = String(jobStatus || '').trim().toUpperCase();
+        const normalizedPmtNumber = String(pmtNumber || '').trim().toUpperCase();
+        const normalizedMessageRef = String(messageRef || '').trim().toUpperCase();
+        return normalizedStatus === 'PMT'
+            && normalizedPmtNumber
+            && normalizedPmtNumber !== 'N/A'
+            && normalizedPmtNumber !== normalizedMessageRef
+            && !/^TDX\d+$/.test(normalizedPmtNumber);
+    }
+
     function maybeOpenReport(data) {
         if (!hasObservedActiveRun || !isTerminalReportState(data)) {
             return;
@@ -1789,6 +1800,7 @@
         const backend = document.getElementById('statusBackend');
         const messageRefNode = document.getElementById('statusMessageRef');
         const permitNode = document.getElementById('statusPermit');
+        const pmtNumberTile = document.getElementById('statusPmtNumberTile');
         const pmtNumberNode = document.getElementById('statusPmtNumber');
         const jobIdNode = document.getElementById('statusJobId');
 
@@ -1800,6 +1812,7 @@
         const messageRef = String(data.messageRef || '').trim();
         const permitType = String(data.permitType || '').trim();
         const pmtNumber = String(data.pmtNumber || '').trim();
+        const showPmtNumber = shouldDisplayPmtNumber(jobStatus, pmtNumber, messageRef);
 
         const finalStatusBadgeKeys = ['PMT', 'FLD', 'REG', 'REJ', 'DRF'];
         const badgeKey = finalStatusBadgeKeys.includes(jobStatus) ? jobStatus : normalizedState;
@@ -1815,6 +1828,7 @@
             messageRefNode.textContent = '-';
             permitNode.textContent = 'JSON Driven';
             pmtNumberNode.textContent = 'N/A';
+            pmtNumberTile.hidden = true;
             jobIdNode.textContent = 'Pending';
             renderTimeline('IDLE', '');
             return;
@@ -1850,7 +1864,8 @@
         backend.textContent = jobStatus || stateLabel;
         messageRefNode.textContent = messageRef || '-';
         permitNode.textContent = permitType || 'Repository / Manual JSON';
-        pmtNumberNode.textContent = pmtNumber || 'N/A';
+        pmtNumberNode.textContent = showPmtNumber ? pmtNumber : 'N/A';
+        pmtNumberTile.hidden = !showPmtNumber;
         jobIdNode.textContent = jobId || (normalizedState === 'PENDING' ? 'Allocating...' : 'Pending');
 
         if (!jobId && normalizedState === 'FAILED') {
