@@ -5,6 +5,7 @@ import com.automation.DeclarationsPage;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeclarationsPageResponseDetailsTest extends BaseTest {
@@ -64,5 +65,27 @@ class DeclarationsPageResponseDetailsTest extends BaseTest {
         DeclarationsPage.DeclarationResponseDetails details = declarationsPage.readCurrentResponseDetails();
 
         assertEquals("OD6F274299A", details.permitNumber());
+    }
+
+    @Test
+    void doesNotTreatMessageReferenceAsPermitNumber() {
+        page.setContent("""
+                <html>
+                <body>
+                  <div>View Mode — all fields are read-only.</div>
+                  <button id="response-tab" type="button">Response</button>
+                  <section>
+                    <h2>Response Details</h2>
+                    <div>Declaration completed.</div>
+                    <div>Message Ref: TDX2606150066</div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        DeclarationsPage declarationsPage = new DeclarationsPage(page);
+        DeclarationsPage.DeclarationResponseDetails details = declarationsPage.readCurrentResponseDetails();
+
+        assertNull(details.permitNumber());
     }
 }

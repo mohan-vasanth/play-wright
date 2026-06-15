@@ -1,0 +1,279 @@
+{
+    "type": "OUTDEC",
+    
+        "type": "OUT",
+        "header": {
+            "messageReference": "TDX2606150065",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260615",
+                "sequenceNumeric": "1056"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "OUTDEC",
+            "declarationType": "40",
+            "declarationIndicator": true,
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "STS",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "STS1"
+                        }
+                    ]
+                }
+            ]
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "receiptLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            }
+        },
+        "transport": {
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "SQ0001"
+                    },
+                    "mawboucroblNumber": "61812345678"
+                },
+                "departureDate": "20260525",
+                "dischargePort": "NPKTM",
+                "finalDestinationCountry": "NP"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "exporterParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198402847H"
+                    },
+                    "partyName": {
+                        "name": "BAYSWATER SHIPPING & FORWARDING PTE LTD"
+                    }
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "1231DSVER",
+                            "SINGAPORE"
+                        ]
+                    },
+                    "cityName": "FEFER",
+                    "countryCode": "SG"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "AK INFRA STRCUTURE PVT LTD"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "TAMILNADU",
+                            "CHENNAI"
+                        ]
+                    },
+                    "cityName": "TIRUCHIRAPPALLI",
+                    "postalZone": "620009",
+                    "countryCode": "NP"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            },
+            "endUserParty": {
+                "partyName": {
+                    "name": "ADD1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD2"
+                        ]
+                    },
+                    "postalZone": "623008",
+                    "countryCode": "NP"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "unitPriceTermType": "FOB",
+                "supplierManufacturerParty": {
+                    "adValoremIndicator": false,
+                    "preferentialDutyRateIndicator": false
+                },
+                "freightCharge": {
+                    "includeOtherTaxableCharge": false
+                },
+                "insuranceCharge": {
+                    "amount": {
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1",
+                    "chargePercent": "1",
+                    "includeOtherTaxableCharge": false
+                },
+                "gst": 9
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "totalInvoiceCifValue": "0.00",
+            "totalCifFobValue": "20000.00",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "NMB"
+            },
+            "totalGrossWeight": {
+                "value": "3.1",
+                "unitCode": "KGM"
+            }
+        },
+        "formMetaData": {
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "additionalRecipientIdIsActive": false,
+            "transportEquipmentIsActive": false,
+            "certificateIsActive": false,
+            "declarationIndicator": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": true,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "unitPrices": [
+                "0"
+            ],
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "itemCoIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "85176243",
+                "goodsDescription": "CONTROL & ADAPTOR UNITS INCL GATEWAYS BRIDGES ROUTERS & SIMILAR APPARATUS ONLY FOR CONNECTION WITH AUTOMATIC DATA PROCESSING MACHINES OF HEADING 8471 (NMB)",
+                "originCountry": "CN",
+                "brandName": "CISCO",
+                "modelDescription": "112233",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "QAWSED123",
+                "outHawbHucrHblNumber": "QWEDRFT321",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1",
+                        "unitCode": "NMB"
+                    },
+                    "hsQuantity": {
+                        "value": "1",
+                        "unitCode": "NMB"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "20000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "20000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemCifFobValueSgd": "20000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxAmount": "0"
+                    }
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "NA"
+                        ]
+                    }
+                ],
+                "cascProduct": [
+                    {
+                        "cascProductCode": "DL5A002",
+                        "cascProductQuantity": {
+                            "value": "1.0000",
+                            "unitCode": "NMB"
+                        },
+                        "endUseDescription": {
+                            "endUseLine": "TESTING"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "NMU",
+                                "cascCodeTwo": "NGU",
+                                "cascCodeThree": "NMD"
+                            }
+                        ]
+                    },
+                    {
+                        "cascProductCode": "MISC",
+                        "cascProductQuantity": {
+                            "value": "1.0000",
+                            "unitCode": "NMB"
+                        },
+                        "endUseDescription": {
+                            "endUseLine": "TESTING"
+                        }
+                    }
+                ]
+            }
+        ]
+    }

@@ -499,7 +499,10 @@ public class TestReportController {
                 valDiag.declarationNumber(),
                 failDiag.declarationNumber(),
                 batchMetaInfo != null ? batchMetaInfo.messageReference() : null);
-        String pmtNumber    = firstNonBlank(valDiag.pmtNumber(), failDiag.pmtNumber());
+        String pmtNumber    = sanitizePmtNumber(
+                firstNonBlank(valDiag.pmtNumber(), failDiag.pmtNumber()),
+                declNum,
+                jobStatus);
         String createdBy    = firstNonBlank(valDiag.jobCreatedBy(), failDiag.jobCreatedBy());
         String responseMsg  = firstNonBlank(valDiag.responseMessage(), failDiag.responseMessage());
         String errorMsg     = firstNonBlank(valDiag.errorMessage(), failDiag.errorMessage());
@@ -590,6 +593,7 @@ public class TestReportController {
                     parseResponseField(rawResponseData, "permitNumber"),
                     parseResponseField(rawResponseData, "permitNo"),
                     parseResponseField(rawResponseData, "permitNum"));
+            pmtNumber = sanitizePmtNumber(pmtNumber, declarationNumber, jobStatus);
             String jobCreatedBy = firstNonBlank(
                     blankToNull(root.path("jobCreatedBy").asText(null)),
                     parseSummaryField(responseSummary, "Job Created By"));
@@ -698,6 +702,23 @@ public class TestReportController {
         }
 
         return null;
+    }
+
+    private String sanitizePmtNumber(String pmtNumber, String declarationNumber, String jobStatus) {
+        String normalizedJobStatus = normalizeJobStatus(jobStatus);
+        String normalizedPmtNumber = normalizePlaceholder(pmtNumber);
+        if (!"PMT".equals(normalizedJobStatus) || normalizedPmtNumber == null) {
+            return null;
+        }
+
+        String normalizedDeclarationNumber = normalizePlaceholder(declarationNumber);
+        if (normalizedDeclarationNumber != null && normalizedDeclarationNumber.equalsIgnoreCase(normalizedPmtNumber)) {
+            return null;
+        }
+        if (normalizedPmtNumber.matches("(?i)^TDX\\d+$")) {
+            return null;
+        }
+        return normalizedPmtNumber;
     }
 
     private TestCaseResult parseTestCase(Element testCase) {

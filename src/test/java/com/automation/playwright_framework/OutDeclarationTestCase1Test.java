@@ -456,6 +456,11 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             if (declarationListEntry == null) {
                 declarationListEntry = submittedEntry;
             }
+            declarationListEntry = resolveDeclarationWithPermitNumber(
+                    loginPage,
+                    declarationsPage,
+                    declarationListEntry,
+                    messageReference);
             DeclarationsPage.DeclarationResponseDetails responseDetails = readTerminalResponseDetails(
                     loginPage,
                     declarationsPage,
@@ -512,6 +517,53 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private DeclarationsPage.DeclarationListEntry resolveDeclarationWithPermitNumber(
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference) {
+        DeclarationsPage.DeclarationListEntry currentEntry = declarationListEntry;
+        for (int attempt = 0; attempt < 4; attempt++) {
+            if (!isPermitNumberPending(currentEntry)) {
+                return currentEntry;
+            }
+
+            DeclarationsPage.DeclarationResponseDetails responseDetails = readTerminalResponseDetails(
+                    loginPage,
+                    declarationsPage,
+                    currentEntry,
+                    fallbackMessageReference);
+            String pmtNumber = firstNonBlank(
+                    currentEntry != null ? currentEntry.permitNumber() : null,
+                    responseDetails != null ? responseDetails.permitNumber() : null);
+            if (pmtNumber != null) {
+                return withPermitNumber(currentEntry, fallbackMessageReference, pmtNumber);
+            }
+
+            page.waitForTimeout(1500);
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
+            currentEntry = refreshTrackedDeclarationEntry(declarationsPage, currentEntry, fallbackMessageReference);
+        }
+        return currentEntry;
+    }
+
+    private DeclarationsPage.DeclarationListEntry withPermitNumber(
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference,
+            String pmtNumber) {
+        if (pmtNumber == null || pmtNumber.isBlank()) {
+            return declarationListEntry;
+        }
+        return new DeclarationsPage.DeclarationListEntry(
+                declarationListEntry != null ? declarationListEntry.jobId() : null,
+                declarationListEntry != null ? declarationListEntry.jobStatus() : "PMT",
+                firstNonBlank(
+                        declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                        fallbackMessageReference),
+                declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
+                pmtNumber);
     }
 
     private boolean isTerminalJobStatus(

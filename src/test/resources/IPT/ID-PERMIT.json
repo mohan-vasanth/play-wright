@@ -2,11 +2,11 @@
     "type": "IPTDEC",
     
         "header": {
-            "messageReference": "TDX2606120114",
+            "messageReference": "TDX2606150095",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260612",
-                "sequenceNumeric": "1115"
+                "date": "20260615",
+                "sequenceNumeric": "1086"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "IPTDEC",

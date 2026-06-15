@@ -599,6 +599,32 @@ public class DeclarationsPage {
                         return null;
                     };
 
+                    const normalizePermitCandidate = value => {
+                        const normalized = normalize(value);
+                        if (!normalized || normalized === '-' || normalized === '--' || /^TDX\\d+$/i.test(normalized)) {
+                            return null;
+                        }
+                        return normalized;
+                    };
+
+                    const parsePermitNumberFromText = rawText => {
+                        const normalized = normalize(rawText);
+                        if (!normalized) {
+                            return null;
+                        }
+                        const labeledMatch = normalized.match(/(?:PMT NUMBER|PMT NO\\.?|PERMIT NUMBER|PERMIT NO\\.?)[\\s:]+([A-Z0-9-]+)/i);
+                        const labeledPermitNumber = labeledMatch ? normalizePermitCandidate(labeledMatch[1]) : null;
+                        if (labeledPermitNumber) {
+                            return labeledPermitNumber;
+                        }
+                        const genericMatch = normalized.match(/\\b([A-Z]{1,4}\\d[A-Z0-9-]{5,})\\b/i);
+                        const genericPermitNumber = genericMatch ? normalizePermitCandidate(genericMatch[1]) : null;
+                        if (genericPermitNumber) {
+                            return genericPermitNumber;
+                        }
+                        return null;
+                    };
+
                     const pagePermitNumber = (() => {
                         const permitLabels = ['PMT NUMBER', 'PMT NO', 'PMT NO.', 'PERMIT NUMBER', 'PERMIT NO', 'PERMIT NO.'];
                         for (const element of Array.from(document.querySelectorAll('label, dt, th, td, div, span, p, strong'))) {
@@ -611,19 +637,20 @@ public class DeclarationsPage {
                             }
                             const nextText = normalize(element.nextElementSibling?.innerText || element.nextElementSibling?.textContent || '');
                             if (nextText && nextText !== '-' && nextText !== '--') {
-                                return nextText;
+                                return normalizePermitCandidate(parsePermitNumberFromText(nextText) || nextText);
                             }
                             const parentText = normalize(element.parentElement?.innerText || element.parentElement?.textContent || '');
-                            const match = parentText.match(/(?:PMT NUMBER|PMT NO\\.?|PERMIT NUMBER|PERMIT NO\\.?)[\\s:]+([A-Z0-9-]+)/i);
-                            if (match && normalize(match[1])) {
-                                return normalize(match[1]);
+                            const parsedParentPermitNumber = parsePermitNumberFromText(parentText);
+                            if (parsedParentPermitNumber) {
+                                return parsedParentPermitNumber;
                             }
                         }
-                        return null;
+                        return parsePermitNumberFromText(pageTexts.join(' '));
                     })();
 
                     const rawJsonMessage = parseJsonMessage(rawResponseText);
-                    const rawJsonPermitNumber = parseJsonPermitNumber(rawResponseText);
+                    const rawJsonPermitNumber = parseJsonPermitNumber(rawResponseText)
+                        || parsePermitNumberFromText(rawResponseText);
                     const responseMessage = rawJsonMessage || detailText || bannerText || null;
                     const errorMessage = detailText || rawJsonMessage || bannerText || null;
 
@@ -664,9 +691,7 @@ public class DeclarationsPage {
                 if (matchesTrackedDeclaration(currentEntry, messageReference, expectedJobId)) {
                     latestMatchingEntry = currentEntry;
                     if (isTerminalJobStatus(currentEntry.jobStatus())) {
-                        if (!isPermitNumberPending(currentEntry)) {
-                            return currentEntry;
-                        }
+                        return currentEntry;
                     }
                 }
 

@@ -340,10 +340,16 @@ public class TestLauncherController {
         return switch (normalizedJobStatus) {
             case "SUB" -> "PENDING";
             case "SNT" -> "IN_PROGRESS";
-            case "PMT" -> "SUCCESS";
+            case "PMT" -> hasPmtNumber(pmtNumber) ? "SUCCESS" : "IN_PROGRESS";
             case "DRF", "REG", "FLD", "REJ" -> "FAILED";
             default -> null;
         };
+    }
+
+    private boolean hasPmtNumber(String pmtNumber) {
+        return pmtNumber != null
+                && !pmtNumber.isBlank()
+                && !"N/A".equalsIgnoreCase(pmtNumber.trim());
     }
 
     private boolean isTerminalSnapshot(String jobStatus, String pmtNumber) {

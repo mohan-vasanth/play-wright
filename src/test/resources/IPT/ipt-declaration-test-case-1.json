@@ -29,7 +29,7 @@
                 "locationCode": "O",
                 "locationName": "OTHERS"
             },
-            "supplyIndicator": "true",
+            "supplyIndicator": true,
             "transportEquipmentIsActive": false
         },
         "transport": {
