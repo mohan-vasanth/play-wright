@@ -4,10 +4,10 @@
   "errorMessage" : "N/A",
   "notificationMessages" : [ ],
   "invalidElements" : [ ],
-  "jobId" : "5296",
+  "jobId" : "5326",
   "jobStatus" : "PMT",
   "declarationType" : "COO",
-  "declarationNumber" : "TDX2606120165",
+  "declarationNumber" : "TDX2606150014",
   "jobCreatedBy" : "mohan",
-  "responseSummary" : "Job ID: 5296\r\n\r\nMessage Ref: TDX2606120165\r\n\r\nDeclaration Type: COO\r\n\r\nStatus: PMT\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
+  "responseSummary" : "Job ID: 5326\r\n\r\nMessage Ref: TDX2606150014\r\n\r\nDeclaration Type: COO\r\n\r\nStatus: PMT\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A"
 }

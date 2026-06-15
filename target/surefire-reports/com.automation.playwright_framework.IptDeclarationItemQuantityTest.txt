@@ -1,0 +1,9 @@
+-------------------------------------------------------------------------------
+Test set: com.automation.playwright_framework.IptDeclarationItemQuantityTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.203 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationItemQuantityTest
+com.automation.playwright_framework.IptDeclarationItemQuantityTest.detectsOtherQtyFieldsWhenDutiableQuantitiesExist -- Time elapsed: 0.030 s <<< ERROR!
+java.lang.IllegalArgumentException: Resource not found: data/out-declaration-batch-test-case.json
+	at com.automation.playwright_framework.IptDeclarationItemQuantityTest.loadFirstItem(IptDeclarationItemQuantityTest.java:49)
+	at com.automation.playwright_framework.IptDeclarationItemQuantityTest.detectsOtherQtyFieldsWhenDutiableQuantitiesExist(IptDeclarationItemQuantityTest.java:22)
+

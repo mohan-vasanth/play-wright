@@ -3,11 +3,11 @@
     
         "type": "OUT",
         "header": {
-            "messageReference": "TDX2606120123",
+            "messageReference": "TDX2606150028",
             "uniqueReferenceNumber": {
                 "id": "202535359H",
-                "date": "20260612",
-                "sequenceNumeric": "1124"
+                "date": "20260615",
+                "sequenceNumeric": "1027"
             },
             "declarantId": "ADAT.ADAT001",
             "commonAccessReference": "OUTDEC",
@@ -47,7 +47,7 @@
                     },
                     "mawboucroblNumber": "FGT555"
                 },
-                "departureDate": "20260619",
+                "departureDate": "20260617",
                 "dischargePort": "IDJKT",
                 "finalDestinationCountry": "ID",
                 "additionalVesselInformation": {
@@ -195,7 +195,7 @@
                 false
             ],
             "itemPackingIsActive": [
-                false
+                true
             ],
             "tariffLotIdentificationIsActive": [
                 true
@@ -226,8 +226,8 @@
                         "unitCode": "NMB"
                     },
                     "dutiableQuantity": {
-                        "value": "11",
-                        "unitCode": "BAG"
+                        "value": "80",
+                        "unitCode": "NMB"
                     },
                     "hsQuantity": {
                         "value": "80",

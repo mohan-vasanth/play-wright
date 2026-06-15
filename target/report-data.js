@@ -1,0 +1,43 @@
+window.__REPORT_DATA__ = {
+  "status" : "SUCCESS",
+  "suiteName" : null,
+  "sourceFile" : null,
+  "tests" : 0,
+  "failures" : 0,
+  "errors" : 0,
+  "skipped" : 0,
+  "durationSeconds" : null,
+  "updatedAt" : "2026-06-15T09:49:52.539Z",
+  "primaryIssue" : "1 of 1 declarations passed.",
+  "testCases" : [ ],
+  "batchSummary" : {
+    "total" : 1,
+    "successes" : 1,
+    "issues" : 0,
+    "failures" : 0,
+    "drafts" : 0
+  },
+  "batchCases" : [ {
+    "index" : 1,
+    "status" : "SUCCESS",
+    "message" : "Declaration submitted successfully.",
+    "declarationTypeCode" : "40",
+    "declarationTypeDisplay" : "40 - DRT",
+    "jobStatus" : "PMT",
+    "jobId" : "5370",
+    "declarationNumber" : "TDX2606150059",
+    "pmtNumber" : null,
+    "jobCreatedBy" : "mohan",
+    "responseMessage" : "Declaration submitted successfully.",
+    "errorMessage" : "Declaration submitted successfully.",
+    "responseSummary" : "Job ID: 5370\r\n\r\nMessage Ref: TDX2606150059\r\n\r\nDeclaration Type: 40\r\n\r\nStatus: PMT\r\n\r\nPMT Number: N/A\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A",
+    "toastText" : null,
+    "invalidCount" : 0,
+    "diagnosticsText" : "{\r\n  \"toastText\" : \"\",\r\n  \"responseMessage\" : \"Declaration submitted successfully.\",\r\n  \"errorMessage\" : \"N/A\",\r\n  \"notificationMessages\" : [ ],\r\n  \"invalidElements\" : [ ],\r\n  \"jobId\" : \"5370\",\r\n  \"jobStatus\" : \"PMT\",\r\n  \"declarationType\" : \"40\",\r\n  \"declarationNumber\" : \"TDX2606150059\",\r\n  \"jobCreatedBy\" : \"mohan\",\r\n  \"responseSummary\" : \"Job ID: 5370\\r\\n\\r\\nMessage Ref: TDX2606150059\\r\\n\\r\\nDeclaration Type: 40\\r\\n\\r\\nStatus: PMT\\r\\n\\r\\nPMT Number: N/A\\r\\n\\r\\nJob Created By: mohan\\r\\n\\r\\nResponse Message: Declaration submitted successfully.\\r\\n\\r\\nError Message: N/A\"\r\n}",
+    "diagnosticsFile" : "out-batch-submit-validation-1.json",
+    "screenshotFile" : "out-batch-submit-1.png",
+    "statusScreenshotFile" : null,
+    "updatedAt" : "2026-06-15T09:49:52.539Z",
+    "updatedAtMillis" : 1781516992539
+  } ]
+};

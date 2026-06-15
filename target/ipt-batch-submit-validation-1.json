@@ -1,0 +1,11 @@
+{
+  "toastText" : "Validation Failed:",
+  "responseMessage" : "Validation Failed: Please fill in all required fields before submitting: GST amount mismatch: client='0.63', server='1220.40', diff=1219.77",
+  "errorMessage" : "Validation Failed:",
+  "notificationMessages" : [ "Validation Failed: Please fill in all required fields before submitting: GST amount mismatch: client='0.63', server='1220.40', diff=1219.77" ],
+  "invalidElements" : [ ],
+  "jobStatus" : "FLD",
+  "declarationType" : "12",
+  "jobCreatedBy" : "mohan",
+  "responseSummary" : "Job ID: N/A\r\n\r\nMessage Ref: N/A\r\n\r\nDeclaration Type: 12\r\n\r\nPermit Type: N/A\r\n\r\nStatus: FLD\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Validation Failed: Please fill in all required fields before submitting: GST amount mismatch: client='0.63', server='1220.40', diff=1219.77\r\n\r\nError Message: Validation Failed:"
+}

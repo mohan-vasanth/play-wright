@@ -840,6 +840,7 @@
     const focusMessageRef = normalizeQueryValue(queryParams.get('messageRef'));
     const requestedReportPrefix = String(queryParams.get('reportPrefix') || '').trim();
     const AUTO_REFRESH_INTERVAL_MS = 10000;
+    const CONTEXT_WAIT_REFRESH_INTERVAL_MS = 1500;
     const localReportScriptCandidates = [
         '../../../../target/report-data.js',
         '../../../../target/classes/static/report-data.js',
@@ -1027,7 +1028,7 @@
         failures.textContent = 0;
         errors.textContent = 0;
         skipped.textContent = 0;
-        scheduleAutoRefresh();
+        scheduleAutoRefresh(true);
     }
 
     function resolveResultsTitle(report) {
@@ -1105,14 +1106,17 @@
         }
     }
 
-    function scheduleAutoRefresh() {
+    function scheduleAutoRefresh(waitingForRequestedContext = false) {
         if (autoRefreshTimer !== null) {
             return;
         }
+        const refreshInterval = waitingForRequestedContext
+            ? CONTEXT_WAIT_REFRESH_INTERVAL_MS
+            : AUTO_REFRESH_INTERVAL_MS;
         autoRefreshTimer = window.setTimeout(() => {
             autoRefreshTimer = null;
             loadReport();
-        }, AUTO_REFRESH_INTERVAL_MS);
+        }, refreshInterval);
     }
 
     async function loadLocalReportData() {
@@ -1153,6 +1157,7 @@
         const responseMessage = batchCase.responseMessage || 'N/A';
         const errorMessage = batchCase.errorMessage || 'N/A';
         const declarationType = batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-';
+        const pmtNumber = batchCase.pmtNumber || 'N/A';
         const detailsOpen = expanded ? 'open' : '';
 
         return `
@@ -1187,6 +1192,7 @@
                             <div class="info-title">Status Details</div>
                             <div class="info-list">
                                 <div class="info-row"><span>Final Job Status</span><span>${escapeHtml(batchCase.jobStatus || '-')}</span></div>
+                                <div class="info-row"><span>PMT Number</span><span>${escapeHtml(pmtNumber)}</span></div>
                                 <div class="info-row"><span>Report Status</span><span>${escapeHtml(batchCase.status || '-')}</span></div>
                                 <div class="info-row"><span>Invalid Fields</span><span>${escapeHtml(batchCase.invalidCount ?? 0)}</span></div>
                             </div>
@@ -1312,7 +1318,7 @@
                 failures.textContent = 0;
                 errors.textContent = 0;
                 skipped.textContent = 0;
-                scheduleAutoRefresh();
+                scheduleAutoRefresh(Boolean(focusJobId || focusMessageRef || requestedReportPrefix));
                 return;
             }
             if (!reportMatchesRequestedContext(report)) {

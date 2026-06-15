@@ -554,9 +554,10 @@ public class IptDeclarationPage {
         field.scrollIntoViewIfNeeded();
         field.click(new Locator.ClickOptions().setForce(true));
         String[] selectionHints = partySelectionHints(partyName, partyId);
-        String[] searchCandidates = partySearchCandidates(partyName);
+        String[] searchCandidates = partySearchCandidates(partyName, partyId);
 
         boolean matched = false;
+        boolean requiresCommittedSelection = partyId != null && !partyId.isBlank();
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
             attemptPartySuggestionSelection(selectionHints);
@@ -565,9 +566,15 @@ public class IptDeclarationPage {
             } catch (PlaywrightException ignored) {
             }
             pauseUi(UI_NEXT_FIELD_PAUSE_MS);
-            if (waitForPartyFieldValue(field, partyName, 2500)
-                    || waitForCommittedPartySelection(field, 2500)
-                    || waitForPartyRowValues(rowLabel, partyName, 1500)) {
+            boolean committedSelection = waitForCommittedPartySelection(field, 2500);
+            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
+            boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
+            boolean fieldValueMatches = !requiresCommittedSelection && waitForPartyFieldValue(field, partyName, 2500);
+            if (committedSelection
+                    || resolvedSelection
+                    || rowValuesMatch
+                    || fieldValueMatches
+                    || (requiresCommittedSelection && fillPartyIdFieldIfPresent(rowLabel, partyName, partyId))) {
                 matched = true;
                 break;
             }
@@ -597,6 +604,69 @@ public class IptDeclarationPage {
             page.waitForTimeout(100);
         }
         return false;
+    }
+
+    private boolean waitForResolvedPartySelection(
+            Locator field,
+            String partyName,
+            String partyId,
+            String searchCandidate,
+            int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            if (isResolvedPartySelectionValue(readRenderedFieldValue(field), partyName, partyId, searchCandidate)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private boolean isResolvedPartySelectionValue(
+            String renderedValue,
+            String partyName,
+            String partyId,
+            String searchCandidate) {
+        String normalizedValue = normalize(renderedValue);
+        if (normalizedValue.isBlank()) {
+            return false;
+        }
+
+        String normalizedSearchCandidate = normalize(searchCandidate);
+        String normalizedPartyName = normalize(partyName);
+        if (!normalizedPartyName.isBlank()
+                && (normalizedValue.equalsIgnoreCase(normalizedPartyName)
+                || normalizedValue.contains(normalizedPartyName)
+                || normalizedPartyName.contains(normalizedValue))
+                && (!looksLikePartyLookupCode(normalizedPartyName)
+                || !normalizedValue.equalsIgnoreCase(normalizedSearchCandidate))) {
+            return true;
+        }
+
+        if (!looksLikePartyLookupCode(normalizedSearchCandidate)) {
+            return false;
+        }
+
+        if (normalizedValue.equalsIgnoreCase(normalizedSearchCandidate)) {
+            return false;
+        }
+
+        String normalizedPartyId = normalize(partyId);
+        if (!normalizedPartyId.isBlank() && normalizedValue.equalsIgnoreCase(normalizedPartyId)) {
+            return false;
+        }
+
+        return normalizedValue.length() > normalizedSearchCandidate.length();
+    }
+
+    private boolean looksLikePartyLookupCode(String value) {
+        String normalizedValue = normalize(value);
+        if (normalizedValue.isBlank()) {
+            return false;
+        }
+        return normalizedValue.length() <= 12
+                && !normalizedValue.contains(" ")
+                && normalizedValue.matches("[A-Z0-9._&/-]+");
     }
 
     private boolean hasCommittedPartySelection(Locator field) {
@@ -638,20 +708,49 @@ public class IptDeclarationPage {
     }
 
     private boolean waitForPartyRowValues(String rowLabel, String expectedName, int timeoutMs) {
+        return waitForPartyRowValues(rowLabel, expectedName, null, timeoutMs);
+    }
+
+    private boolean waitForPartyRowValues(String rowLabel, String expectedName, String expectedId, int timeoutMs) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         String normalizedExpectedName = normalize(expectedName);
+        String normalizedExpectedId = normalize(expectedId);
         while (System.currentTimeMillis() <= deadline) {
             String rowText = readPartyRowText(rowLabel);
             boolean nameMatches = normalizedExpectedName.isBlank()
                     || rowText.equalsIgnoreCase(normalizedExpectedName)
                     || rowText.contains(normalizedExpectedName)
                     || normalizedExpectedName.contains(rowText);
-            if (nameMatches) {
+            boolean idMatches = normalizedExpectedId.isBlank()
+                    || rowText.equalsIgnoreCase(normalizedExpectedId)
+                    || rowText.contains(normalizedExpectedId)
+                    || normalizedExpectedId.contains(rowText);
+            if (nameMatches && idMatches) {
                 return true;
             }
             page.waitForTimeout(100);
         }
         return false;
+    }
+
+    private boolean fillPartyIdFieldIfPresent(String rowLabel, String partyName, String partyId) {
+        if (partyId == null || partyId.isBlank()) {
+            return false;
+        }
+
+        Locator idField = resolveEditableFieldInRowByContainsOrNull(rowLabel, 1);
+        if (idField == null || !idField.isVisible()) {
+            return false;
+        }
+
+        if (waitForAnyRenderedFieldValue(idField, 500, partyId)
+                || waitForPartyRowValues(rowLabel, partyName, partyId, 800)) {
+            return true;
+        }
+
+        focusAndType(idField, partyId, true, partyId);
+        return waitForAnyRenderedFieldValue(idField, 1500, partyId)
+                || waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
     }
 
     private void fillInvoiceInfo(JsonNode data) {
@@ -1322,8 +1421,13 @@ public class IptDeclarationPage {
     }
 
     private boolean shouldSubmitDeclaration(JsonNode data) {
-        return data.path("summary").path("submitDeclaration").asBoolean(false)
-                || data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        if (data.path("summary").has("submitDeclaration")) {
+            return data.path("summary").path("submitDeclaration").asBoolean(false);
+        }
+        if (data.path("formMetaData").has("submitDeclaration")) {
+            return data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        }
+        return true;
     }
 
     protected void fillDeclarationType(String declarationType) {
@@ -2824,9 +2928,10 @@ public class IptDeclarationPage {
         return hints.toArray(String[]::new);
     }
 
-    private String[] partySearchCandidates(String partyName) {
+    private String[] partySearchCandidates(String partyName, String partyId) {
         List<String> candidates = new ArrayList<>();
         appendCandidate(candidates, partyName);
+        appendCandidate(candidates, partyId);
         return candidates.stream().distinct().toArray(String[]::new);
     }
 

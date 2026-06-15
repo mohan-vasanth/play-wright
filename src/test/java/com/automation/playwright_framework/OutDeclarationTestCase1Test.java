@@ -56,8 +56,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             return;
         }
 
-        boolean shouldSubmitDeclaration = testData.path("summary").path("submitDeclaration").asBoolean(false)
-                || testData.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        boolean shouldSubmitDeclaration = shouldSubmitDeclaration(testData);
         declarationsPage.createNewDeclarationDraft(OUT_ROUTE);
         String messageReference = firstNonBlank(
                 outDeclarationPage.readCurrentMessageReference(),
@@ -167,6 +166,16 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         openGeneratedReport(lastCompletedEntry, declarationBatch.size());
     }
 
+    private boolean shouldSubmitDeclaration(JsonNode data) {
+        if (data.path("summary").has("submitDeclaration")) {
+            return data.path("summary").path("submitDeclaration").asBoolean(false);
+        }
+        if (data.path("formMetaData").has("submitDeclaration")) {
+            return data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        }
+        return true;
+    }
+
     private void captureDiagnosticsArtifacts(
             Path screenshotPath,
             Path diagnosticsPath,
@@ -219,7 +228,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     private void writeDeclarationOutcomeToDiagnostics(
             Path diagnosticsPath,
             JsonNode declaration,
-            DeclarationsPage.DeclarationListEntry declarationListEntry) {
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference,
+            DeclarationsPage.DeclarationResponseDetails responseDetails) {
         try {
             JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
             com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
@@ -227,7 +238,12 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     : OBJECT_MAPPER.createObjectNode();
             String jobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
             String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
-            String declarationNumber = declarationListEntry != null ? declarationListEntry.declarationNumber() : null;
+            String declarationNumber = firstNonBlank(
+                    declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                    fallbackMessageReference);
+            String pmtNumber = firstNonBlank(
+                    declarationListEntry != null ? declarationListEntry.permitNumber() : null,
+                    responseDetails != null ? responseDetails.permitNumber() : null);
             String jobCreatedBy = sanitizeJobCreatedBy(
                     declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
                     USER_USERNAME);
@@ -236,15 +252,26 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             String toastText = firstNonBlank(root.path("toastText").asText(null));
             String capturedResponseMessage = firstNonBlank(root.path("responseMessage").asText(null));
             String capturedErrorMessage = firstNonBlank(root.path("errorMessage").asText(null));
-            boolean terminalIssueStatus = "REG".equals(resolvedJobStatus) || "FLD".equals(resolvedJobStatus);
+            boolean terminalIssueStatus = "REG".equals(resolvedJobStatus)
+                    || "FLD".equals(resolvedJobStatus)
+                    || "REJ".equals(resolvedJobStatus);
+            String backendResponseMessage = firstNonBlank(
+                    responseDetails != null ? responseDetails.responseMessage() : null,
+                    responseDetails != null ? responseDetails.detailText() : null,
+                    responseDetails != null ? responseDetails.bannerText() : null);
+            String backendErrorMessage = firstNonBlank(
+                    responseDetails != null ? responseDetails.errorMessage() : null,
+                    backendResponseMessage);
             boolean genericSubmitMessage = isGenericSubmitMessage(capturedResponseMessage);
             String responseMessage = firstNonBlank(
+                    terminalIssueStatus ? backendResponseMessage : null,
                     terminalIssueStatus && genericSubmitMessage ? null : capturedResponseMessage,
                     "SUB".equals(resolvedJobStatus) || "PMT".equals(resolvedJobStatus)
                             ? "Declaration submitted successfully."
                             : null,
                     terminalIssueStatus ? toastText : null);
             String errorMessage = firstNonBlank(
+                    terminalIssueStatus ? backendErrorMessage : null,
                     capturedErrorMessage,
                     terminalIssueStatus ? toastText : null,
                     terminalIssueStatus && !genericSubmitMessage ? capturedResponseMessage : null);
@@ -264,6 +291,12 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             if (jobCreatedBy != null && !jobCreatedBy.isBlank()) {
                 root.put("jobCreatedBy", jobCreatedBy);
             }
+            if (pmtNumber != null && !pmtNumber.isBlank()) {
+                root.put("pmtNumber", pmtNumber);
+            }
+            if (responseDetails != null && responseDetails.rawResponseText() != null && !responseDetails.rawResponseText().isBlank()) {
+                root.put("rawResponseData", responseDetails.rawResponseText());
+            }
             root.put("responseMessage", firstNonBlank(responseMessage, "N/A"));
             root.put("errorMessage", firstNonBlank(errorMessage, "N/A"));
             root.put("responseSummary", formatResponseSummary(
@@ -271,6 +304,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     declarationNumber,
                     declarationType,
                     resolvedJobStatus,
+                    pmtNumber,
                     jobCreatedBy,
                     firstNonBlank(responseMessage, "N/A"),
                     firstNonBlank(errorMessage, "N/A")));
@@ -310,6 +344,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             String declarationNumber,
             String declarationType,
             String jobStatus,
+            String pmtNumber,
             String jobCreatedBy,
             String responseMessage,
             String errorMessage) {
@@ -321,6 +356,8 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                 "Declaration Type: " + firstNonBlank(declarationType, "N/A"),
                 "",
                 "Status: " + firstNonBlank(jobStatus, "N/A"),
+                "",
+                "PMT Number: " + firstNonBlank(pmtNumber, "N/A"),
                 "",
                 "Job Created By: " + firstNonBlank(jobCreatedBy, "N/A"),
                 "",
@@ -383,6 +420,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     declarationNumber,
                     declarationType,
                     "DRF",
+                    null,
                     jobCreatedBy,
                     "Declaration draft prepared successfully.",
                     "N/A"));
@@ -401,8 +439,13 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             Path statusScreenshotPath) {
         DeclarationsPage.DeclarationListEntry declarationListEntry = submittedEntry;
         try {
-            if (!isTerminalJobStatus(declarationsPage, declarationListEntry)) {
-                openDeclarationListWithRelogin(loginPage, declarationsPage);
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
+            declarationListEntry = refreshTrackedDeclarationEntry(
+                    declarationsPage,
+                    declarationListEntry,
+                    messageReference);
+            if (!isTerminalJobStatus(declarationsPage, declarationListEntry)
+                    && !hasTerminalDiagnosticStatus(diagnosticsPath)) {
                 declarationListEntry = declarationsPage.waitForDeclarationCompletion(
                         firstNonBlank(
                                 declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
@@ -413,12 +456,52 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             if (declarationListEntry == null) {
                 declarationListEntry = submittedEntry;
             }
+            DeclarationsPage.DeclarationResponseDetails responseDetails = readTerminalResponseDetails(
+                    loginPage,
+                    declarationsPage,
+                    declarationListEntry,
+                    messageReference);
             captureStepScreenshot(statusScreenshotPath);
-            writeDeclarationOutcomeToDiagnostics(diagnosticsPath, declaration, declarationListEntry);
+            writeDeclarationOutcomeToDiagnostics(
+                    diagnosticsPath,
+                    declaration,
+                    declarationListEntry,
+                    messageReference,
+                    responseDetails);
             return declarationListEntry;
         } finally {
             StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         }
+    }
+
+    private DeclarationsPage.DeclarationListEntry refreshTrackedDeclarationEntry(
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry currentEntry,
+            String fallbackMessageReference) {
+        DeclarationsPage.DeclarationListEntry refreshedByReference = readSubmittedDeclarationEntry(
+                declarationsPage,
+                firstNonBlank(
+                        currentEntry != null ? currentEntry.declarationNumber() : null,
+                        fallbackMessageReference));
+        if (hasTrackingDetails(refreshedByReference)) {
+            return refreshedByReference;
+        }
+
+        DeclarationsPage.DeclarationListEntry latestEntry = declarationsPage.readLatestDeclarationListEntry();
+        if (hasTrackingDetails(latestEntry)) {
+            return latestEntry;
+        }
+
+        return currentEntry;
+    }
+
+    private boolean hasTrackingDetails(DeclarationsPage.DeclarationListEntry entry) {
+        return entry != null
+                && firstNonBlank(
+                entry.jobId(),
+                entry.declarationNumber(),
+                entry.jobStatus(),
+                entry.jobCreatedBy()) != null;
     }
 
     private DeclarationsPage.DeclarationListEntry readSubmittedDeclarationEntry(
@@ -435,7 +518,52 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             DeclarationsPage declarationsPage,
             DeclarationsPage.DeclarationListEntry declarationListEntry) {
         return declarationListEntry != null
-                && declarationsPage.hasTerminalJobStatus(declarationListEntry.jobStatus());
+                && declarationsPage.hasTerminalJobStatus(declarationListEntry.jobStatus())
+                && !isPermitNumberPending(declarationListEntry);
+    }
+
+    private boolean isPermitNumberPending(DeclarationsPage.DeclarationListEntry declarationListEntry) {
+        return declarationListEntry != null
+                && "PMT".equalsIgnoreCase(firstNonBlank(declarationListEntry.jobStatus()))
+                && firstNonBlank(declarationListEntry.permitNumber()) == null;
+    }
+
+    private boolean hasTerminalDiagnosticStatus(Path diagnosticsPath) {
+        try {
+            JsonNode diagnostics = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
+            String inferredStatus = inferStatusFromDiagnostics(diagnostics);
+            return "FLD".equals(inferredStatus) || "REG".equals(inferredStatus);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private DeclarationsPage.DeclarationResponseDetails readTerminalResponseDetails(
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String fallbackMessageReference) {
+        String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
+        if (jobStatus == null || (!"FLD".equalsIgnoreCase(jobStatus)
+                && !"REG".equalsIgnoreCase(jobStatus)
+                && !"REJ".equalsIgnoreCase(jobStatus)
+                && !"PMT".equalsIgnoreCase(jobStatus))) {
+            return null;
+        }
+
+        String messageReference = firstNonBlank(
+                declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                fallbackMessageReference);
+        if (messageReference == null) {
+            return null;
+        }
+
+        try {
+            openDeclarationListWithRelogin(loginPage, declarationsPage);
+            return declarationsPage.readDeclarationResponseDetails(messageReference);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private void openGeneratedReport(
