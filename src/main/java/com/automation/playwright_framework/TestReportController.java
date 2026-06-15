@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -433,11 +434,17 @@ public class TestReportController {
                 for (int index = 0; index < root.size(); index++) {
                     JsonNode declaration = root.path(index);
                     String code = resolveDeclarationTypeCode(declaration);
-                    batchMeta.put(index + 1, new BatchMetaInfo(code, mapDeclarationTypeDisplay(code)));
+                    batchMeta.put(index + 1, new BatchMetaInfo(
+                            code,
+                            mapDeclarationTypeDisplay(code),
+                            blankToNull(declaration.path("header").path("messageReference").asText(null))));
                 }
             } else if (root.isObject()) {
                 String code = resolveDeclarationTypeCode(root);
-                batchMeta.put(1, new BatchMetaInfo(code, mapDeclarationTypeDisplay(code)));
+                batchMeta.put(1, new BatchMetaInfo(
+                        code,
+                        mapDeclarationTypeDisplay(code),
+                        blankToNull(root.path("header").path("messageReference").asText(null))));
             }
             return batchMeta;
         } catch (Exception exception) {
@@ -455,6 +462,7 @@ public class TestReportController {
             case "12" -> "12 - DNG";
             case "90" -> "90 - BKT";
             case "20" -> "20 - OUT";
+            case "40" -> "40 - DRT";
             case "COO", "COODEC" -> "Certificate of Origin (COO)";
             default -> code;
         };
@@ -481,9 +489,17 @@ public class TestReportController {
                 : accumulator.successScreenshot;
 
         // Merge: validation JSON is authoritative; failure JSON fills any gaps
+        String declarationTypeCode = firstNonBlank(
+                valDiag.declarationTypeCode(),
+                failDiag.declarationTypeCode(),
+                batchMetaInfo != null ? batchMetaInfo.declarationTypeCode() : null);
         String jobStatus    = normalizeJobStatus(firstNonBlank(valDiag.jobStatus(), failDiag.jobStatus()));
         String jobId        = firstNonBlank(valDiag.jobId(), failDiag.jobId());
-        String declNum      = firstNonBlank(valDiag.declarationNumber(), failDiag.declarationNumber());
+        String declNum      = firstNonBlank(
+                valDiag.declarationNumber(),
+                failDiag.declarationNumber(),
+                batchMetaInfo != null ? batchMetaInfo.messageReference() : null);
+        String pmtNumber    = firstNonBlank(valDiag.pmtNumber(), failDiag.pmtNumber());
         String createdBy    = firstNonBlank(valDiag.jobCreatedBy(), failDiag.jobCreatedBy());
         String responseMsg  = firstNonBlank(valDiag.responseMessage(), failDiag.responseMessage());
         String errorMsg     = firstNonBlank(valDiag.errorMessage(), failDiag.errorMessage());
@@ -535,9 +551,9 @@ public class TestReportController {
 
         return new BatchCaseResult(
                 index, status, message,
-                batchMetaInfo != null ? batchMetaInfo.declarationTypeCode() : null,
-                batchMetaInfo != null ? batchMetaInfo.declarationTypeDisplay() : null,
-                jobStatus, jobId, declNum, createdBy,
+                declarationTypeCode,
+                mapDeclarationTypeDisplay(declarationTypeCode),
+                jobStatus, jobId, declNum, pmtNumber, createdBy,
                 responseMsg, errorMsg, summary, toastText, invalidCount, rawJson,
                 fileName(diagnosticsPath), fileName(screenshotPath),
                 fileName(accumulator.statusScreenshot),
@@ -553,23 +569,135 @@ public class TestReportController {
         try {
             String rawJson = Files.readString(diagnosticsPath);
             JsonNode root = objectMapper.readTree(rawJson);
-            String jobId = blankToNull(root.path("jobId").asText(null));
-            String jobStatus = normalizeJobStatus(blankToNull(root.path("jobStatus").asText(null)));
-            String declarationNumber = blankToNull(root.path("declarationNumber").asText(null));
-            String jobCreatedBy = blankToNull(root.path("jobCreatedBy").asText(null));
-            String toastText = blankToNull(root.path("toastText").asText(null));
-            String responseMessage = blankToNull(root.path("responseMessage").asText(null));
-            String errorMessage = blankToNull(root.path("errorMessage").asText(null));
             String responseSummary = blankToNull(root.path("responseSummary").asText(null));
+            String jobId = firstNonBlank(
+                    blankToNull(root.path("jobId").asText(null)),
+                    parseSummaryField(responseSummary, "Job ID"));
+            String jobStatus = normalizeJobStatus(firstNonBlank(
+                    blankToNull(root.path("jobStatus").asText(null)),
+                    parseSummaryField(responseSummary, "Status")));
+            String declarationNumber = firstNonBlank(
+                    blankToNull(root.path("declarationNumber").asText(null)),
+                    parseSummaryField(responseSummary, "Message Ref"));
+            String rawResponseData = normalizePlaceholder(root.path("rawResponseData").asText(null));
+            String pmtNumber = firstNonBlank(
+                    normalizePlaceholder(root.path("pmtNumber").asText(null)),
+                    normalizePlaceholder(root.path("permitNumber").asText(null)),
+                    parseSummaryField(responseSummary, "PMT Number"),
+                    parseSummaryField(responseSummary, "Permit Number"),
+                    parseSummaryField(responseSummary, "Permit No"),
+                    parseResponseField(rawResponseData, "pmtNumber"),
+                    parseResponseField(rawResponseData, "permitNumber"),
+                    parseResponseField(rawResponseData, "permitNo"),
+                    parseResponseField(rawResponseData, "permitNum"));
+            String jobCreatedBy = firstNonBlank(
+                    blankToNull(root.path("jobCreatedBy").asText(null)),
+                    parseSummaryField(responseSummary, "Job Created By"));
+            String declarationTypeCode = firstNonBlank(
+                    blankToNull(root.path("declarationType").asText(null)),
+                    parseSummaryField(responseSummary, "Declaration Type"));
+            String toastText = blankToNull(root.path("toastText").asText(null));
+            String responseMessage = firstNonBlank(
+                    normalizePlaceholder(root.path("responseMessage").asText(null)),
+                    parseSummaryField(responseSummary, "Response Message"),
+                    parseResponseField(rawResponseData, "responseMessage"),
+                    parseResponseField(rawResponseData, "message"),
+                    parseResponseField(rawResponseData, "description"),
+                    parseResponseField(rawResponseData, "detail"),
+                    rawResponseData);
+            String errorMessage = firstNonBlank(
+                    normalizePlaceholder(root.path("errorMessage").asText(null)),
+                    parseSummaryField(responseSummary, "Error Message"),
+                    parseResponseField(rawResponseData, "errorMessage"),
+                    parseResponseField(rawResponseData, "reason"),
+                    parseResponseField(rawResponseData, "remarks"),
+                    responseMessage);
             JsonNode invalidElementsNode = root.path("invalidElements");
             int invalidCount = invalidElementsNode.isArray() ? invalidElementsNode.size() : 0;
-            return new BatchDiagnostics(jobId, jobStatus, declarationNumber, jobCreatedBy, toastText, responseMessage, errorMessage, responseSummary, invalidCount, rawJson);
+            return new BatchDiagnostics(
+                    jobId,
+                    jobStatus,
+                    declarationNumber,
+                    pmtNumber,
+                    jobCreatedBy,
+                    declarationTypeCode,
+                    toastText,
+                    responseMessage,
+                    errorMessage,
+                    responseSummary,
+                    invalidCount,
+                    rawJson);
         } catch (Exception exception) {
             // File is not valid JSON (e.g. a plain-text Playwright error); surface the raw content
             String rawContent = null;
             try { rawContent = Files.readString(diagnosticsPath); } catch (Exception ignored) {}
-            return new BatchDiagnostics(null, null, null, null, null, null, rawContent, null, 0, rawContent);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, rawContent, null, 0, rawContent);
         }
+    }
+
+    private String parseSummaryField(String responseSummary, String label) {
+        if (responseSummary == null || responseSummary.isBlank() || label == null || label.isBlank()) {
+            return null;
+        }
+
+        String expectedPrefix = label.trim() + ":";
+        for (String line : responseSummary.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.regionMatches(true, 0, expectedPrefix, 0, expectedPrefix.length())) {
+                continue;
+            }
+            String value = blankToNull(trimmed.substring(expectedPrefix.length()).trim());
+            if ("N/A".equalsIgnoreCase(value)) {
+                return null;
+            }
+            return value;
+        }
+        return null;
+    }
+
+    private String parseResponseField(String rawResponseData, String fieldName) {
+        if (rawResponseData == null || rawResponseData.isBlank() || fieldName == null || fieldName.isBlank()) {
+            return null;
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(rawResponseData);
+            return findResponseField(root, fieldName);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String findResponseField(JsonNode node, String fieldName) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+
+        if (node.isObject()) {
+            JsonNode direct = node.get(fieldName);
+            if (direct != null && direct.isValueNode()) {
+                return normalizePlaceholder(direct.asText(null));
+            }
+            Iterator<JsonNode> children = node.elements();
+            while (children.hasNext()) {
+                String value = findResponseField(children.next(), fieldName);
+                if (value != null) {
+                    return value;
+                }
+            }
+            return null;
+        }
+
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                String value = findResponseField(child, fieldName);
+                if (value != null) {
+                    return value;
+                }
+            }
+        }
+
+        return null;
     }
 
     private TestCaseResult parseTestCase(Element testCase) {
@@ -682,6 +810,14 @@ public class TestReportController {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    private String normalizePlaceholder(String value) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return null;
+        }
+        return "N/A".equalsIgnoreCase(normalized) ? null : normalized;
+    }
+
     private String firstNonBlank(String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) {
@@ -752,14 +888,17 @@ public class TestReportController {
 
     private record BatchMetaInfo(
             String declarationTypeCode,
-            String declarationTypeDisplay) {
+            String declarationTypeDisplay,
+            String messageReference) {
     }
 
     private record BatchDiagnostics(
             String jobId,
             String jobStatus,
             String declarationNumber,
+            String pmtNumber,
             String jobCreatedBy,
+            String declarationTypeCode,
             String toastText,
             String responseMessage,
             String errorMessage,
@@ -768,7 +907,7 @@ public class TestReportController {
             String rawJson) {
 
         private static BatchDiagnostics empty() {
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, 0, null);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, null, null, 0, null);
         }
     }
 
@@ -808,6 +947,7 @@ public class TestReportController {
             String jobStatus,
             String jobId,
             String declarationNumber,
+            String pmtNumber,
             String jobCreatedBy,
             String responseMessage,
             String errorMessage,

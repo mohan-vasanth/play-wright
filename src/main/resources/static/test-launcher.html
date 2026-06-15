@@ -287,6 +287,9 @@
         .status-SUCCESS { color: #d7ffe4; }
         .status-COMPLETED { color: #d7ffe4; }
         .status-FAILED { color: #ffe0e0; }
+        .status-PMT { color: #d7ffe4; }
+        .status-FLD { color: #ffe0e0; }
+        .status-REG { color: #fff3c2; }
 
         .status-title {
             font-size: 30px;
@@ -934,6 +937,10 @@
                             <div class="metric-label">Permit / Input Mode</div>
                             <div class="metric-value" id="statusPermit">JSON Driven</div>
                         </div>
+                        <div class="metric-tile">
+                            <div class="metric-label">PMT Number</div>
+                            <div class="metric-value" id="statusPmtNumber">N/A</div>
+                        </div>
                     </div>
                 </div>
 
@@ -1094,12 +1101,17 @@
     let isRunning = false;
     let currentEventSource = null;
     let statusPollHandle = null;
+    let configRefreshHandle = null;
+    let configRequestSequence = 0;
     let currentConfigType = '';
     let currentConfigMeta = null;
     let terminalLines = [];
     let statusTimeline = {};
     let lastTimelineRank = -1;
+    let hasObservedActiveRun = false;
+    let autoOpenedReportContextKey = '';
     const API_BASE_STORAGE_KEY = 'tradenix.report.apiBase';
+    const CONFIG_REFRESH_INTERVAL_MS = 5000;
     const timelineStages = [
         { key: 'created', itemId: 'stageCreated', timeId: 'stageCreatedTime', waiting: 'Waiting for execution' },
         { key: 'submitted', itemId: 'stageSubmitted', timeId: 'stageSubmittedTime', waiting: 'No submission yet' },
@@ -1140,7 +1152,7 @@
         return '';
     }
 
-    function buildReportHref(type) {
+    function buildReportHref(type, data) {
         const params = new URLSearchParams();
         if (window.location.protocol === 'file:' && apiBase) {
             params.set('apiBase', apiBase);
@@ -1149,12 +1161,20 @@
         if (reportPrefix) {
             params.set('reportPrefix', reportPrefix);
         }
+        const jobId = String(data?.jobId || '').trim();
+        const messageRef = String(data?.messageRef || '').trim();
+        if (jobId) {
+            params.set('jobId', jobId);
+        }
+        if (messageRef) {
+            params.set('messageRef', messageRef);
+        }
         const queryString = params.toString();
         return queryString ? `report.html?${queryString}` : 'report.html';
     }
 
-    function setReportLinks(type) {
-        document.getElementById('reportBtn').href = buildReportHref(type);
+    function setReportLinks(type, data) {
+        document.getElementById('reportBtn').href = buildReportHref(type, data);
     }
 
     function normalizeDisplayState(value) {
@@ -1257,52 +1277,90 @@
 
         const panel = document.getElementById('testConfigPanel');
         panel.style.display = '';
+        startConfigRefresh(currentConfigType);
+        await loadConfigMeta(currentConfigType);
+    }
+
+    async function loadConfigMeta(type, options = {}) {
+        const normalizedType = String(type || '').trim().toLowerCase();
+        const preserveSelection = Boolean(options.preserveSelection);
+        const selectedResource = preserveSelection
+            ? document.getElementById('configJsonResource').value
+            : '';
+        const requestId = ++configRequestSequence;
 
         try {
-            const resp = await fetch(apiUrl('/api/launcher/json-options?type=' + encodeURIComponent(currentConfigType)));
+            const resp = await fetch(apiUrl('/api/launcher/json-options?type=' + encodeURIComponent(normalizedType)));
             const data = await resp.json();
             if (!resp.ok) {
                 throw new Error(data.error || 'Unable to load JSON options.');
             }
+            if (requestId !== configRequestSequence || normalizedType !== currentConfigType) {
+                return;
+            }
             currentConfigMeta = data;
-            applyConfigMeta(data);
+            applyConfigMeta(data, selectedResource);
         } catch (error) {
+            if (requestId !== configRequestSequence || normalizedType !== currentConfigType) {
+                return;
+            }
+            if (preserveSelection && currentConfigMeta && currentConfigMeta.type === normalizedType) {
+                showConfigValidation(error.message || 'Unable to load JSON options.');
+                return;
+            }
             currentConfigMeta = {
-                type: currentConfigType,
-                moduleLabel: moduleLabelForType(currentConfigType),
-                resourceFolder: currentConfigType.toUpperCase(),
+                type: normalizedType,
+                moduleLabel: moduleLabelForType(normalizedType),
+                resourceFolder: normalizedType.toUpperCase(),
+                configuredFolder: 'src/test/resources/' + normalizedType.toUpperCase(),
+                resolvedFolderPath: '',
+                folderFound: false,
                 executable: false,
                 files: []
             };
-            applyConfigMeta(currentConfigMeta);
+            applyConfigMeta(currentConfigMeta, selectedResource);
             showConfigValidation(error.message || 'Unable to load JSON options.');
         }
     }
 
     function closeConfigPanel() {
+        stopConfigRefresh();
         document.getElementById('testConfigPanel').style.display = 'none';
     }
 
-    function applyConfigMeta(data) {
+    function applyConfigMeta(data, selectedResource = '') {
         const executable = Boolean(data.executable);
         const resourceFolder = String(data.resourceFolder || '').trim();
+        const configuredFolder = String(data.configuredFolder || '').trim()
+            || (resourceFolder ? 'src/test/resources/' + resourceFolder : '');
+        const resolvedFolderPath = String(data.resolvedFolderPath || '').trim();
+        const folderFound = Boolean(data.folderFound);
         const files = Array.isArray(data.files) ? data.files : [];
 
         document.getElementById('configTitle').textContent = (data.moduleLabel || moduleLabelForType(data.type)) + ' Configuration';
         document.getElementById('configSubtext').textContent = executable
-            ? 'Select a JSON from src/test/resources/' + resourceFolder + ' or upload one manually before running the declaration.'
+            ? 'Select a JSON from ' + (configuredFolder || ('src/test/resources/' + resourceFolder)) + ' or upload one manually before running the declaration.'
             : 'Repository JSON selection is available, but an automation runner is not implemented for this declaration type yet.';
-        document.getElementById('configFolderHint').textContent = resourceFolder
-            ? 'Folder source: src/test/resources/' + resourceFolder
+        document.getElementById('configFolderHint').textContent = configuredFolder
+            ? 'Folder source: ' + configuredFolder + (resolvedFolderPath ? ' | Resolved path: ' + resolvedFolderPath : '')
             : 'Folder source: -';
 
         const resourceSelect = document.getElementById('configJsonResource');
-        resourceSelect.innerHTML = '<option value="">Select JSON From Folder</option>';
+        resourceSelect.innerHTML = '';
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = folderFound
+            ? (files.length ? 'Select JSON From Folder' : 'No JSON Files Found')
+            : 'JSON Folder Not Found';
+        resourceSelect.appendChild(placeholder);
         for (const file of files) {
             const option = document.createElement('option');
             option.value = file.resourcePath || '';
             option.textContent = file.name || file.resourcePath || '';
             resourceSelect.appendChild(option);
+        }
+        if (selectedResource && files.some(file => (file.resourcePath || '') === selectedResource)) {
+            resourceSelect.value = selectedResource;
         }
 
         const runButton = document.getElementById('btnRunConfiguredTest');
@@ -1311,10 +1369,38 @@
             : 'Automation Not Available';
         runButton.disabled = !executable || isRunning;
 
+        if (!folderFound) {
+            showConfigValidation(configuredFolder
+                ? 'JSON folder not found: ' + configuredFolder
+                : 'JSON folder not found.');
+            return;
+        }
         if (!files.length) {
-            document.getElementById('configFolderHint').textContent += resourceFolder
-                ? ' | No JSON files currently found in that folder.'
-                : '';
+            showConfigValidation(configuredFolder
+                ? 'No JSON Files Found in ' + configuredFolder + '.'
+                : 'No JSON Files Found.');
+            return;
+        }
+        clearConfigValidation();
+    }
+
+    function startConfigRefresh(type) {
+        stopConfigRefresh();
+        if (!type) {
+            return;
+        }
+        configRefreshHandle = window.setInterval(function() {
+            if (document.getElementById('testConfigPanel').style.display === 'none') {
+                return;
+            }
+            loadConfigMeta(type, { preserveSelection: true });
+        }, CONFIG_REFRESH_INTERVAL_MS);
+    }
+
+    function stopConfigRefresh() {
+        if (configRefreshHandle) {
+            window.clearInterval(configRefreshHandle);
+            configRefreshHandle = null;
         }
     }
 
@@ -1395,7 +1481,11 @@
         setBtnsDisabled(true);
         showTerminal();
         clearTerminalContent();
-        setReportLinks(type);
+        setReportLinks(type, {
+            type,
+            jobId: '',
+            messageRef: ''
+        });
         startStatusPolling();
 
         let resp;
@@ -1434,7 +1524,7 @@
                 ? 'A test is already running on the server (type: ' + data.type + '). Connecting to its output...'
                 : 'A declaration execution is still in progress on the server (type: ' + data.type + '). Monitoring job status...');
             isRunning = Boolean(data.running);
-            setReportLinks(data.type);
+            setReportLinks(data.type, data);
             applyLauncherStatus({
                 running: Boolean(data.running),
                 type: data.type,
@@ -1444,7 +1534,8 @@
                 executionActive: true,
                 jobId: data.jobId || '',
                 jobStatus: data.jobStatus || '',
-                messageRef: ''
+                messageRef: '',
+                pmtNumber: data.pmtNumber || ''
             });
             if (data.running) {
                 connectStream();
@@ -1542,19 +1633,25 @@
 
     function applyLauncherStatus(data) {
         isRunning = Boolean(data.running);
-        setReportLinks(data.type || '');
+        if (data.running || data.executionActive) {
+            hasObservedActiveRun = true;
+        }
+        setReportLinks(data.type || '', data);
         setStatus(data);
         setBtnsDisabled(Boolean(data.running));
 
         if (shouldContinuePolling(data)) {
             startStatusPolling();
         } else {
-            stopStatusPolling();
+            stopLiveMonitoring();
+            setBtnsDisabled(false);
+            maybeOpenReport(data);
         }
     }
 
     function shouldContinuePolling(data) {
-        return Boolean(data.running) || ['RUNNING', 'IN_PROGRESS', 'PENDING'].includes(String(data.displayState || ''));
+        return Boolean(data.executionActive)
+            || ['RUNNING', 'IN_PROGRESS', 'PENDING'].includes(String(data.displayState || ''));
     }
 
     function startStatusPolling() {
@@ -1562,11 +1659,46 @@
         statusPollHandle = window.setTimeout(fetchStatus, 2000);
     }
 
+    function stopLiveMonitoring() {
+        stopStatusPolling();
+        isRunning = false;
+        if (currentEventSource) {
+            currentEventSource.close();
+            currentEventSource = null;
+        }
+    }
+
     function stopStatusPolling() {
         if (statusPollHandle !== null) {
             window.clearTimeout(statusPollHandle);
             statusPollHandle = null;
         }
+    }
+
+    function isTerminalReportState(data) {
+        const normalizedState = normalizeDisplayState(data?.displayState || 'IDLE');
+        return normalizedState === 'SUCCESS' || normalizedState === 'FAILED';
+    }
+
+    function reportContextKey(data) {
+        return [
+            String(data?.type || '').trim().toLowerCase(),
+            String(data?.jobId || '').trim(),
+            String(data?.messageRef || '').trim()
+        ].join('|');
+    }
+
+    function maybeOpenReport(data) {
+        if (!hasObservedActiveRun || !isTerminalReportState(data)) {
+            return;
+        }
+        const targetHref = buildReportHref(data?.type || '', data);
+        const contextKey = reportContextKey(data);
+        if (!targetHref || !contextKey || contextKey === '||' || contextKey === autoOpenedReportContextKey) {
+            return;
+        }
+        autoOpenedReportContextKey = contextKey;
+        window.location.href = targetHref;
     }
 
     function appendLine(text) {
@@ -1657,6 +1789,7 @@
         const backend = document.getElementById('statusBackend');
         const messageRefNode = document.getElementById('statusMessageRef');
         const permitNode = document.getElementById('statusPermit');
+        const pmtNumberNode = document.getElementById('statusPmtNumber');
         const jobIdNode = document.getElementById('statusJobId');
 
         const normalizedState = normalizeDisplayState(data.displayState || 'IDLE');
@@ -1666,10 +1799,13 @@
         const jobStatus = String(data.jobStatus || '').trim();
         const messageRef = String(data.messageRef || '').trim();
         const permitType = String(data.permitType || '').trim();
+        const pmtNumber = String(data.pmtNumber || '').trim();
 
+        const finalStatusBadgeKeys = ['PMT', 'FLD', 'REG', 'REJ', 'DRF'];
+        const badgeKey = finalStatusBadgeKeys.includes(jobStatus) ? jobStatus : normalizedState;
         statusPanel.dataset.state = normalizedState;
-        badge.className = 'status-badge status-' + normalizedState;
-        badge.textContent = stateLabel;
+        badge.className = 'status-badge status-' + badgeKey;
+        badge.textContent = finalStatusBadgeKeys.includes(jobStatus) ? jobStatus : stateLabel;
 
         if (normalizedState === 'IDLE') {
             headline.textContent = 'No declaration is running right now.';
@@ -1678,6 +1814,7 @@
             backend.textContent = '-';
             messageRefNode.textContent = '-';
             permitNode.textContent = 'JSON Driven';
+            pmtNumberNode.textContent = 'N/A';
             jobIdNode.textContent = 'Pending';
             renderTimeline('IDLE', '');
             return;
@@ -1689,11 +1826,21 @@
                 ? 'Playwright automation has started. Waiting for declaration submission details from the backend.'
                 : 'The declaration was submitted. Monitoring list-page status updates until the backend returns a final state.';
         } else if (normalizedState === 'SUCCESS') {
-            headline.textContent = (label || 'Declaration') + ' completed successfully.';
-            msg.textContent = 'The backend returned a final successful state. Review the report for diagnostics, screenshots, and wrapper output.';
+            headline.textContent = (label || 'Declaration') + ' — PMT issued successfully.';
+            msg.textContent = pmtNumber
+                ? 'Permit issued. PMT Number: ' + pmtNumber + '. Polling stopped — opening the report now.'
+                : 'PMT status confirmed. Permit was issued. Polling stopped — opening the report now.';
         } else if (normalizedState === 'FAILED') {
-            headline.textContent = (label || 'Declaration') + ' finished with a non-success final state.';
-            msg.textContent = 'The final backend state was captured. Review the report and diagnostics for the exact response and error details.';
+            if (jobStatus === 'FLD') {
+                headline.textContent = (label || 'Declaration') + ' — Final status: FLD (Failed).';
+                msg.textContent = 'The backend returned an FLD status. Polling stopped — opening the report for the exact error response.';
+            } else if (jobStatus === 'REG') {
+                headline.textContent = (label || 'Declaration') + ' — Final status: REG (Registered).';
+                msg.textContent = 'The backend returned a REG status. Polling stopped — opening the report for the full backend response.';
+            } else {
+                headline.textContent = (label || 'Declaration') + ' finished with a non-success final state.';
+                msg.textContent = 'The final backend state was captured. Review the report and diagnostics for the exact response and error details.';
+            }
         } else {
             headline.textContent = label || 'Declaration execution in progress';
             msg.textContent = 'The job is active and backend status checks are still running.';
@@ -1703,6 +1850,7 @@
         backend.textContent = jobStatus || stateLabel;
         messageRefNode.textContent = messageRef || '-';
         permitNode.textContent = permitType || 'Repository / Manual JSON';
+        pmtNumberNode.textContent = pmtNumber || 'N/A';
         jobIdNode.textContent = jobId || (normalizedState === 'PENDING' ? 'Allocating...' : 'Pending');
 
         if (!jobId && normalizedState === 'FAILED') {
@@ -1728,7 +1876,7 @@
 
     window.addEventListener('DOMContentLoaded', async function() {
         resetStatusTimeline();
-        setReportLinks('');
+        setReportLinks('', {});
 
         document.getElementById('configJsonResource').addEventListener('change', clearConfigValidation);
         document.getElementById('configJsonFile').addEventListener('change', function() {

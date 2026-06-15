@@ -139,6 +139,13 @@ public class DeclarationsPage {
                             ? messageReferenceIndex
                             : headerTexts.findIndex(text => text === 'MESSAGE REF');
                         const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
+                        const permitNumberIndex = headerTexts.findIndex(text =>
+                            text === 'PERMIT NUMBER'
+                            || text === 'PERMIT NO.'
+                            || text === 'PERMIT NO'
+                            || text === 'PMT NUMBER'
+                            || text === 'PMT NO.'
+                            || text === 'PMT NO');
 
                         const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
                             .filter(row => isVisible(row) && !row.querySelector(headerSelector));
@@ -176,11 +183,19 @@ public class DeclarationsPage {
                                 }
                             }
 
+                            let permitNumber = permitNumberIndex >= 0 && permitNumberIndex < rowTexts.length
+                                ? rowTexts[permitNumberIndex]
+                                : null;
+                            if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                                permitNumber = null;
+                            }
+
                             return {
                                 jobId,
                                 jobStatus: resolvedStatus,
                                 declarationNumber,
-                                jobCreatedBy
+                                jobCreatedBy,
+                                permitNumber
                             };
                         };
 
@@ -225,10 +240,12 @@ public class DeclarationsPage {
                 String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
                 String declarationNumber = stringValue(result.get("declarationNumber"));
                 String jobCreatedBy = stringValue(result.get("jobCreatedBy"));
+                String permitNumber = stringValue(result.get("permitNumber"));
                 if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())
                         || (declarationNumber != null && !declarationNumber.isBlank())
-                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())) {
-                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy);
+                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())
+                        || (permitNumber != null && !permitNumber.isBlank())) {
+                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy, permitNumber);
                 }
             }
             page.waitForTimeout(1000);
@@ -272,6 +289,13 @@ public class DeclarationsPage {
                             ? messageReferenceIndex
                             : headerTexts.findIndex(text => text === 'MESSAGE REF');
                         const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
+                        const permitNumberIndex = headerTexts.findIndex(text =>
+                            text === 'PERMIT NUMBER'
+                            || text === 'PERMIT NO.'
+                            || text === 'PERMIT NO'
+                            || text === 'PMT NUMBER'
+                            || text === 'PMT NO.'
+                            || text === 'PMT NO');
 
                         const row = Array.from(document.querySelectorAll(rowSelector))
                             .find(candidate => isVisible(candidate)
@@ -316,11 +340,19 @@ public class DeclarationsPage {
                             }
                         }
 
+                        let permitNumber = permitNumberIndex >= 0 && permitNumberIndex < rowTexts.length
+                            ? rowTexts[permitNumberIndex]
+                            : null;
+                        if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                            permitNumber = null;
+                        }
+
                         return {
                             jobId,
                             jobStatus,
                             declarationNumber,
-                            jobCreatedBy
+                            jobCreatedBy,
+                            permitNumber
                         };
                     }
                     """);
@@ -329,15 +361,294 @@ public class DeclarationsPage {
                 String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
                 String declarationNumber = stringValue(result.get("declarationNumber"));
                 String jobCreatedBy = stringValue(result.get("jobCreatedBy"));
+                String permitNumber = stringValue(result.get("permitNumber"));
                 if ((jobId != null && !jobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())
                         || (declarationNumber != null && !declarationNumber.isBlank())
-                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())) {
-                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy);
+                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())
+                        || (permitNumber != null && !permitNumber.isBlank())) {
+                    return new DeclarationListEntry(jobId, jobStatus, declarationNumber, jobCreatedBy, permitNumber);
                 }
             }
             page.waitForTimeout(1000);
         }
-        return new DeclarationListEntry(null, null, null, null);
+        return new DeclarationListEntry(null, null, null, null, null);
+    }
+
+    public void openDeclarationView(String messageReference) {
+        if (messageReference == null || messageReference.isBlank()) {
+            throw new IllegalArgumentException("Message reference is required to open declaration view.");
+        }
+
+        Boolean clicked = (Boolean) page.evaluate("""
+                messageReference => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                    const upper = value => normalize(value).toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                    const targetReference = upper(messageReference);
+                    const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                    const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                    const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
+                    const iconMatch = element => {
+                        const className = upper(element.getAttribute('class'));
+                        return className.includes('EYE')
+                            || className.includes('VIEW')
+                            || className.includes('VISIBILITY');
+                    };
+
+                    const actionTarget = row => {
+                        const actionElements = Array.from(row.querySelectorAll('a, button, [role="button"]'))
+                            .filter(isVisible);
+                        const prioritized = actionElements.find(element => {
+                            const text = upper(textOf(element));
+                            const ariaLabel = upper(element.getAttribute('aria-label'));
+                            const title = upper(element.getAttribute('title'));
+                            return text.includes('VIEW')
+                                || ariaLabel.includes('VIEW')
+                                || ariaLabel.includes('OPEN')
+                                || title.includes('VIEW')
+                                || title.includes('OPEN')
+                                || Array.from(element.querySelectorAll('*')).some(iconMatch)
+                                || iconMatch(element);
+                        });
+                        return prioritized || actionElements[0] || null;
+                    };
+
+                    const rows = Array.from(document.querySelectorAll(rowSelector))
+                        .filter(row => isVisible(row) && !row.querySelector(headerSelector));
+                    for (const row of rows) {
+                        const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
+                        const texts = cells.map(textOf).map(upper);
+                        const matches = texts.some(text => text === targetReference || text.includes(targetReference));
+                        if (!matches) {
+                            continue;
+                        }
+                        const target = actionTarget(row);
+                        if (!target) {
+                            return false;
+                        }
+                        target.scrollIntoView({ block: 'center' });
+                        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                        return true;
+                    }
+                    return false;
+                }
+                """, messageReference);
+
+        if (!Boolean.TRUE.equals(clicked)) {
+            throw new IllegalStateException("Unable to open declaration view for message reference: " + messageReference);
+        }
+
+        waitForDeclarationViewScreenVisible(messageReference);
+    }
+
+    public DeclarationResponseDetails readDeclarationResponseDetails(String messageReference) {
+        openDeclarationView(messageReference);
+        return readCurrentResponseDetails();
+    }
+
+    public DeclarationResponseDetails readCurrentResponseDetails() {
+        openResponseTabIfPresent();
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        page.waitForTimeout(500);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+                () => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                    const upper = value => normalize(value).toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                    const pickLongest = values => values
+                        .filter(Boolean)
+                        .sort((left, right) => right.length - left.length)[0] || null;
+
+                    const responseTab = Array.from(document.querySelectorAll('[role="tab"], button, a, span, div'))
+                        .filter(isVisible)
+                        .find(element => upper(textOf(element)).startsWith('RESPONSE'));
+                    if (responseTab) {
+                        responseTab.scrollIntoView({ block: 'center' });
+                        responseTab.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    }
+
+                    const viewModeTexts = ['VIEW MODE', 'ALL FIELDS ARE READ-ONLY'];
+                    const detailsHeadings = ['REJECTION DETAILS', 'REGISTRATION DETAILS', 'RESPONSE DETAILS', 'ERROR DETAILS', 'DETAILS'];
+                    const bannerKeywords = ['PERMIT REJECTED', 'REJECTED', 'FAILED', 'ERROR', 'REGISTERED', 'VALIDATION'];
+
+                    const pageTexts = Array.from(document.querySelectorAll('body, body *'))
+                        .filter(isVisible)
+                        .map(textOf)
+                        .filter(Boolean);
+
+                    const detailHeading = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, strong, label, div, span'))
+                        .filter(isVisible)
+                        .find(element => detailsHeadings.includes(upper(textOf(element))));
+
+                    let detailText = null;
+                    if (detailHeading) {
+                        let current = detailHeading.parentElement;
+                        while (current) {
+                            const candidates = Array.from(current.querySelectorAll('div, p, section, article, pre'))
+                                .filter(isVisible)
+                                .map(textOf)
+                                .filter(text => {
+                                    const normalized = upper(text);
+                                    return text.length > 20
+                                        && !detailsHeadings.includes(normalized)
+                                        && !viewModeTexts.some(marker => normalized.includes(marker));
+                                });
+                            detailText = pickLongest(candidates);
+                            if (detailText) {
+                                break;
+                            }
+                            current = current.parentElement;
+                        }
+                    }
+
+                    const bannerText = pickLongest(pageTexts.filter(text => {
+                        const normalized = upper(text);
+                        return bannerKeywords.some(keyword => normalized.includes(keyword))
+                            && !viewModeTexts.some(marker => normalized.includes(marker));
+                    }));
+
+                    const rawJsonToggle = Array.from(document.querySelectorAll('button, a, [role="button"]'))
+                        .filter(isVisible)
+                        .find(element => upper(textOf(element)).includes('SHOW RAW JSON'));
+                    if (rawJsonToggle) {
+                        rawJsonToggle.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    }
+
+                    const rawResponseText = pickLongest(Array.from(document.querySelectorAll('pre, code, textarea, .json-viewer, [class*="json"]'))
+                        .filter(isVisible)
+                        .map(textOf)
+                        .filter(Boolean));
+
+                    const parseJsonMessage = rawText => {
+                        if (!rawText) {
+                            return null;
+                        }
+                        try {
+                            const data = JSON.parse(rawText);
+                            const keys = ['responseMessage', 'message', 'errorMessage', 'reason', 'description', 'remarks', 'detail'];
+                            const queue = [data];
+                            while (queue.length > 0) {
+                                const current = queue.shift();
+                                if (!current || typeof current !== 'object') {
+                                    continue;
+                                }
+                                if (Array.isArray(current)) {
+                                    queue.push(...current);
+                                    continue;
+                                }
+                                for (const key of keys) {
+                                    if (typeof current[key] === 'string' && normalize(current[key])) {
+                                        return normalize(current[key]);
+                                    }
+                                }
+                                queue.push(...Object.values(current));
+                            }
+                        } catch (_) {
+                        }
+                        return null;
+                    };
+
+                    const parseJsonPermitNumber = rawText => {
+                        if (!rawText) {
+                            return null;
+                        }
+                        try {
+                            const data = JSON.parse(rawText);
+                            const keys = ['pmtNumber', 'permitNumber', 'permitNo', 'permitNum'];
+                            const queue = [data];
+                            while (queue.length > 0) {
+                                const current = queue.shift();
+                                if (!current || typeof current !== 'object') {
+                                    continue;
+                                }
+                                if (Array.isArray(current)) {
+                                    queue.push(...current);
+                                    continue;
+                                }
+                                for (const key of keys) {
+                                    if (typeof current[key] === 'string' && normalize(current[key])) {
+                                        return normalize(current[key]);
+                                    }
+                                }
+                                queue.push(...Object.values(current));
+                            }
+                        } catch (_) {
+                        }
+                        return null;
+                    };
+
+                    const pagePermitNumber = (() => {
+                        const permitLabels = ['PMT NUMBER', 'PMT NO', 'PMT NO.', 'PERMIT NUMBER', 'PERMIT NO', 'PERMIT NO.'];
+                        for (const element of Array.from(document.querySelectorAll('label, dt, th, td, div, span, p, strong'))) {
+                            if (!isVisible(element)) {
+                                continue;
+                            }
+                            const labelText = upper(textOf(element));
+                            if (!permitLabels.some(label => labelText === label || labelText.startsWith(label + ':'))) {
+                                continue;
+                            }
+                            const nextText = normalize(element.nextElementSibling?.innerText || element.nextElementSibling?.textContent || '');
+                            if (nextText && nextText !== '-' && nextText !== '--') {
+                                return nextText;
+                            }
+                            const parentText = normalize(element.parentElement?.innerText || element.parentElement?.textContent || '');
+                            const match = parentText.match(/(?:PMT NUMBER|PMT NO\\.?|PERMIT NUMBER|PERMIT NO\\.?)[\\s:]+([A-Z0-9-]+)/i);
+                            if (match && normalize(match[1])) {
+                                return normalize(match[1]);
+                            }
+                        }
+                        return null;
+                    })();
+
+                    const rawJsonMessage = parseJsonMessage(rawResponseText);
+                    const rawJsonPermitNumber = parseJsonPermitNumber(rawResponseText);
+                    const responseMessage = rawJsonMessage || detailText || bannerText || null;
+                    const errorMessage = detailText || rawJsonMessage || bannerText || null;
+
+                    return {
+                        responseMessage,
+                        errorMessage,
+                        bannerText,
+                        detailText,
+                        rawResponseText,
+                        permitNumber: rawJsonPermitNumber || pagePermitNumber || null
+                    };
+                }
+                """);
+
+        if (result == null) {
+            return new DeclarationResponseDetails(null, null, null, null, null, null);
+        }
+
+        return new DeclarationResponseDetails(
+                stringValue(result.get("responseMessage")),
+                stringValue(result.get("errorMessage")),
+                stringValue(result.get("bannerText")),
+                stringValue(result.get("detailText")),
+                stringValue(result.get("rawResponseText")),
+                stringValue(result.get("permitNumber")));
     }
 
     public DeclarationListEntry waitForDeclarationCompletion(
@@ -353,7 +664,9 @@ public class DeclarationsPage {
                 if (matchesTrackedDeclaration(currentEntry, messageReference, expectedJobId)) {
                     latestMatchingEntry = currentEntry;
                     if (isTerminalJobStatus(currentEntry.jobStatus())) {
-                        return currentEntry;
+                        if (!isPermitNumberPending(currentEntry)) {
+                            return currentEntry;
+                        }
                     }
                 }
 
@@ -455,6 +768,12 @@ public class DeclarationsPage {
         return normalized != null && TERMINAL_JOB_STATUSES.contains(normalized);
     }
 
+    private boolean isPermitNumberPending(DeclarationListEntry entry) {
+        return entry != null
+                && "PMT".equals(normalizeJobStatus(entry.jobStatus()))
+                && (entry.permitNumber() == null || entry.permitNumber().isBlank());
+    }
+
     public boolean hasTerminalJobStatus(String value) {
         return isTerminalJobStatus(value);
     }
@@ -531,6 +850,67 @@ public class DeclarationsPage {
 
         if (!Boolean.TRUE.equals(clicked)) {
             throw new IllegalStateException("Unable to open declaration menu item: " + menuLabel);
+        }
+    }
+
+    private void waitForDeclarationViewScreenVisible(String messageReference) {
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        page.waitForFunction("""
+                (messageReference) => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                    const bodyTexts = Array.from(document.querySelectorAll('body, body *'))
+                        .filter(isVisible)
+                        .map(textOf)
+                        .filter(Boolean);
+                    const responseTabVisible = bodyTexts.some(text => text.startsWith('RESPONSE'));
+                    const messageReferenceVisible = messageReference
+                        ? bodyTexts.some(text => text.includes(normalize(messageReference)))
+                        : true;
+                    return responseTabVisible
+                        && messageReferenceVisible
+                        && bodyTexts.some(text => text.includes('JOB INFO') || text.includes('VIEW MODE'));
+                }
+                """, messageReference);
+    }
+
+    private void openResponseTabIfPresent() {
+        Boolean clicked = (Boolean) page.evaluate("""
+                () => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const target = Array.from(document.querySelectorAll('[role="tab"], button, a, span, div'))
+                        .filter(isVisible)
+                        .find(element => normalize(element.innerText || element.textContent).startsWith('RESPONSE'));
+                    if (!target) {
+                        return false;
+                    }
+                    target.scrollIntoView({ block: 'center' });
+                    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    return true;
+                }
+                """);
+        if (Boolean.TRUE.equals(clicked)) {
+            page.waitForTimeout(300);
         }
     }
 
@@ -646,6 +1026,16 @@ public class DeclarationsPage {
             String jobId,
             String jobStatus,
             String declarationNumber,
-            String jobCreatedBy) {
+            String jobCreatedBy,
+            String permitNumber) {
+    }
+
+    public record DeclarationResponseDetails(
+            String responseMessage,
+            String errorMessage,
+            String bannerText,
+            String detailText,
+            String rawResponseText,
+            String permitNumber) {
     }
 }

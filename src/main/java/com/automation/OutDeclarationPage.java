@@ -1801,8 +1801,13 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private boolean shouldSubmitDeclaration(JsonNode data) {
-        return data.path("summary").path("submitDeclaration").asBoolean(false)
-                || data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        if (data.path("summary").has("submitDeclaration")) {
+            return data.path("summary").path("submitDeclaration").asBoolean(false);
+        }
+        if (data.path("formMetaData").has("submitDeclaration")) {
+            return data.path("formMetaData").path("submitDeclaration").asBoolean(false);
+        }
+        return true;
     }
 
     private void setCheckboxIfTrue(boolean enabled, String label) {

@@ -15,13 +15,16 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
@@ -105,13 +108,17 @@ public class TestLauncherController {
         }
 
         try {
+            Path resourceFolderPath = resolveResourceFolderPath(config);
             return ResponseEntity.ok(Map.of(
                     "type", config.type(),
                     "moduleLabel", config.moduleLabel(),
                     "resourceFolder", config.resourceFolder(),
+                    "configuredFolder", configuredResourceFolder(config),
+                    "resolvedFolderPath", resourceFolderPath != null ? resourceFolderPath.toString() : "",
+                    "folderFound", resourceFolderPath != null,
                     "requiresPermitType", config.requiresPermitType(),
                     "executable", config.executable(),
-                    "files", listJsonFiles(config)));
+                    "files", listJsonFiles(resourceFolderPath)));
         } catch (IOException exception) {
             return ResponseEntity.status(500).body(Map.of(
                     "error", "Unable to list JSON files for " + config.type() + ": " + exception.getMessage()));
@@ -142,7 +149,9 @@ public class TestLauncherController {
                         "running", currentStatus.running(),
                         "displayState", currentStatus.displayState(),
                         "jobId", currentStatus.jobId() != null ? currentStatus.jobId() : "",
-                        "jobStatus", currentStatus.jobStatus() != null ? currentStatus.jobStatus() : ""));
+                        "jobStatus", currentStatus.jobStatus() != null ? currentStatus.jobStatus() : "",
+                        "messageRef", currentStatus.messageRef() != null ? currentStatus.messageRef() : "",
+                        "pmtNumber", currentStatus.pmtNumber() != null ? currentStatus.pmtNumber() : ""));
             }
 
             String resolvedJsonPath;
@@ -262,7 +271,9 @@ public class TestLauncherController {
         String reportPrefix = config != null ? config.reportPrefix() : null;
         JobReportSnapshot jobSnapshot = resolveJobSnapshot(reportPrefix, activeRunStartedAtMillis);
         String displayState = resolveDisplayState(running, exitCode, jobSnapshot);
-        boolean executionActive = running || (jobSnapshot != null && !jobSnapshot.terminal());
+        boolean executionActive = jobSnapshot != null
+                ? !jobSnapshot.terminal()
+                : running;
 
         return new LauncherStatusResponse(
                 running,
@@ -276,6 +287,7 @@ public class TestLauncherController {
                 jobSnapshot != null ? jobSnapshot.jobId() : null,
                 jobSnapshot != null ? jobSnapshot.jobStatus() : null,
                 jobSnapshot != null ? jobSnapshot.messageReference() : null,
+                jobSnapshot != null ? jobSnapshot.pmtNumber() : null,
                 jobSnapshot != null ? jobSnapshot.reportStatus() : null);
     }
 
@@ -294,8 +306,9 @@ public class TestLauncherController {
                             batchCase.jobId(),
                             batchCase.jobStatus(),
                             batchCase.declarationNumber(),
+                            batchCase.pmtNumber(),
                             batchCase.status(),
-                            isTerminalDisplayState(mapJobState(batchCase.jobStatus()))))
+                            isTerminalSnapshot(batchCase.jobStatus(), batchCase.pmtNumber())))
                     .orElse(null);
         } catch (Exception ignored) {
             return null;
@@ -303,7 +316,7 @@ public class TestLauncherController {
     }
 
     private String resolveDisplayState(boolean running, int exitCode, JobReportSnapshot jobSnapshot) {
-        String jobState = jobSnapshot != null ? mapJobState(jobSnapshot.jobStatus()) : null;
+        String jobState = jobSnapshot != null ? mapJobState(jobSnapshot.jobStatus(), jobSnapshot.pmtNumber()) : null;
         if (jobState != null) {
             return jobState;
         }
@@ -319,7 +332,7 @@ public class TestLauncherController {
         return exitCode == 0 ? "SUCCESS" : "FAILED";
     }
 
-    private String mapJobState(String jobStatus) {
+    private String mapJobState(String jobStatus, String pmtNumber) {
         String normalizedJobStatus = normalizeJobStatus(jobStatus);
         if (normalizedJobStatus == null) {
             return null;
@@ -331,6 +344,11 @@ public class TestLauncherController {
             case "DRF", "REG", "FLD", "REJ" -> "FAILED";
             default -> null;
         };
+    }
+
+    private boolean isTerminalSnapshot(String jobStatus, String pmtNumber) {
+        String jobState = mapJobState(jobStatus, pmtNumber);
+        return isTerminalDisplayState(jobState);
     }
 
     private String normalizeJobStatus(String value) {
@@ -350,9 +368,8 @@ public class TestLauncherController {
         };
     }
 
-    private List<Map<String, String>> listJsonFiles(LauncherTypeConfig config) throws IOException {
-        Path folder = resourceFolderPath(config);
-        if (!Files.exists(folder)) {
+    private List<Map<String, String>> listJsonFiles(Path folder) throws IOException {
+        if (folder == null || !Files.isDirectory(folder)) {
             return List.of();
         }
 
@@ -408,7 +425,10 @@ public class TestLauncherController {
             throw new IllegalArgumentException("Selected repository file must be a .json file.");
         }
 
-        Path folder = resourceFolderPath(config);
+        Path folder = resolveResourceFolderPath(config);
+        if (folder == null) {
+            throw new IllegalArgumentException("Configured JSON folder was not found: " + configuredResourceFolder(config));
+        }
         Path candidate = folder.resolve(normalizedResource).normalize();
         if (!candidate.startsWith(folder)) {
             throw new IllegalArgumentException("Selected JSON resource is outside the allowed folder.");
@@ -454,10 +474,68 @@ public class TestLauncherController {
         return TYPE_CONFIGS.get(type.trim().toLowerCase());
     }
 
-    private Path resourceFolderPath(LauncherTypeConfig config) {
-        return Paths.get("src", "test", "resources", config.resourceFolder())
-                .toAbsolutePath()
-                .normalize();
+    private Path resolveResourceFolderPath(LauncherTypeConfig config) {
+        return resourceFolderCandidates(config).stream()
+                .filter(Files::isDirectory)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private List<Path> resourceFolderCandidates(LauncherTypeConfig config) {
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        candidates.add(Paths.get("src", "test", "resources", config.resourceFolder()).toAbsolutePath().normalize());
+        candidates.add(Paths.get("target", "test-classes", config.resourceFolder()).toAbsolutePath().normalize());
+
+        locateProjectRoot().ifPresent(projectRoot -> {
+            candidates.add(projectRoot.resolve(Paths.get("src", "test", "resources", config.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
+            candidates.add(projectRoot.resolve(Paths.get("target", "test-classes", config.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
+        });
+
+        return List.copyOf(candidates);
+    }
+
+    private Optional<Path> locateProjectRoot() {
+        for (Path start : projectRootSearchStarts()) {
+            Path current = Files.isDirectory(start) ? start : start.getParent();
+            while (current != null) {
+                if (Files.isRegularFile(current.resolve("pom.xml"))) {
+                    return Optional.of(current.toAbsolutePath().normalize());
+                }
+                current = current.getParent();
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<Path> projectRootSearchStarts() {
+        LinkedHashSet<Path> starts = new LinkedHashSet<>();
+        starts.add(Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize());
+        addCodeSourcePath(starts, TestLauncherController.class);
+        addCodeSourcePath(starts, PlaywrightFrameworkApplication.class);
+        return List.copyOf(starts);
+    }
+
+    private void addCodeSourcePath(LinkedHashSet<Path> starts, Class<?> sourceClass) {
+        try {
+            if (sourceClass.getProtectionDomain() == null
+                    || sourceClass.getProtectionDomain().getCodeSource() == null
+                    || sourceClass.getProtectionDomain().getCodeSource().getLocation() == null) {
+                return;
+            }
+            Path location = Paths.get(sourceClass.getProtectionDomain().getCodeSource().getLocation().toURI())
+                    .toAbsolutePath()
+                    .normalize();
+            starts.add(location);
+        } catch (URISyntaxException | IllegalArgumentException ignored) {
+        }
+    }
+
+    private String configuredResourceFolder(LauncherTypeConfig config) {
+        return Paths.get("src", "test", "resources", config.resourceFolder()).toString().replace('\\', '/');
     }
 
     private boolean isTerminalDisplayState(String value) {
@@ -488,6 +566,7 @@ public class TestLauncherController {
             String jobId,
             String jobStatus,
             String messageRef,
+            String pmtNumber,
             String reportStatus) {
     }
 
@@ -495,6 +574,7 @@ public class TestLauncherController {
             String jobId,
             String jobStatus,
             String messageReference,
+            String pmtNumber,
             String reportStatus,
             boolean terminal) {
     }
