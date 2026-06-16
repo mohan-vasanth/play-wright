@@ -9,7 +9,7 @@ import java.nio.file.Path;
 final class StaticReportDataWriter {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final Path REPORT_DATA_PATH = Path.of("target", "report-data.js");
+    private static final Path REPORT_DATA_PATH = ArtifactPaths.TARGET_DIR.resolve("report-data.js");
 
     private StaticReportDataWriter() {
     }
@@ -30,6 +30,8 @@ final class StaticReportDataWriter {
             String payload = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(body);
             String script = "window.__REPORT_DATA__ = " + payload + ";" + System.lineSeparator();
             Files.writeString(REPORT_DATA_PATH, script, StandardCharsets.UTF_8);
+            ArtifactPaths.ensureBaseDirectories();
+            Files.writeString(ArtifactPaths.REPORT_DATA, script, StandardCharsets.UTF_8);
         } catch (Exception ignored) {
         }
     }

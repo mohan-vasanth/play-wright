@@ -48,6 +48,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
         loginPage.waitForAuthenticatedState();
+        captureStepScreenshot(Paths.get("target", REPORT_ARTIFACT_PREFIX + "-login.png"));
 
         declarationsPage.autoAcceptUnsavedChanges();
         openDeclarationListWithRelogin(loginPage, declarationsPage);
@@ -653,16 +654,6 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     }
 
     private void deleteExistingArtifacts(String artifactPrefix) {
-        try (java.util.stream.Stream<Path> files = Files.list(Paths.get("target"))) {
-            files.filter(Files::isRegularFile)
-                    .filter(path -> path.getFileName().toString().startsWith(artifactPrefix))
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (Exception ignored) {
-                        }
-                    });
-        } catch (Exception ignored) {
-        }
+        ArtifactPaths.deleteExistingDeclarationArtifacts(artifactPrefix);
     }
 }
