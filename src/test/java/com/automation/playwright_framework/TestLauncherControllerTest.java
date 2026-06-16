@@ -3,9 +3,11 @@ package com.automation.playwright_framework;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ResourceLock(value = "user.dir", mode = ResourceAccessMode.READ_WRITE)
@@ -66,10 +69,60 @@ class TestLauncherControllerTest {
         assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", "OD6F274299A"));
     }
 
+    @Test
+    void classpathFallbackListsJsonFiles() throws Exception {
+        Object config = resolveTypeConfig("out");
+        Method listClasspathJsonFiles = TestLauncherController.class.getDeclaredMethod("listClasspathJsonFiles", config.getClass());
+        listClasspathJsonFiles.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, String>> files = (List<Map<String, String>>) listClasspathJsonFiles.invoke(controller, config);
+
+        assertFalse(files.isEmpty());
+        assertTrue(files.stream()
+                .map(file -> file.get("resourcePath"))
+                .anyMatch("OD-WITH COO.json"::equals));
+    }
+
+    @Test
+    void classpathFallbackCanMaterializeSelectedJson() throws Exception {
+        Object config = resolveTypeConfig("ipt");
+        Method resolveClasspathJsonResource = TestLauncherController.class.getDeclaredMethod(
+                "resolveClasspathJsonResource",
+                config.getClass(),
+                String.class);
+        resolveClasspathJsonResource.setAccessible(true);
+
+        Object resource = resolveClasspathJsonResource.invoke(controller, config, "ipt-declaration-test-case-1.json");
+        assertNotNull(resource);
+
+        Method materializeClasspathJsonResource = TestLauncherController.class.getDeclaredMethod(
+                "materializeClasspathJsonResource",
+                config.getClass(),
+                String.class,
+                Resource.class);
+        materializeClasspathJsonResource.setAccessible(true);
+
+        Path materializedPath = (Path) materializeClasspathJsonResource.invoke(
+                controller,
+                config,
+                "ipt-declaration-test-case-1.json",
+                resource);
+
+        assertTrue(Files.isRegularFile(materializedPath));
+        assertTrue(Files.size(materializedPath) > 0);
+    }
+
     private Map<?, ?> jsonOptionsBody(String type) {
         ResponseEntity<?> response = controller.jsonOptions(type);
         assertEquals(200, response.getStatusCode().value());
         assertTrue(response.getBody() instanceof Map);
         return (Map<?, ?>) response.getBody();
+    }
+
+    private Object resolveTypeConfig(String type) throws Exception {
+        Method resolveTypeConfig = TestLauncherController.class.getDeclaredMethod("resolveTypeConfig", String.class);
+        resolveTypeConfig.setAccessible(true);
+        return resolveTypeConfig.invoke(controller, type);
     }
 }

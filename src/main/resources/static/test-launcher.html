@@ -1133,10 +1133,72 @@
         return '';
     }
 
-    const apiBase = resolveApiBase();
+    let apiBase = resolveApiBase();
+
+    function normalizeApiBase(base) {
+        return String(base || '').trim().replace(/\/$/, '');
+    }
+
+    function rememberApiBase(base) {
+        apiBase = normalizeApiBase(base);
+        if (window.location.protocol === 'file:' && apiBase) {
+            localStorage.setItem(API_BASE_STORAGE_KEY, apiBase);
+        }
+    }
+
+    function apiBaseCandidates() {
+        const candidates = [];
+        const seen = new Set();
+
+        function addCandidate(base) {
+            const normalized = normalizeApiBase(base);
+            if (seen.has(normalized)) {
+                return;
+            }
+            seen.add(normalized);
+            candidates.push(normalized);
+        }
+
+        addCandidate(apiBase);
+        if (window.location.protocol !== 'file:') {
+            addCandidate('');
+        } else {
+            addCandidate(localStorage.getItem(API_BASE_STORAGE_KEY) || '');
+            addCandidate('http://localhost:8080');
+            addCandidate('http://127.0.0.1:8080');
+        }
+
+        return candidates;
+    }
+
+    function launcherApiConnectionMessage() {
+        return 'Could not reach the launcher API. Start the Spring Boot app and open http://localhost:8080/test-launcher.html.';
+    }
+
+    async function fetchFromApi(path, options) {
+        let lastError = null;
+        for (const base of apiBaseCandidates()) {
+            try {
+                const resp = await fetch(apiUrlForBase(base, path), options);
+                rememberApiBase(base);
+                return resp;
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        throw lastError || new Error(launcherApiConnectionMessage());
+    }
 
     function apiUrl(path) {
-        return `${apiBase}${path}`;
+        return apiUrlForBase(apiBase, path);
+    }
+
+    function apiUrlForBase(base, path) {
+        return `${normalizeApiBase(base)}${path}`;
+    }
+
+    function defaultExecutableForType(type) {
+        return ['ipt', 'out', 'coo'].includes(String(type || '').trim().toLowerCase());
     }
 
     function reportPrefixForType(type) {
@@ -1290,7 +1352,7 @@
         const requestId = ++configRequestSequence;
 
         try {
-            const resp = await fetch(apiUrl('/api/launcher/json-options?type=' + encodeURIComponent(normalizedType)));
+            const resp = await fetchFromApi('/api/launcher/json-options?type=' + encodeURIComponent(normalizedType));
             const data = await resp.json();
             if (!resp.ok) {
                 throw new Error(data.error || 'Unable to load JSON options.');
@@ -1315,11 +1377,12 @@
                 configuredFolder: 'src/test/resources/' + normalizedType.toUpperCase(),
                 resolvedFolderPath: '',
                 folderFound: false,
-                executable: false,
+                executable: defaultExecutableForType(normalizedType),
+                loadError: error.message || launcherApiConnectionMessage(),
                 files: []
             };
             applyConfigMeta(currentConfigMeta, selectedResource);
-            showConfigValidation(error.message || 'Unable to load JSON options.');
+            showConfigValidation(error.message || launcherApiConnectionMessage());
         }
     }
 
@@ -1336,9 +1399,12 @@
         const resolvedFolderPath = String(data.resolvedFolderPath || '').trim();
         const folderFound = Boolean(data.folderFound);
         const files = Array.isArray(data.files) ? data.files : [];
+        const loadError = String(data.loadError || '').trim();
 
         document.getElementById('configTitle').textContent = (data.moduleLabel || moduleLabelForType(data.type)) + ' Configuration';
-        document.getElementById('configSubtext').textContent = executable
+        document.getElementById('configSubtext').textContent = loadError
+            ? launcherApiConnectionMessage()
+            : executable
             ? 'Select a JSON from ' + (configuredFolder || ('src/test/resources/' + resourceFolder)) + ' or upload one manually before running the declaration.'
             : 'Repository JSON selection is available, but an automation runner is not implemented for this declaration type yet.';
         document.getElementById('configFolderHint').textContent = configuredFolder
@@ -1349,7 +1415,9 @@
         resourceSelect.innerHTML = '';
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = folderFound
+        placeholder.textContent = loadError
+            ? 'Unable To Reach API'
+            : folderFound
             ? (files.length ? 'Select JSON From Folder' : 'No JSON Files Found')
             : 'JSON Folder Not Found';
         resourceSelect.appendChild(placeholder);
@@ -1364,10 +1432,17 @@
         }
 
         const runButton = document.getElementById('btnRunConfiguredTest');
-        runButton.textContent = executable
+        runButton.textContent = loadError
+            ? 'Server Unreachable'
+            : executable
             ? 'Run ' + (data.moduleLabel || moduleLabelForType(data.type) || 'Declaration')
             : 'Automation Not Available';
-        runButton.disabled = !executable || isRunning;
+        runButton.disabled = Boolean(loadError) || !executable || isRunning;
+
+        if (loadError) {
+            showConfigValidation(loadError);
+            return;
+        }
 
         if (!folderFound) {
             showConfigValidation(configuredFolder
@@ -1499,12 +1574,12 @@
         }
 
         try {
-            resp = await fetch(apiUrl('/api/launcher/start'), {
+            resp = await fetchFromApi('/api/launcher/start', {
                 method: 'POST',
                 body: formData
             });
-        } catch (_) {
-            appendLine('ERROR: Could not reach the server at ' + apiUrl('') + '. Is the Spring Boot app running?');
+        } catch (error) {
+            appendLine('ERROR: ' + (error.message || launcherApiConnectionMessage()));
             stopStatusPolling();
             setStatus({
                 displayState: 'FAILED',
@@ -1613,7 +1688,7 @@
 
     async function fetchStatus() {
         try {
-            const resp = await fetch(apiUrl('/api/launcher/status'));
+            const resp = await fetchFromApi('/api/launcher/status');
             const data = await resp.json();
             applyLauncherStatus(data);
         } catch (_) {
@@ -1924,7 +1999,7 @@
         });
 
         try {
-            const resp = await fetch(apiUrl('/api/launcher/status'));
+            const resp = await fetchFromApi('/api/launcher/status');
             const data = await resp.json();
             applyLauncherStatus(data);
             if (data.type) {

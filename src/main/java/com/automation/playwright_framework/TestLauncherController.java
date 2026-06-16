@@ -1,6 +1,10 @@
 package com.automation.playwright_framework;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -16,6 +20,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,6 +32,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Stream;
 
@@ -35,6 +43,8 @@ public class TestLauncherController {
 
     private static final int NO_EXIT_CODE = -999;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ResourcePatternResolver RESOURCE_PATTERN_RESOLVER =
+            new PathMatchingResourcePatternResolver(TestLauncherController.class.getClassLoader());
     private static final Map<String, LauncherTypeConfig> TYPE_CONFIGS = Map.ofEntries(
             Map.entry("ipt", new LauncherTypeConfig(
                     "ipt",
@@ -109,16 +119,21 @@ public class TestLauncherController {
 
         try {
             Path resourceFolderPath = resolveResourceFolderPath(config);
+            List<Map<String, String>> files = resourceFolderPath != null
+                    ? listJsonFiles(resourceFolderPath)
+                    : listClasspathJsonFiles(config);
             return ResponseEntity.ok(Map.of(
                     "type", config.type(),
                     "moduleLabel", config.moduleLabel(),
                     "resourceFolder", config.resourceFolder(),
                     "configuredFolder", configuredResourceFolder(config),
-                    "resolvedFolderPath", resourceFolderPath != null ? resourceFolderPath.toString() : "",
-                    "folderFound", resourceFolderPath != null,
+                    "resolvedFolderPath", resourceFolderPath != null
+                            ? resourceFolderPath.toString()
+                            : resolveClasspathFolderLabel(config, files),
+                    "folderFound", resourceFolderPath != null || !files.isEmpty(),
                     "requiresPermitType", config.requiresPermitType(),
                     "executable", config.executable(),
-                    "files", listJsonFiles(resourceFolderPath)));
+                    "files", files));
         } catch (IOException exception) {
             return ResponseEntity.status(500).body(Map.of(
                     "error", "Unable to list JSON files for " + config.type() + ": " + exception.getMessage()));
@@ -391,6 +406,77 @@ public class TestLauncherController {
         }
     }
 
+    private List<Map<String, String>> listClasspathJsonFiles(LauncherTypeConfig config) throws IOException {
+        Resource[] resources = RESOURCE_PATTERN_RESOLVER.getResources("classpath*:" + config.resourceFolder() + "/**/*");
+        Map<String, Map<String, String>> files = new TreeMap<>();
+        for (Resource resource : resources) {
+            String resourcePath = classpathJsonResourcePath(config, resource);
+            if (resourcePath == null) {
+                continue;
+            }
+            files.put(resourcePath, Map.of(
+                    "name", resourcePath,
+                    "resourcePath", resourcePath));
+        }
+        return List.copyOf(files.values());
+    }
+
+    private String resolveClasspathFolderLabel(LauncherTypeConfig config, List<Map<String, String>> files) {
+        return files.isEmpty() ? "" : "classpath:/" + config.resourceFolder();
+    }
+
+    private Resource resolveClasspathJsonResource(LauncherTypeConfig config, String relativeResourcePath) {
+        URL url = TestLauncherController.class.getClassLoader()
+                .getResource(config.resourceFolder() + "/" + relativeResourcePath);
+        if (url == null) {
+            return null;
+        }
+        Resource resource = new UrlResource(url);
+        return resource.exists() ? resource : null;
+    }
+
+    private Path materializeClasspathJsonResource(
+            LauncherTypeConfig config,
+            String relativeResourcePath,
+            Resource resource) throws IOException {
+        String sanitizedRelativeName = relativeResourcePath.replace('\\', '/').replaceAll("[^A-Za-z0-9._/-]", "_");
+        Path outputPath = Paths.get("target", "launcher-classpath", config.type(), sanitizedRelativeName)
+                .toAbsolutePath()
+                .normalize();
+        Path parent = outputPath.getParent();
+        if (parent == null) {
+            throw new IOException("Unable to resolve output path for classpath JSON resource.");
+        }
+        Files.createDirectories(parent);
+        try (var inputStream = resource.getInputStream()) {
+            Files.write(outputPath, inputStream.readAllBytes());
+        }
+        return outputPath;
+    }
+
+    private String classpathJsonResourcePath(LauncherTypeConfig config, Resource resource) {
+        try {
+            if (!resource.exists()) {
+                return null;
+            }
+            String fileName = resource.getFilename();
+            if (fileName == null || !fileName.toLowerCase().endsWith(".json")) {
+                return null;
+            }
+            String externalForm = URLDecoder.decode(
+                    resource.getURL().toExternalForm(),
+                    StandardCharsets.UTF_8).replace('\\', '/');
+            String marker = "/" + config.resourceFolder() + "/";
+            int markerIndex = externalForm.indexOf(marker);
+            if (markerIndex < 0) {
+                return null;
+            }
+            return externalForm.substring(markerIndex + marker.length());
+        } catch (IOException exception) {
+            return null;
+        }
+    }
+
     private List<String> buildCommand(
             LauncherTypeConfig config,
             String mvnwPath,
@@ -430,17 +516,38 @@ public class TestLauncherController {
         if (!normalizedResource.toLowerCase().endsWith(".json")) {
             throw new IllegalArgumentException("Selected repository file must be a .json file.");
         }
+        Path normalizedRelativePath = Paths.get(normalizedResource).normalize();
+        if (normalizedRelativePath.isAbsolute() || normalizedRelativePath.startsWith("..")) {
+            throw new IllegalArgumentException("Selected JSON resource is outside the allowed folder.");
+        }
+        String relativeResourcePath = normalizedRelativePath.toString().replace('\\', '/');
 
         Path folder = resolveResourceFolderPath(config);
         if (folder == null) {
-            throw new IllegalArgumentException("Configured JSON folder was not found: " + configuredResourceFolder(config));
+            Resource resource = resolveClasspathJsonResource(config, relativeResourcePath);
+            if (resource == null) {
+                throw new IllegalArgumentException("Selected JSON resource was not found: " + relativeResourcePath);
+            }
+            try {
+                return materializeClasspathJsonResource(config, relativeResourcePath, resource);
+            } catch (IOException exception) {
+                throw new IllegalArgumentException("Unable to prepare selected JSON resource: " + exception.getMessage());
+            }
         }
-        Path candidate = folder.resolve(normalizedResource).normalize();
+        Path candidate = folder.resolve(relativeResourcePath).normalize();
         if (!candidate.startsWith(folder)) {
             throw new IllegalArgumentException("Selected JSON resource is outside the allowed folder.");
         }
         if (!Files.isRegularFile(candidate)) {
-            throw new IllegalArgumentException("Selected JSON resource was not found: " + normalizedResource);
+            Resource resource = resolveClasspathJsonResource(config, relativeResourcePath);
+            if (resource != null) {
+                try {
+                    return materializeClasspathJsonResource(config, relativeResourcePath, resource);
+                } catch (IOException exception) {
+                    throw new IllegalArgumentException("Unable to prepare selected JSON resource: " + exception.getMessage());
+                }
+            }
+            throw new IllegalArgumentException("Selected JSON resource was not found: " + relativeResourcePath);
         }
         return candidate.toAbsolutePath().normalize();
     }
