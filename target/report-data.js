@@ -1,0 +1,43 @@
+window.__REPORT_DATA__ = {
+  "status" : "SUCCESS",
+  "suiteName" : null,
+  "sourceFile" : null,
+  "tests" : 0,
+  "failures" : 0,
+  "errors" : 0,
+  "skipped" : 0,
+  "durationSeconds" : null,
+  "updatedAt" : "2026-06-16T10:55:56.240Z",
+  "primaryIssue" : "1 of 1 declarations passed.",
+  "testCases" : [ ],
+  "batchSummary" : {
+    "total" : 1,
+    "successes" : 1,
+    "issues" : 0,
+    "failures" : 0,
+    "drafts" : 0
+  },
+  "batchCases" : [ {
+    "index" : 1,
+    "status" : "SUCCESS",
+    "message" : "Declaration submitted successfully.",
+    "declarationTypeCode" : "COO",
+    "declarationTypeDisplay" : "Certificate of Origin (COO)",
+    "jobStatus" : "PMT",
+    "jobId" : "5462",
+    "declarationNumber" : "TDX2606160050",
+    "pmtNumber" : null,
+    "jobCreatedBy" : "mohan",
+    "responseMessage" : "Declaration submitted successfully.",
+    "errorMessage" : "Declaration submitted successfully.",
+    "responseSummary" : "Job ID: 5462\r\n\r\nMessage Ref: TDX2606160050\r\n\r\nDeclaration Type: COO\r\n\r\nStatus: PMT\r\n\r\nPMT Number: N/A\r\n\r\nJob Created By: mohan\r\n\r\nResponse Message: Declaration submitted successfully.\r\n\r\nError Message: N/A",
+    "toastText" : null,
+    "invalidCount" : 0,
+    "diagnosticsText" : "{\r\n  \"toastText\" : \"\",\r\n  \"responseMessage\" : \"Declaration submitted successfully.\",\r\n  \"errorMessage\" : \"N/A\",\r\n  \"notificationMessages\" : [ ],\r\n  \"invalidElements\" : [ ],\r\n  \"supplyIndicator\" : null,\r\n  \"jobId\" : \"5462\",\r\n  \"jobStatus\" : \"PMT\",\r\n  \"declarationType\" : \"COO\",\r\n  \"declarationNumber\" : \"TDX2606160050\",\r\n  \"jobCreatedBy\" : \"mohan\",\r\n  \"responseSummary\" : \"Job ID: 5462\\r\\n\\r\\nMessage Ref: TDX2606160050\\r\\n\\r\\nDeclaration Type: COO\\r\\n\\r\\nStatus: PMT\\r\\n\\r\\nPMT Number: N/A\\r\\n\\r\\nJob Created By: mohan\\r\\n\\r\\nResponse Message: Declaration submitted successfully.\\r\\n\\r\\nError Message: N/A\"\r\n}",
+    "diagnosticsFile" : "coo-batch-submit-validation-1.json",
+    "screenshotFile" : "coo-batch-submit-1.png",
+    "statusScreenshotFile" : "coo-batch-submit-status-1.png",
+    "updatedAt" : "2026-06-16T10:55:56.240Z",
+    "updatedAtMillis" : 1781607356240
+  } ]
+};

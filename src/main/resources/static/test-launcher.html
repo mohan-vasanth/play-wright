@@ -811,6 +811,26 @@
             font-size: 13px;
         }
 
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+        }
+
+        .summary-note {
+            margin-top: 18px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .summary-links {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
         @media (max-width: 1140px) {
             .status-grid,
             .field-grid {
@@ -893,11 +913,12 @@
             <div class="brand-mark">DT</div>
             <div>
                 <p class="eyebrow">Enterprise Automation Dashboard</p>
-                <h1>Declaration Test Launcher</h1>
-                <p class="sub">Run Playwright declaration automation, monitor live job movement, and jump into reports without leaving the dashboard.</p>
+                <h1>Permit Workflow Launcher</h1>
+                <p class="sub">Run the permit creation workflow from JSON selection through submission validation and JMeter summary in one dashboard.</p>
             </div>
         </div>
         <div class="topbar-actions">
+            <a href="load-testing-dashboard.html" class="nav-link button-secondary">Load Dashboard</a>
             <a href="report.html" id="reportBtn" class="nav-link button-secondary">Open Report</a>
         </div>
     </header>
@@ -983,8 +1004,8 @@
         <section class="panel section-panel" id="launchPanel">
             <div class="section-head">
                 <div>
-                    <div class="section-title">Select Test to Run</div>
-                    <div class="section-note">Each declaration module opens its own configuration surface with repository JSON selection and manual JSON upload support.</div>
+                    <div class="section-title">Select Permit Workflow</div>
+                    <div class="section-note">Choose a declaration module, review the available permit case JSON files, and trigger the full run from one configuration panel.</div>
                 </div>
             </div>
 
@@ -1070,10 +1091,42 @@
                         <div id="configFileName">No manual JSON file selected.</div>
                     </div>
                     <div class="config-actions">
-                        <button id="btnRunConfiguredTest" type="button" onclick="startConfiguredTest()">Run Declaration</button>
+                        <button id="btnRunConfiguredTest" type="button" onclick="startConfiguredTest()">Run Test</button>
                         <button class="button-secondary" type="button" onclick="closeConfigPanel()">Close</button>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="panel section-panel" id="summaryPanel">
+            <div class="section-head">
+                <div>
+                    <div class="section-title">Final Result Summary</div>
+                    <div class="section-note">Declaration outcome fields and JMeter metrics for the latest UI-triggered workflow run.</div>
+                </div>
+            </div>
+
+            <div class="summary-grid">
+                <div class="field-card"><div class="metric-label">Selected JSON</div><div class="metric-value" id="summarySelectedJson">-</div></div>
+                <div class="field-card"><div class="metric-label">Permit Number</div><div class="metric-value" id="summaryPermitNumber">-</div></div>
+                <div class="field-card"><div class="metric-label">Job Number</div><div class="metric-value" id="summaryJobNumber">-</div></div>
+                <div class="field-card"><div class="metric-label">Submission Status</div><div class="metric-value" id="summarySubmissionStatus">-</div></div>
+                <div class="field-card"><div class="metric-label">PMT Status</div><div class="metric-value" id="summaryPmtStatus">-</div></div>
+                <div class="field-card"><div class="metric-label">Performance Status</div><div class="metric-value" id="summaryPerformanceStatus">Idle</div></div>
+                <div class="field-card"><div class="metric-label">Total Requests</div><div class="metric-value" id="summaryTotalRequests">0</div></div>
+                <div class="field-card"><div class="metric-label">Passed Requests</div><div class="metric-value" id="summaryPassedRequests">0</div></div>
+                <div class="field-card"><div class="metric-label">Failed Requests</div><div class="metric-value" id="summaryFailedRequests">0</div></div>
+                <div class="field-card"><div class="metric-label">Average Response Time</div><div class="metric-value" id="summaryAverageResponseTime">0 ms</div></div>
+                <div class="field-card"><div class="metric-label">Average Latency</div><div class="metric-value" id="summaryAverageLatency">0 ms</div></div>
+                <div class="field-card"><div class="metric-label">Throughput</div><div class="metric-value" id="summaryThroughput">0 req/s</div></div>
+                <div class="field-card"><div class="metric-label">Error Percentage</div><div class="metric-value" id="summaryErrorPercentage">0%</div></div>
+                <div class="field-card"><div class="metric-label">Threshold Result</div><div class="metric-value" id="summaryThresholdResult">Pending</div></div>
+            </div>
+
+            <div class="summary-note" id="summaryMessage">Select a permit JSON and click Run Test to start the workflow.</div>
+            <div class="summary-links">
+                <a href="report.html" id="summaryReportLink" class="nav-link button-secondary">Open Declaration Report</a>
+                <a href="#" id="summaryHtmlReportLink" class="nav-link button-secondary" target="_blank" rel="noreferrer">Open JMeter HTML Report</a>
             </div>
         </section>
 
@@ -1110,8 +1163,19 @@
     let lastTimelineRank = -1;
     let hasObservedActiveRun = false;
     let autoOpenedReportContextKey = '';
+    let currentSelectedJsonLabel = '';
+    let jmeterStatusPollHandle = null;
+    let jmeterTriggeredContextKey = '';
+    let latestDeclarationSummary = null;
     const API_BASE_STORAGE_KEY = 'tradenix.report.apiBase';
+    const LAST_SELECTED_DECLARATION_TYPE_KEY = 'tradenix.launcher.lastType';
     const CONFIG_REFRESH_INTERVAL_MS = 5000;
+    const PERFORMANCE_TEST_CONFIG = Object.freeze({
+        threads: 50,
+        rampUpSeconds: 10,
+        loopCount: 5,
+        durationSeconds: 0
+    });
     const timelineStages = [
         { key: 'created', itemId: 'stageCreated', timeId: 'stageCreatedTime', waiting: 'Waiting for execution' },
         { key: 'submitted', itemId: 'stageSubmitted', timeId: 'stageSubmittedTime', waiting: 'No submission yet' },
@@ -1199,6 +1263,14 @@
 
     function defaultExecutableForType(type) {
         return ['ipt', 'out', 'coo'].includes(String(type || '').trim().toLowerCase());
+    }
+
+    function defaultConfigType() {
+        const storedType = String(localStorage.getItem(LAST_SELECTED_DECLARATION_TYPE_KEY) || '').trim().toLowerCase();
+        if (defaultExecutableForType(storedType)) {
+            return storedType;
+        }
+        return 'ipt';
     }
 
     function reportPrefixForType(type) {
@@ -1334,6 +1406,9 @@
 
     async function openConfigPanel(type) {
         currentConfigType = String(type || '').trim().toLowerCase();
+        if (currentConfigType) {
+            localStorage.setItem(LAST_SELECTED_DECLARATION_TYPE_KEY, currentConfigType);
+        }
         clearConfigValidation();
         resetConfigInputs();
 
@@ -1435,7 +1510,7 @@
         runButton.textContent = loadError
             ? 'Server Unreachable'
             : executable
-            ? 'Run ' + (data.moduleLabel || moduleLabelForType(data.type) || 'Declaration')
+            ? 'Run Test'
             : 'Automation Not Available';
         runButton.disabled = Boolean(loadError) || !executable || isRunning;
 
@@ -1535,6 +1610,7 @@
             return;
         }
 
+        currentSelectedJsonLabel = selectedJsonLabel();
         startTest(currentConfigType, { jsonResource, jsonFile });
     }
 
@@ -1545,6 +1621,9 @@
         }
 
         resetStatusTimeline();
+        resetFinalSummary();
+        stopJMeterPolling();
+        jmeterTriggeredContextKey = '';
         setStatus({
             displayState: 'RUNNING',
             type,
@@ -1720,7 +1799,9 @@
         } else {
             stopLiveMonitoring();
             setBtnsDisabled(false);
-            maybeOpenReport(data);
+            if (hasObservedActiveRun || isTerminalReportState(data)) {
+                handleTerminalWorkflowState(data);
+            }
         }
     }
 
@@ -1775,16 +1856,7 @@
     }
 
     function maybeOpenReport(data) {
-        if (!hasObservedActiveRun || !isTerminalReportState(data)) {
-            return;
-        }
-        const targetHref = buildReportHref(data?.type || '', data);
-        const contextKey = reportContextKey(data);
-        if (!targetHref || !contextKey || contextKey === '||' || contextKey === autoOpenedReportContextKey) {
-            return;
-        }
-        autoOpenedReportContextKey = contextKey;
-        window.location.href = targetHref;
+        return;
     }
 
     function appendLine(text) {
@@ -1964,8 +2036,209 @@
                             : '';
     }
 
+    function reportPrefixForType(type) {
+        return type === 'ipt'
+            ? 'ipt-batch-submit'
+            : type === 'out'
+                ? 'out-batch-submit'
+                : type === 'coo'
+                    ? 'coo-batch-submit'
+                    : '';
+    }
+
+    function defaultJMeterTargetUrl() {
+        const normalizedApiBase = normalizeApiBase(apiBase);
+        if (normalizedApiBase) {
+            return normalizedApiBase;
+        }
+        return window.location.origin;
+    }
+
+    function selectedJsonLabel() {
+        const uploaded = document.getElementById('configJsonFile').files[0];
+        if (uploaded) {
+            return uploaded.name;
+        }
+        const select = document.getElementById('configJsonResource');
+        const option = select.selectedOptions && select.selectedOptions.length ? select.selectedOptions[0] : null;
+        return option && option.value ? option.textContent.trim() : '';
+    }
+
+    function setSummaryValue(id, value) {
+        const node = document.getElementById(id);
+        node.textContent = value === null || value === undefined || value === '' ? '-' : String(value);
+    }
+
+    function resetFinalSummary() {
+        latestDeclarationSummary = null;
+        setSummaryValue('summarySelectedJson', currentSelectedJsonLabel || '-');
+        setSummaryValue('summaryPermitNumber', '-');
+        setSummaryValue('summaryJobNumber', '-');
+        setSummaryValue('summarySubmissionStatus', '-');
+        setSummaryValue('summaryPmtStatus', '-');
+        setSummaryValue('summaryPerformanceStatus', 'Idle');
+        setSummaryValue('summaryTotalRequests', '0');
+        setSummaryValue('summaryPassedRequests', '0');
+        setSummaryValue('summaryFailedRequests', '0');
+        setSummaryValue('summaryAverageResponseTime', '0 ms');
+        setSummaryValue('summaryAverageLatency', '0 ms');
+        setSummaryValue('summaryThroughput', '0 req/s');
+        setSummaryValue('summaryErrorPercentage', '0%');
+        setSummaryValue('summaryThresholdResult', 'Pending');
+        document.getElementById('summaryMessage').textContent =
+            'Select a permit JSON and click Run Test to start the workflow.';
+        document.getElementById('summaryHtmlReportLink').href = '#';
+    }
+
+    function applyDeclarationSummary(report) {
+        if (!report || !Array.isArray(report.batchCases) || !report.batchCases.length) {
+            return;
+        }
+
+        const batchCase = report.batchCases[0];
+        latestDeclarationSummary = batchCase;
+        setSummaryValue('summarySelectedJson', currentSelectedJsonLabel || '-');
+        setSummaryValue('summaryPermitNumber', batchCase.pmtNumber || 'N/A');
+        setSummaryValue('summaryJobNumber', batchCase.jobId || '-');
+        setSummaryValue('summarySubmissionStatus', batchCase.jobStatus || batchCase.status || '-');
+        setSummaryValue('summaryPmtStatus', batchCase.jobStatus === 'PMT' ? 'PMT Issued' : (batchCase.jobStatus || batchCase.status || '-'));
+        document.getElementById('summaryMessage').textContent = batchCase.message
+            || report.primaryIssue
+            || 'Declaration workflow completed.';
+    }
+
+    function applyJMeterSummary(status) {
+        const normalizedStatus = String(status.status || 'IDLE').trim().toUpperCase();
+        const hasExecutionContext = Boolean(status.runId || status.configuration || status.running);
+        if (!hasExecutionContext && normalizedStatus === 'IDLE') {
+            return;
+        }
+        const totalRequests = Number(status.totalRequests || 0);
+        const passedRequests = Number(status.successCount || 0);
+        const failedRequests = Number(status.failureCount || 0);
+        setSummaryValue('summaryPerformanceStatus', status.status || 'IDLE');
+        setSummaryValue('summaryTotalRequests', totalRequests);
+        setSummaryValue('summaryPassedRequests', passedRequests);
+        setSummaryValue('summaryFailedRequests', failedRequests);
+        setSummaryValue('summaryAverageResponseTime', formatFixedMetric(status.averageResponseTime, ' ms'));
+        setSummaryValue('summaryAverageLatency', formatFixedMetric(status.averageLatency, ' ms'));
+        setSummaryValue('summaryThroughput', formatFixedMetric(status.throughput, ' req/s'));
+        setSummaryValue('summaryErrorPercentage', formatFixedMetric(status.errorPercentage, '%'));
+        setSummaryValue('summaryThresholdResult', status.thresholdsPassed ? 'Passed' : 'Failed');
+        document.getElementById('summaryMessage').textContent = status.thresholdMessage
+            || status.message
+            || document.getElementById('summaryMessage').textContent;
+        document.getElementById('summaryHtmlReportLink').href = status.openUrl || '#';
+    }
+
+    function formatFixedMetric(value, suffix) {
+        if (value === null || value === undefined || value === '') {
+            return '0' + suffix;
+        }
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) {
+            return '0' + suffix;
+        }
+        return numeric.toFixed(2).replace(/\.00$/, '') + suffix;
+    }
+
+    async function refreshDeclarationSummary(statusData) {
+        const reportPrefix = reportPrefixForType(statusData.type || currentConfigType);
+        if (!reportPrefix) {
+            return;
+        }
+
+        const params = new URLSearchParams();
+        params.set('reportPrefix', reportPrefix);
+        if (statusData.jobId) {
+            params.set('jobId', statusData.jobId);
+        }
+        if (statusData.messageRef) {
+            params.set('messageRef', statusData.messageRef);
+        }
+
+        try {
+            const response = await fetchFromApi('/api/reports/latest?' + params.toString());
+            const report = await response.json();
+            applyDeclarationSummary(report);
+        } catch (_) {
+        }
+    }
+
+    async function startJMeterForLatestRun(statusData) {
+        const contextKey = reportContextKey(statusData);
+        if (!contextKey || contextKey === '||' || contextKey === jmeterTriggeredContextKey) {
+            return;
+        }
+        jmeterTriggeredContextKey = contextKey;
+        setSummaryValue('summaryPerformanceStatus', 'RUNNING');
+        document.getElementById('summaryMessage').textContent =
+            'Declaration completed. Starting JMeter with 50 users, 10 second ramp-up, and 5 loops.';
+
+        const formData = new FormData();
+        formData.append('targetUrl', defaultJMeterTargetUrl());
+        formData.append('threads', String(PERFORMANCE_TEST_CONFIG.threads));
+        formData.append('rampUpSeconds', String(PERFORMANCE_TEST_CONFIG.rampUpSeconds));
+        formData.append('loopCount', String(PERFORMANCE_TEST_CONFIG.loopCount));
+        formData.append('durationSeconds', String(PERFORMANCE_TEST_CONFIG.durationSeconds));
+        formData.append('declarationType', statusData.type || currentConfigType || '');
+        formData.append('reportPrefix', reportPrefixForType(statusData.type || currentConfigType));
+        formData.append('selectedJson', currentSelectedJsonLabel || '');
+
+        try {
+            await fetchFromApi('/api/jmeter/run', {
+                method: 'POST',
+                body: formData
+            });
+        } catch (error) {
+            document.getElementById('summaryMessage').textContent =
+                error.message || 'Unable to start JMeter performance execution.';
+        }
+
+        fetchJMeterStatus();
+    }
+
+    async function fetchJMeterStatus() {
+        try {
+            const response = await fetchFromApi('/api/jmeter/status');
+            const status = await response.json();
+            applyJMeterSummary(status);
+            if (status.running || ['RUNNING', 'STOPPING'].includes(String(status.status || '').toUpperCase())) {
+                startJMeterPolling();
+            } else {
+                stopJMeterPolling();
+            }
+        } catch (_) {
+            stopJMeterPolling();
+        }
+    }
+
+    function startJMeterPolling() {
+        stopJMeterPolling();
+        jmeterStatusPollHandle = window.setTimeout(fetchJMeterStatus, 3000);
+    }
+
+    function stopJMeterPolling() {
+        if (jmeterStatusPollHandle !== null) {
+            window.clearTimeout(jmeterStatusPollHandle);
+            jmeterStatusPollHandle = null;
+        }
+    }
+
+    async function handleTerminalWorkflowState(statusData) {
+        await refreshDeclarationSummary(statusData);
+        if (normalizeDisplayState(statusData.displayState || 'IDLE') === 'SUCCESS') {
+            await startJMeterForLatestRun(statusData);
+            return;
+        }
+        stopJMeterPolling();
+        setSummaryValue('summaryPerformanceStatus', 'SKIPPED');
+        setSummaryValue('summaryThresholdResult', 'Skipped');
+    }
+
     window.addEventListener('DOMContentLoaded', async function() {
         resetStatusTimeline();
+        resetFinalSummary();
         setReportLinks('', {});
 
         document.getElementById('configJsonResource').addEventListener('change', clearConfigValidation);
@@ -2003,7 +2276,9 @@
             const data = await resp.json();
             applyLauncherStatus(data);
             if (data.type) {
-                openConfigPanel(data.type);
+                await openConfigPanel(data.type);
+            } else {
+                await openConfigPanel(defaultConfigType());
             }
             if (data.executionActive) {
                 showTerminal();
@@ -2013,6 +2288,8 @@
             }
         } catch (_) {
         }
+
+        fetchJMeterStatus();
     });
 </script>
 </body>

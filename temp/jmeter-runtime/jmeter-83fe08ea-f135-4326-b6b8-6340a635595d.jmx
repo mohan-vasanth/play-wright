@@ -1,0 +1,419 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<jmeterTestPlan jmeter="5.6.3" properties="5.0" version="1.2">
+    
+  <hashTree>
+        
+    <TestPlan enabled="true" guiclass="TestPlanGui" testclass="TestPlan" testname="Playwright Framework - Performance Test">
+            
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+            
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+            
+      <elementProp elementType="Arguments" guiclass="ArgumentsPanel" name="TestPlan.user_defined_variables" testclass="Arguments">
+                
+        <collectionProp name="Arguments.arguments">
+                    
+          <elementProp elementType="Argument" name="HOST">
+                        
+            <stringProp name="Argument.name">HOST</stringProp>
+                        
+            <stringProp name="Argument.value">localhost</stringProp>
+                        
+            <stringProp name="Argument.metadata">=</stringProp>
+                      
+          </elementProp>
+                    
+          <elementProp elementType="Argument" name="PORT">
+                        
+            <stringProp name="Argument.name">PORT</stringProp>
+                        
+            <stringProp name="Argument.value">8080</stringProp>
+                        
+            <stringProp name="Argument.metadata">=</stringProp>
+                      
+          </elementProp>
+                    
+          <elementProp elementType="Argument" name="PROTOCOL">
+                        
+            <stringProp name="Argument.name">PROTOCOL</stringProp>
+                        
+            <stringProp name="Argument.value">http</stringProp>
+                        
+            <stringProp name="Argument.metadata">=</stringProp>
+                      
+          </elementProp>
+                  
+        </collectionProp>
+              
+      </elementProp>
+          
+    </TestPlan>
+        
+    <hashTree>
+            
+      <!-- 50 Users | 10s Ramp-up | 5 Loops -->
+            
+      <ThreadGroup enabled="true" guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="50 Users - UI Load Test">
+                
+        <intProp name="ThreadGroup.num_threads">50</intProp>
+                
+        <intProp name="ThreadGroup.ramp_time">10</intProp>
+                
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+                
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+                
+        <elementProp elementType="LoopController" guiclass="LoopControlPanel" name="ThreadGroup.main_controller" testclass="LoopController">
+                    
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+                    
+          <intProp name="LoopController.loops">5</intProp>
+                  
+        </elementProp>
+              
+        <stringProp name="ThreadGroup.duration">60</stringProp>
+      </ThreadGroup>
+            
+      <hashTree>
+                
+        <!-- 1. HTTP Request Defaults -->
+                
+        <ConfigTestElement enabled="true" guiclass="HttpDefaultsGui" testclass="ConfigTestElement" testname="HTTP Request Defaults">
+                    
+          <stringProp name="HTTPSampler.domain">localhost</stringProp>
+                    
+          <stringProp name="HTTPSampler.port">8080</stringProp>
+                    
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+                    
+          <stringProp name="HTTPSampler.contentEncoding">UTF-8</stringProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments"/>
+                      
+          </elementProp>
+                  
+        </ConfigTestElement>
+                
+        <hashTree/>
+                
+        <!-- 2. HTTP Cookie Manager -->
+                
+        <CookieManager enabled="true" guiclass="CookiePanel" testclass="CookieManager" testname="HTTP Cookie Manager">
+                    
+          <collectionProp name="CookieManager.cookies"/>
+                    
+          <boolProp name="CookieManager.clearEachIteration">true</boolProp>
+                    
+          <boolProp name="CookieManager.controlledByThreadGroup">false</boolProp>
+                  
+        </CookieManager>
+                
+        <hashTree/>
+                
+        <!-- 3. HTTP Header Manager -->
+                
+        <HeaderManager enabled="true" guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+                    
+          <collectionProp name="HeaderManager.headers">
+                        
+            <elementProp elementType="Header" name="Accept">
+                            
+              <stringProp name="Header.name">Accept</stringProp>
+                            
+              <stringProp name="Header.value">text/html,application/json,*/*</stringProp>
+                          
+            </elementProp>
+                        
+            <elementProp elementType="Header" name="Connection">
+                            
+              <stringProp name="Header.name">Connection</stringProp>
+                            
+              <stringProp name="Header.value">keep-alive</stringProp>
+                          
+            </elementProp>
+                        
+            <elementProp elementType="Header" name="User-Agent">
+                            
+              <stringProp name="Header.name">User-Agent</stringProp>
+                            
+              <stringProp name="Header.value">Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36</stringProp>
+                          
+            </elementProp>
+                      
+          </collectionProp>
+                  
+        </HeaderManager>
+                
+        <hashTree/>
+                
+        <!-- ══════════════════════════════════════════════════════════
+             SAMPLERS  (5 real endpoints that return HTTP 200)
+        ══════════════════════════════════════════════════════════ -->
+                
+        <!-- Sampler 1: GET /test-launcher.html -->
+                
+        <HTTPSamplerProxy enabled="true" guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /test-launcher.html">
+                    
+          <stringProp name="HTTPSampler.path">/test-launcher.html</stringProp>
+                    
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+                    
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                    
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments"/>
+                      
+          </elementProp>
+                  
+        </HTTPSamplerProxy>
+                
+        <hashTree>
+                    
+          <ResponseAssertion enabled="true" guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200">
+                        
+            <collectionProp name="Asserion.test_strings">
+                            
+              <stringProp name="49586">200</stringProp>
+                          
+            </collectionProp>
+                        
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                        
+            <boolProp name="Assertion.assume_success">false</boolProp>
+                        
+            <intProp name="Assertion.test_type">2</intProp>
+                      
+          </ResponseAssertion>
+                    
+          <hashTree/>
+                  
+        </hashTree>
+                
+        <!-- Sampler 2: GET /report.html -->
+                
+        <HTTPSamplerProxy enabled="true" guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /report.html">
+                    
+          <stringProp name="HTTPSampler.path">/report.html</stringProp>
+                    
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+                    
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                    
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments"/>
+                      
+          </elementProp>
+                  
+        </HTTPSamplerProxy>
+                
+        <hashTree>
+                    
+          <ResponseAssertion enabled="true" guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200">
+                        
+            <collectionProp name="Asserion.test_strings">
+                            
+              <stringProp name="49586">200</stringProp>
+                          
+            </collectionProp>
+                        
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                        
+            <boolProp name="Assertion.assume_success">false</boolProp>
+                        
+            <intProp name="Assertion.test_type">2</intProp>
+                      
+          </ResponseAssertion>
+                    
+          <hashTree/>
+                  
+        </hashTree>
+                
+        <!-- Sampler 3: GET /api/launcher/status -->
+                
+        <HTTPSamplerProxy enabled="true" guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/launcher/status">
+                    
+          <stringProp name="HTTPSampler.path">/api/launcher/status</stringProp>
+                    
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+                    
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                    
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments"/>
+                      
+          </elementProp>
+                  
+        </HTTPSamplerProxy>
+                
+        <hashTree>
+                    
+          <ResponseAssertion enabled="true" guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200">
+                        
+            <collectionProp name="Asserion.test_strings">
+                            
+              <stringProp name="49586">200</stringProp>
+                          
+            </collectionProp>
+                        
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                        
+            <boolProp name="Assertion.assume_success">false</boolProp>
+                        
+            <intProp name="Assertion.test_type">2</intProp>
+                      
+          </ResponseAssertion>
+                    
+          <hashTree/>
+                  
+        </hashTree>
+                
+        <!-- Sampler 4: GET /api/reports/latest -->
+                
+        <HTTPSamplerProxy enabled="true" guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/reports/latest">
+                    
+          <stringProp name="HTTPSampler.path">/api/reports/latest</stringProp>
+                    
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+                    
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                    
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments"/>
+                      
+          </elementProp>
+                  
+        </HTTPSamplerProxy>
+                
+        <hashTree>
+                    
+          <ResponseAssertion enabled="true" guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200">
+                        
+            <collectionProp name="Asserion.test_strings">
+                            
+              <stringProp name="49586">200</stringProp>
+                          
+            </collectionProp>
+                        
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                        
+            <boolProp name="Assertion.assume_success">false</boolProp>
+                        
+            <intProp name="Assertion.test_type">2</intProp>
+                      
+          </ResponseAssertion>
+                    
+          <hashTree/>
+                  
+        </hashTree>
+                
+        <!-- Sampler 5: GET /api/launcher/json-options?type=ipt -->
+                
+        <HTTPSamplerProxy enabled="true" guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="GET /api/launcher/json-options">
+                    
+          <stringProp name="HTTPSampler.path">/api/launcher/json-options</stringProp>
+                    
+          <stringProp name="HTTPSampler.method">GET</stringProp>
+                    
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+                    
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+                    
+          <elementProp elementType="Arguments" guiclass="HTTPArgumentsPanel" name="HTTPsampler.Arguments" testclass="Arguments">
+                        
+            <collectionProp name="Arguments.arguments">
+                            
+              <elementProp elementType="HTTPArgument" name="type">
+                                
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                                
+                <stringProp name="Argument.name">type</stringProp>
+                                
+                <stringProp name="Argument.value">ipt</stringProp>
+                                
+                <stringProp name="Argument.metadata">=</stringProp>
+                              
+              </elementProp>
+                          
+            </collectionProp>
+                      
+          </elementProp>
+                  
+        </HTTPSamplerProxy>
+                
+        <hashTree>
+                    
+          <ResponseAssertion enabled="true" guiclass="AssertionGui" testclass="ResponseAssertion" testname="Assert HTTP 200">
+                        
+            <collectionProp name="Asserion.test_strings">
+                            
+              <stringProp name="49586">200</stringProp>
+                          
+            </collectionProp>
+                        
+            <stringProp name="Assertion.test_field">Assertion.response_code</stringProp>
+                        
+            <boolProp name="Assertion.assume_success">false</boolProp>
+                        
+            <intProp name="Assertion.test_type">2</intProp>
+                      
+          </ResponseAssertion>
+                    
+          <hashTree/>
+                  
+        </hashTree>
+                
+        <!-- ══════════════════════════════════════════════════════════
+             LISTENERS
+        ══════════════════════════════════════════════════════════ -->
+                
+        <ResultCollector enabled="false" guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
+                    
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+                    
+          <stringProp name="filename"/>
+                  
+        </ResultCollector>
+                
+        <hashTree/>
+                
+        <ResultCollector enabled="true" guiclass="SummaryReport" testclass="ResultCollector" testname="Summary Report">
+                    
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+                    
+          <stringProp name="filename">reports/jmeter/results.jtl</stringProp>
+                  
+        </ResultCollector>
+                
+        <hashTree/>
+                
+        <ResultCollector enabled="true" guiclass="StatVisualizer" testclass="ResultCollector" testname="Aggregate Report">
+                    
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+                    
+          <stringProp name="filename">reports/jmeter/aggregate.jtl</stringProp>
+                  
+        </ResultCollector>
+                
+        <hashTree/>
+              
+      </hashTree>
+          
+    </hashTree>
+      
+  </hashTree>
+  
+</jmeterTestPlan>

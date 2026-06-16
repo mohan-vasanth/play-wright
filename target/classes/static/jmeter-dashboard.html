@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JMeter Performance Testing Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        html, body, #root {
+            margin: 0;
+            min-height: 100%;
+        }
+
+        body {
+            font-family: Manrope, "Segoe UI", sans-serif;
+        }
+    </style>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@emotion/react@11.11.4/dist/emotion-react.umd.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@emotion/styled@11.11.5/dist/emotion-styled.umd.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@mui/material@5.16.14/umd/material-ui.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+    window.addEventListener('error', function (event) {
+        const root = document.getElementById('root');
+        if (!root || root.children.length > 0) {
+            return;
+        }
+        root.innerHTML = `
+            <div style="padding:32px;font-family:Segoe UI,sans-serif">
+                <h2 style="margin:0 0 12px">JMeter dashboard failed to load</h2>
+                <p style="margin:0;color:#555">Frontend bootstrap error: ${String(event.message || 'Unknown error')}</p>
+            </div>
+        `;
+    });
+</script>
+
+<script type="text/babel" data-presets="env,react">
+    const {
+        Alert,
+        AppBar,
+        Box,
+        Button,
+        Card,
+        CardContent,
+        Chip,
+        CircularProgress,
+        Container,
+        CssBaseline,
+        Divider,
+        FormControl,
+        Grid,
+        InputLabel,
+        LinearProgress,
+        Link,
+        Paper,
+        Snackbar,
+        Stack,
+        Switch,
+        TextField,
+        ThemeProvider,
+        Toolbar,
+        Typography,
+        createTheme,
+        alpha
+    } = MaterialUI;
+
+    const { useEffect, useMemo, useState } = React;
+
+    const statusTone = {
+        IDLE: 'default',
+        RUNNING: 'info',
+        STOPPING: 'warning',
+        COMPLETED: 'success',
+        FAILED: 'error',
+        STOPPED: 'warning'
+    };
+
+    const defaultForm = {
+        targetUrl: 'http://localhost:8080',
+        threads: '50',
+        rampUpSeconds: '10',
+        loopCount: '5',
+        durationSeconds: '60'
+    };
+
+    function preferDefined(primaryValue, fallbackValue) {
+        return primaryValue !== null && primaryValue !== undefined ? primaryValue : fallbackValue;
+    }
+
+    function formatMetric(value, suffix = '') {
+        if (value === null || value === undefined || value === '') {
+            return '--';
+        }
+        return `${value}${suffix}`;
+    }
+
+    function buildAbsoluteUrl(path) {
+        if (!path) {
+            return '';
+        }
+        return `${window.location.origin}${path}`;
+    }
+
+    async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        const text = await response.text();
+        let payload = {};
+        if (text) {
+            try {
+                payload = JSON.parse(text);
+            } catch (_) {
+                payload = { message: text };
+            }
+        }
+        if (!response.ok) {
+            throw new Error(payload.message || payload.error || 'Request failed.');
+        }
+        return payload;
+    }
+
+    function SectionCard({ eyebrow, title, description, children, actions }) {
+        return (
+            <Card
+                sx={{
+                    borderRadius: 6,
+                    border: theme => `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+                    backdropFilter: 'blur(14px)',
+                    background: theme => theme.palette.mode === 'dark'
+                        ? 'linear-gradient(180deg, rgba(13,24,38,0.92), rgba(8,15,28,0.88))'
+                        : 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(248,251,255,0.9))',
+                    boxShadow: theme => theme.palette.mode === 'dark'
+                        ? '0 24px 70px rgba(0, 0, 0, 0.38)'
+                        : '0 24px 70px rgba(15, 23, 42, 0.10)'
+                }}
+            >
+                <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+                    <Stack
+                        direction={{ xs: 'column', md: 'row' }}
+                        justifyContent="space-between"
+                        spacing={2}
+                        sx={{ mb: 3 }}
+                    >
+                        <Box>
+                            <Typography
+                                variant="overline"
+                                sx={{
+                                    letterSpacing: '0.22em',
+                                    color: 'primary.main',
+                                    fontWeight: 800
+                                }}
+                            >
+                                {eyebrow}
+                            </Typography>
+                            <Typography
+                                variant="h5"
+                                sx={{
+                                    mt: 1,
+                                    fontFamily: '"Space Grotesk", sans-serif',
+                                    fontWeight: 700
+                                }}
+                            >
+                                {title}
+                            </Typography>
+                            {description && (
+                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 720, lineHeight: 1.8 }}>
+                                    {description}
+                                </Typography>
+                            )}
+                        </Box>
+                        {actions ? <Box>{actions}</Box> : null}
+                    </Stack>
+                    {children}
+                </CardContent>
+            </Card>
+        );
+    }
+
+    function MetricCard({ label, value, accent }) {
+        return (
+            <Paper
+                elevation={0}
+                sx={{
+                    height: '100%',
+                    p: 2.5,
+                    borderRadius: 5,
+                    border: theme => `1px solid ${alpha(accent || theme.palette.primary.main, 0.18)}`,
+                    background: theme => theme.palette.mode === 'dark'
+                        ? `linear-gradient(180deg, ${alpha(accent || theme.palette.primary.main, 0.16)}, rgba(7, 18, 29, 0.86))`
+                        : `linear-gradient(180deg, ${alpha(accent || theme.palette.primary.main, 0.10)}, rgba(255,255,255,0.96))`
+                }}
+            >
+                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                    {label}
+                </Typography>
+                <Typography
+                    variant="h4"
+                    sx={{
+                        mt: 1.5,
+                        fontFamily: '"Space Grotesk", sans-serif',
+                        fontWeight: 700
+                    }}
+                >
+                    {value}
+                </Typography>
+            </Paper>
+        );
+    }
+
+    function App() {
+        const [mode, setMode] = useState(() => localStorage.getItem('jmeter-dashboard-mode') || 'light');
+        const [form, setForm] = useState(defaultForm);
+        const [jmxFile, setJmxFile] = useState(null);
+        const [status, setStatus] = useState({
+            status: 'IDLE',
+            running: false,
+            progressPercentage: 0,
+            progressIndeterminate: true,
+            progressLabel: 'Waiting for execution'
+        });
+        const [report, setReport] = useState({ reportAvailable: false });
+        const [busy, setBusy] = useState(false);
+        const [reportBusy, setReportBusy] = useState(false);
+        const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
+
+        const theme = useMemo(() => createTheme({
+            palette: mode === 'dark'
+                ? {
+                    mode: 'dark',
+                    primary: { main: '#40c4ff' },
+                    secondary: { main: '#7af0c4' },
+                    background: { default: '#06111d', paper: '#0c1726' },
+                    success: { main: '#69f0ae' },
+                    warning: { main: '#ffd166' },
+                    error: { main: '#ff6b6b' }
+                }
+                : {
+                    mode: 'light',
+                    primary: { main: '#0057ff' },
+                    secondary: { main: '#00a896' },
+                    background: { default: '#f2f7ff', paper: '#ffffff' },
+                    success: { main: '#0f9d58' },
+                    warning: { main: '#c77d00' },
+                    error: { main: '#d62839' }
+                },
+            typography: {
+                fontFamily: 'Manrope, "Segoe UI", sans-serif',
+                h1: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
+                h2: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
+                h3: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
+                h4: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
+                h5: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }
+            },
+            shape: { borderRadius: 20 }
+        }), [mode]);
+
+        useEffect(() => {
+            localStorage.setItem('jmeter-dashboard-mode', mode);
+        }, [mode]);
+
+        useEffect(() => {
+            refreshStatus(true);
+            refreshReport(false, true);
+            const interval = window.setInterval(() => {
+                refreshStatus(true);
+                refreshReport(false, true);
+            }, 3000);
+            return () => window.clearInterval(interval);
+        }, []);
+
+        async function refreshStatus(silent = false) {
+            try {
+                const payload = await fetchJson('/api/jmeter/status');
+                setStatus(payload);
+            } catch (error) {
+                if (!silent) {
+                    showToast('error', error.message);
+                }
+            }
+        }
+
+        async function refreshReport(forceRefresh, silent = false) {
+            try {
+                const payload = await fetchJson(`/api/jmeter/report?refresh=${forceRefresh ? 'true' : 'false'}`);
+                setReport(payload);
+            } catch (error) {
+                if (!silent) {
+                    showToast('error', error.message);
+                }
+            }
+        }
+
+        function showToast(severity, message) {
+            setToast({ open: true, severity, message });
+        }
+
+        function handleFieldChange(event) {
+            const { name, value } = event.target;
+            setForm(current => ({ ...current, [name]: value }));
+        }
+
+        async function handleRun() {
+            const payload = new FormData();
+            payload.append('targetUrl', form.targetUrl.trim());
+            payload.append('threads', form.threads);
+            payload.append('rampUpSeconds', form.rampUpSeconds);
+            payload.append('loopCount', form.loopCount);
+            payload.append('durationSeconds', form.durationSeconds || '0');
+            if (jmxFile) {
+                payload.append('jmxFile', jmxFile);
+            }
+
+            setBusy(true);
+            try {
+                const response = await fetchJson('/api/jmeter/run', {
+                    method: 'POST',
+                    body: payload
+                });
+                showToast('success', response.message);
+                await refreshStatus();
+                await refreshReport(false);
+            } catch (error) {
+                showToast('error', error.message);
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function handleStop() {
+            setBusy(true);
+            try {
+                const response = await fetchJson('/api/jmeter/stop', { method: 'POST' });
+                showToast(response.stopped ? 'warning' : 'info', response.message);
+                await refreshStatus();
+            } catch (error) {
+                showToast('error', error.message);
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        async function handleGenerateReport() {
+            setReportBusy(true);
+            try {
+                await refreshReport(true);
+                showToast('success', 'Report metadata refreshed.');
+            } catch (error) {
+                showToast('error', error.message);
+            } finally {
+                setReportBusy(false);
+            }
+        }
+
+        const reportLink = report.reportUrl || status.reportUrl;
+        const downloadLink = report.downloadUrl || status.downloadUrl;
+        const openLink = report.openUrl || status.openUrl;
+        const displayReportUrl = buildAbsoluteUrl(reportLink);
+        const isRunning = Boolean(status.running);
+        const statusColor = statusTone[status.status] || 'default';
+
+        return (
+            <ThemeProvider theme={theme}>
+                <CssBaseline />
+                <Box
+                    sx={{
+                        minHeight: '100vh',
+                        background: mode === 'dark'
+                            ? 'radial-gradient(circle at top left, rgba(64,196,255,0.18), transparent 28%), radial-gradient(circle at right 15%, rgba(122,240,196,0.12), transparent 24%), linear-gradient(180deg, #06111d 0%, #091726 48%, #030914 100%)'
+                            : 'radial-gradient(circle at top left, rgba(0,87,255,0.12), transparent 28%), radial-gradient(circle at right 15%, rgba(0,168,150,0.10), transparent 24%), linear-gradient(180deg, #f7fbff 0%, #eef5ff 46%, #f9fcff 100%)'
+                    }}
+                >
+                    <AppBar
+                        position="sticky"
+                        color="transparent"
+                        elevation={0}
+                        sx={{
+                            backdropFilter: 'blur(18px)',
+                            borderBottom: theme => `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+                            backgroundColor: theme => alpha(theme.palette.background.default, 0.75)
+                        }}
+                    >
+                        <Toolbar sx={{ py: 1.5 }}>
+                            <Container maxWidth="xl">
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+                                    <Stack spacing={0.5}>
+                                        <Typography variant="overline" sx={{ letterSpacing: '0.26em', color: 'primary.main', fontWeight: 800 }}>
+                                            JMeter Control Plane
+                                        </Typography>
+                                        <Typography variant="h5">JMeter Performance Testing Portal</Typography>
+                                    </Stack>
+                                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                                        <Typography variant="body2" color="text.secondary">Dark mode</Typography>
+                                        <Switch
+                                            checked={mode === 'dark'}
+                                            onChange={() => setMode(current => current === 'dark' ? 'light' : 'dark')}
+                                        />
+                                    </Stack>
+                                </Stack>
+                            </Container>
+                        </Toolbar>
+                    </AppBar>
+
+                    <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 } }}>
+                        <Grid container spacing={3}>
+                            <Grid item xs={12}>
+                                <Card
+                                    sx={{
+                                        borderRadius: 7,
+                                        overflow: 'hidden',
+                                        color: '#fff',
+                                        background: mode === 'dark'
+                                            ? 'linear-gradient(135deg, rgba(15,26,46,0.96) 0%, rgba(0,87,255,0.72) 52%, rgba(0,168,150,0.70) 100%)'
+                                            : 'linear-gradient(135deg, #0b1f3a 0%, #0057ff 50%, #00a896 100%)',
+                                        boxShadow: '0 32px 90px rgba(0, 0, 0, 0.22)'
+                                    }}
+                                >
+                                    <CardContent sx={{ p: { xs: 3.5, md: 5 } }}>
+                                        <Grid container spacing={3} alignItems="center">
+                                            <Grid item xs={12} md={7}>
+                                                <Chip
+                                                    label={`Execution Status: ${status.status || 'IDLE'}`}
+                                                    color={statusColor}
+                                                    sx={{
+                                                        fontWeight: 800,
+                                                        letterSpacing: '0.08em',
+                                                        color: '#fff',
+                                                        '& .MuiChip-label': { px: 2 }
+                                                    }}
+                                                />
+                                                <Typography variant="h2" sx={{ mt: 2, maxWidth: 720, lineHeight: 1.05 }}>
+                                                    Enterprise execution console for JMeter load tests.
+                                                </Typography>
+                                                <Typography variant="body1" sx={{ mt: 2, maxWidth: 760, color: 'rgba(255,255,255,0.82)', lineHeight: 1.9 }}>
+                                                    Configure a target, upload or reuse a JMX plan, start and stop execution,
+                                                    monitor real-time progress, and open the generated HTML report from one dashboard.
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item xs={12} md={5}>
+                                                <Paper
+                                                    elevation={0}
+                                                    sx={{
+                                                        p: 3,
+                                                        borderRadius: 5,
+                                                        color: '#fff',
+                                                        backgroundColor: 'rgba(255,255,255,0.10)',
+                                                        border: '1px solid rgba(255,255,255,0.12)'
+                                                    }}
+                                                >
+                                                    <Stack spacing={2}>
+                                                        <Stack direction="row" justifyContent="space-between">
+                                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700 }}>
+                                                                Progress
+                                                            </Typography>
+                                                            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700 }}>
+                                                                {status.progressLabel || 'Waiting for execution'}
+                                                            </Typography>
+                                                        </Stack>
+                                                        <LinearProgress
+                                                            variant={status.progressIndeterminate ? 'indeterminate' : 'determinate'}
+                                                            value={status.progressPercentage || 0}
+                                                            sx={{
+                                                                height: 12,
+                                                                borderRadius: 999,
+                                                                backgroundColor: 'rgba(255,255,255,0.14)',
+                                                                '& .MuiLinearProgress-bar': {
+                                                                    borderRadius: 999,
+                                                                    background: 'linear-gradient(90deg, #ffffff 0%, #b8fff5 100%)'
+                                                                }
+                                                            }}
+                                                        />
+                                                        <Grid container spacing={2}>
+                                                            <Grid item xs={6}>
+                                                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.62)' }}>
+                                                                    Started At
+                                                                </Typography>
+                                                                <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 700 }}>
+                                                                    {status.startedAt ? new Date(status.startedAt).toLocaleString() : '--'}
+                                                                </Typography>
+                                                            </Grid>
+                                                            <Grid item xs={6}>
+                                                                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.62)' }}>
+                                                                    Report URL
+                                                                </Typography>
+                                                                <Typography variant="body1" sx={{ mt: 0.5, fontWeight: 700, wordBreak: 'break-all' }}>
+                                                                    {displayReportUrl || '--'}
+                                                                </Typography>
+                                                            </Grid>
+                                                        </Grid>
+                                                    </Stack>
+                                                </Paper>
+                                            </Grid>
+                                        </Grid>
+                                    </CardContent>
+                                </Card>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <SectionCard
+                                    eyebrow="Test Configuration"
+                                    title="Execution Inputs"
+                                    description="Provide the base target URL, the JMeter plan, and the runtime profile that should be injected into the selected test plan before execution."
+                                >
+                                    <Grid container spacing={2.5}>
+                                        <Grid item xs={12} md={6}>
+                                            <TextField
+                                                fullWidth
+                                                label="Target URL"
+                                                name="targetUrl"
+                                                value={form.targetUrl}
+                                                onChange={handleFieldChange}
+                                                helperText="Use the base application URL, for example http://localhost:8080."
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <Paper
+                                                variant="outlined"
+                                                sx={{
+                                                    p: 2,
+                                                    borderRadius: 4,
+                                                    borderStyle: 'dashed',
+                                                    minHeight: 92,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: 2
+                                                }}
+                                            >
+                                                <Box>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                                        JMX File Upload
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                                                        {jmxFile ? jmxFile.name : 'No file selected. The bundled test plan will be used if you leave this empty.'}
+                                                    </Typography>
+                                                </Box>
+                                                <Button variant="contained" component="label">
+                                                    Upload JMX
+                                                    <input
+                                                        hidden
+                                                        type="file"
+                                                        accept=".jmx"
+                                                        onChange={event => setJmxFile(event.target.files && event.target.files[0] ? event.target.files[0] : null)}
+                                                    />
+                                                </Button>
+                                            </Paper>
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <TextField
+                                                fullWidth
+                                                type="number"
+                                                label="Number of Users"
+                                                name="threads"
+                                                value={form.threads}
+                                                onChange={handleFieldChange}
+                                                inputProps={{ min: 1 }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <TextField
+                                                fullWidth
+                                                type="number"
+                                                label="Ramp Up Time (Seconds)"
+                                                name="rampUpSeconds"
+                                                value={form.rampUpSeconds}
+                                                onChange={handleFieldChange}
+                                                inputProps={{ min: 1 }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <TextField
+                                                fullWidth
+                                                type="number"
+                                                label="Loop Count"
+                                                name="loopCount"
+                                                value={form.loopCount}
+                                                onChange={handleFieldChange}
+                                                inputProps={{ min: 1 }}
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <TextField
+                                                fullWidth
+                                                type="number"
+                                                label="Test Duration (Seconds)"
+                                                name="durationSeconds"
+                                                value={form.durationSeconds}
+                                                onChange={handleFieldChange}
+                                                inputProps={{ min: 0 }}
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                </SectionCard>
+                            </Grid>
+
+                            <Grid item xs={12} lg={7}>
+                                <SectionCard
+                                    eyebrow="Execution"
+                                    title="Run Control"
+                                    description="The dashboard calls the Spring Boot JMeter APIs directly and keeps the execution state in sync through status polling."
+                                    actions={busy ? <CircularProgress size={28} /> : null}
+                                >
+                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
+                                        <Button
+                                            variant="contained"
+                                            size="large"
+                                            onClick={handleRun}
+                                            disabled={busy || isRunning}
+                                        >
+                                            Run Test
+                                        </Button>
+                                        <Button
+                                            variant="outlined"
+                                            size="large"
+                                            color="warning"
+                                            onClick={handleStop}
+                                            disabled={busy || !isRunning}
+                                        >
+                                            Stop Test
+                                        </Button>
+                                        <Chip
+                                            label={`Real-time Status: ${status.status || 'IDLE'}`}
+                                            color={statusColor}
+                                            variant={statusColor === 'default' ? 'outlined' : 'filled'}
+                                            sx={{ fontWeight: 800, alignSelf: 'center' }}
+                                        />
+                                    </Stack>
+
+                                    <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 4 }}>
+                                        <Stack spacing={1.5}>
+                                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                                    Progress Bar
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    {status.progressLabel || 'Waiting for execution'}
+                                                </Typography>
+                                            </Stack>
+                                            <LinearProgress
+                                                variant={status.progressIndeterminate ? 'indeterminate' : 'determinate'}
+                                                value={status.progressPercentage || 0}
+                                                sx={{ height: 10, borderRadius: 999 }}
+                                            />
+                                            <Typography variant="body2" color="text.secondary">
+                                                {status.message || 'Ready to execute a JMeter test.'}
+                                            </Typography>
+                                            <Divider />
+                                            <Typography variant="caption" color="text.secondary">
+                                                JMeter Command
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ fontFamily: 'Consolas, monospace', wordBreak: 'break-all' }}>
+                                                {status.command || 'jmeter -n -t testplan.jmx -l results.jtl -e -o reports'}
+                                            </Typography>
+                                        </Stack>
+                                    </Paper>
+                                </SectionCard>
+                            </Grid>
+
+                            <Grid item xs={12} lg={5}>
+                                <SectionCard
+                                    eyebrow="Reports"
+                                    title="HTML Report Actions"
+                                    description="Generate, download, or open the latest JMeter HTML report. The report URL is published after execution completes."
+                                    actions={reportBusy ? <CircularProgress size={28} /> : null}
+                                >
+                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+                                        <Button variant="contained" onClick={handleGenerateReport} disabled={reportBusy || isRunning}>
+                                            Generate HTML Report
+                                        </Button>
+                                        <Button
+                                            variant="outlined"
+                                            href={downloadLink || undefined}
+                                            disabled={!downloadLink}
+                                        >
+                                            Download Report
+                                        </Button>
+                                        <Button
+                                            variant="outlined"
+                                            href={openLink || undefined}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            disabled={!openLink}
+                                        >
+                                            Open Report
+                                        </Button>
+                                    </Stack>
+                                    <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 4 }}>
+                                        <Typography variant="caption" color="text.secondary">
+                                            Generated Report URL
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ mt: 1, fontFamily: 'Consolas, monospace', wordBreak: 'break-all' }}>
+                                            {displayReportUrl || '--'}
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                                            {report.message || 'No report has been generated yet.'}
+                                        </Typography>
+                                    </Paper>
+                                </SectionCard>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <SectionCard
+                                    eyebrow="Results"
+                                    title="Performance Summary"
+                                    description="The portal parses the active `results.jtl` file and refreshes the key load-testing metrics automatically."
+                                >
+                                    <Grid container spacing={2}>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Requests" value={formatMetric(preferDefined(status.totalRequests, report.totalRequests))} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Success Count" value={formatMetric(preferDefined(status.successCount, report.successCount))} accent={theme.palette.success.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Failure Count" value={formatMetric(preferDefined(status.failureCount, report.failureCount))} accent={theme.palette.error.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Average Response Time" value={formatMetric(preferDefined(status.averageResponseTime, report.averageResponseTime), ' ms')} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Throughput" value={formatMetric(preferDefined(status.throughput, report.throughput), ' req/s')} accent={theme.palette.secondary.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Error Percentage" value={formatMetric(preferDefined(status.errorPercentage, report.errorPercentage), '%')} accent={theme.palette.warning.main} />
+                                        </Grid>
+                                    </Grid>
+                                </SectionCard>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <SectionCard
+                                    eyebrow="Backend API Integration"
+                                    title="Connected Endpoints"
+                                    description="This page is wired to the Spring Boot APIs required for JMeter execution."
+                                >
+                                    <Grid container spacing={2}>
+                                        {[
+                                            'POST /api/jmeter/run',
+                                            'POST /api/jmeter/stop',
+                                            'GET /api/jmeter/status',
+                                            'GET /api/jmeter/report'
+                                        ].map(endpoint => (
+                                            <Grid item xs={12} md={6} key={endpoint}>
+                                                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 4 }}>
+                                                    <Typography variant="body1" sx={{ fontFamily: 'Consolas, monospace', fontWeight: 700 }}>
+                                                        {endpoint}
+                                                    </Typography>
+                                                </Paper>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                </SectionCard>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <SectionCard
+                                    eyebrow="Runtime Trace"
+                                    title="Recent JMeter Output"
+                                    description="A compact rolling log helps with rapid operational troubleshooting without leaving the dashboard."
+                                >
+                                    <Paper
+                                        variant="outlined"
+                                        sx={{
+                                            p: 2.5,
+                                            borderRadius: 4,
+                                            minHeight: 220,
+                                            maxHeight: 360,
+                                            overflow: 'auto',
+                                            fontFamily: 'Consolas, monospace',
+                                            whiteSpace: 'pre-wrap',
+                                            backgroundColor: theme.palette.mode === 'dark' ? '#03101a' : '#f8fbff'
+                                        }}
+                                    >
+                                        {status.recentLogs && status.recentLogs.length
+                                            ? status.recentLogs.join('\n')
+                                            : 'No JMeter output captured yet.'}
+                                    </Paper>
+                                </SectionCard>
+                            </Grid>
+                        </Grid>
+                    </Container>
+
+                    <Snackbar
+                        open={toast.open}
+                        autoHideDuration={4000}
+                        onClose={() => setToast(current => ({ ...current, open: false }))}
+                        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                    >
+                        <Alert
+                            severity={toast.severity}
+                            variant="filled"
+                            onClose={() => setToast(current => ({ ...current, open: false }))}
+                        >
+                            {toast.message}
+                        </Alert>
+                    </Snackbar>
+                </Box>
+            </ThemeProvider>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

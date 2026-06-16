@@ -3,6 +3,15 @@ D:\Mohan\play-wright\src\main\java\com\automation\DeclarationsPage.java
 D:\Mohan\play-wright\src\main\java\com\automation\IptDeclarationPage.java
 D:\Mohan\play-wright\src\main\java\com\automation\LoginPage.java
 D:\Mohan\play-wright\src\main\java\com\automation\OutDeclarationPage.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\ArtifactPaths.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\DynamicJmxBuilder.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\JMeterController.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\JMeterExecutionService.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\JMeterResultSummaryParser.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\JMeterTestPlanCustomizer.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\JMeterWebConfig.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\LoadTestingDashboardController.java
+D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\LoadTestingDashboardService.java
 D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\PlaywrightFrameworkApplication.java
 D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\TestLauncherController.java
 D:\Mohan\play-wright\src\main\java\com\automation\playwright_framework\TestReportController.java

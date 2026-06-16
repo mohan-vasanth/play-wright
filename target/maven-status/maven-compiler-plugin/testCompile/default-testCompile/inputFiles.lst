@@ -6,6 +6,7 @@ D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\Declarati
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\DeclarationsPageResponseDetailsTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\DeclarationsPageWaitForCompletionTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\DeclarationSubmitFlagTest.java
+D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\DynamicJmxBuilderTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationCascButtonTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationCascEndUseDescriptionTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationInvoiceJsonMappingTest.java
@@ -16,6 +17,8 @@ D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclar
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationPartySelectionTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationSupplyIndicatorTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\IptDeclarationTestCase1Test.java
+D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\JMeterResultSummaryParserTest.java
+D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\JMeterTestPlanCustomizerTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\LoginTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\OutDeclarationCpcFooterCheckboxTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\OutDeclarationTestCase1Test.java
@@ -24,3 +27,7 @@ D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\StaticRep
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\TestLauncherControllerTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\TestReportControllerParsingTest.java
 D:\Mohan\play-wright\src\test\java\com\automation\playwright_framework\UserApiTest.java
+D:\Mohan\play-wright\src\test\java\tests\LoginTest.java
+D:\Mohan\play-wright\src\test\java\tests\PerformanceTest.java
+D:\Mohan\play-wright\src\test\java\utils\JMeterReportGenerator.java
+D:\Mohan\play-wright\src\test\java\utils\JMeterRunner.java

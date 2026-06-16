@@ -1,0 +1,8 @@
+2026-06-16T10:07:22.172981400Z  Run requested for 1 users with 1 browser tabs.
+2026-06-16T10:07:22.173980500Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-16T10:07:22.270880Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-16T10:07:22.271880500Z  User 1: starting browser workflow.
+2026-06-16T10:07:31.333708500Z  User 1: browser tab opened.
+2026-06-16T10:07:36.194394Z  User 1: login flow completed.
+2026-06-16T10:07:38.638765Z  User 1: success.
+2026-06-16T10:07:38.746052200Z  Browser execution completed successfully.

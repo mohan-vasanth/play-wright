@@ -11,12 +11,16 @@ import java.util.List;
 
 final class AutomaticReportLauncher {
 
-    private static final Path DIAGNOSTICS_PATH = Path.of("target", "report-launcher.log");
+    private static final Path DIAGNOSTICS_PATH = ArtifactPaths.REPORTS_DIR.resolve("report-launcher.log");
 
     private AutomaticReportLauncher() {
     }
 
     static void open(String jobId, String messageReference, String reportPrefix) {
+        if (!Boolean.parseBoolean(System.getProperty("tradenix.report.auto.open", "false"))) {
+            appendDiagnostic("Automatic report open skipped. Set tradenix.report.auto.open=true to enable desktop launch.");
+            return;
+        }
         URI reportUri = null;
         try {
             Path reportPath = Path.of("src", "main", "resources", "static", "report.html")

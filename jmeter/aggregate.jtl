@@ -1,0 +1,7 @@
+timeStamp,elapsed,label,responseCode,responseMessage,threadName,dataType,success,failureMessage,bytes,sentBytes,grpThreads,allThreads,URL,Latency,IdleTime,Connect
+1781603071737,57,GET /test-launcher.html,200,,50 Users - UI Load Test 1-1,text,true,,83244,220,1,1,http://localhost:8080/test-launcher.html,54,0,14
+1781603071799,4,GET /report.html,200,,50 Users - UI Load Test 1-1,text,true,,49100,213,1,1,http://localhost:8080/report.html,4,0,0
+1781603071804,7,GET /api/launcher/status,200,,50 Users - UI Load Test 1-1,text,true,,511,221,1,1,http://localhost:8080/api/launcher/status,6,0,0
+1781603071811,19,GET /api/reports/latest,200,,50 Users - UI Load Test 1-1,text,true,,2529,250,1,1,http://localhost:8080/api/reports/latest?reportPrefix=coo-batch-submit,19,0,0
+1781603071831,2,GET /api/launcher/json-options,200,,50 Users - UI Load Test 1-1,text,true,,739,236,1,1,http://localhost:8080/api/launcher/json-options?type=coo,1,0,0
+1781604443689,257,GET Target URL,200,OK,Dashboard Virtual Users 1-1,text,false,Test failed: code expected not to contain /2\d\d/,80290,254,1,1,http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard,139,0,74

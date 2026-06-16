@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan"
+              testname="Login API Load Test" enabled="true">
+      <boolProp name="TestPlan.functional_mode">false</boolProp>
+      <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"
+                   guiclass="ArgumentsPanel" testclass="Arguments">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="HOST" elementType="Argument">
+            <stringProp name="Argument.name">HOST</stringProp>
+            <stringProp name="Argument.value">localhost</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="PORT" elementType="Argument">
+            <stringProp name="Argument.name">PORT</stringProp>
+            <stringProp name="Argument.value">8080</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="USERNAME" elementType="Argument">
+            <stringProp name="Argument.name">USERNAME</stringProp>
+            <stringProp name="Argument.value">mohan</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+          <elementProp name="PASSWORD" elementType="Argument">
+            <stringProp name="Argument.name">PASSWORD</stringProp>
+            <stringProp name="Argument.value">12345678</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </elementProp>
+    </TestPlan>
+
+    <hashTree>
+
+      <!-- 10 users, 30s ramp-up, 60s duration -->
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup"
+                   testname="Login Users" enabled="true">
+        <intProp name="ThreadGroup.num_threads">10</intProp>
+        <intProp name="ThreadGroup.ramp_time">30</intProp>
+        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <stringProp name="ThreadGroup.duration">60</stringProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController"
+                     guiclass="LoopControlPanel" testclass="LoopController">
+          <boolProp name="LoopController.continue_forever">true</boolProp>
+          <intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+      </ThreadGroup>
+
+      <hashTree>
+
+        <!-- HTTP Request Defaults -->
+        <ConfigTestElement guiclass="HttpDefaultsGui"
+                           testclass="ConfigTestElement"
+                           testname="HTTP Request Defaults" enabled="true">
+          <stringProp name="HTTPSampler.domain">${HOST}</stringProp>
+          <stringProp name="HTTPSampler.port">${PORT}</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments"
+                       guiclass="HTTPArgumentsPanel" testclass="Arguments">
+            <collectionProp name="Arguments.arguments"/>
+          </elementProp>
+        </ConfigTestElement>
+        <hashTree/>
+
+        <!-- HTTP Header Manager -->
+        <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager"
+                       testname="HTTP Header Manager" enabled="true">
+          <collectionProp name="HeaderManager.headers">
+            <elementProp name="Content-Type" elementType="Header">
+              <stringProp name="Header.name">Content-Type</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+            <elementProp name="Accept" elementType="Header">
+              <stringProp name="Header.name">Accept</stringProp>
+              <stringProp name="Header.value">application/json</stringProp>
+            </elementProp>
+          </collectionProp>
+        </HeaderManager>
+        <hashTree/>
+
+        <!-- POST /api/login -->
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui"
+                          testclass="HTTPSamplerProxy"
+                          testname="POST Login" enabled="true">
+          <stringProp name="HTTPSampler.path">/api/login</stringProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments"
+                       guiclass="HTTPArgumentsPanel" testclass="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{"username":"${USERNAME}","password":"${PASSWORD}"}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+
+        <hashTree>
+          <!-- Assert HTTP 200 -->
+          <ResponseAssertion guiclass="AssertionGui"
+                             testclass="ResponseAssertion"
+                             testname="Assert Status 200" enabled="true">
+            <collectionProp name="Asserion.test_strings">
+              <stringProp name="49586">200</stringProp>
+            </collectionProp>
+            <intProp name="Assertion.test_type">8</intProp>
+          </ResponseAssertion>
+          <hashTree/>
+
+          <!-- Assert response time under 2 seconds -->
+          <DurationAssertion guiclass="DurationAssertionGui"
+                             testclass="DurationAssertion"
+                             testname="Response under 2000ms" enabled="true">
+            <stringProp name="DurationAssertion.duration">2000</stringProp>
+          </DurationAssertion>
+          <hashTree/>
+        </hashTree>
+
+        <!-- Results Collector -->
+        <ResultCollector guiclass="SummaryReport"
+                         testclass="ResultCollector"
+                         testname="Summary Report" enabled="true">
+          <boolProp name="ResultCollector.error_logging">false</boolProp>
+          <stringProp name="filename">reports/jmeter/results.jtl</stringProp>
+        </ResultCollector>
+        <hashTree/>
+
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

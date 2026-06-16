@@ -5,7 +5,9 @@ import org.junit.jupiter.api.parallel.ResourceAccessMode;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -111,6 +113,33 @@ class TestLauncherControllerTest {
 
         assertTrue(Files.isRegularFile(materializedPath));
         assertTrue(Files.size(materializedPath) > 0);
+    }
+
+    @Test
+    void startRequiresARepositorySelectionOrUploadedJson() {
+        ResponseEntity<?> response = controller.start("out", null, null);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertTrue(response.getBody() instanceof Map);
+        assertEquals(
+                "Select a JSON from the folder or upload a JSON file manually.",
+                ((Map<?, ?>) response.getBody()).get("error"));
+    }
+
+    @Test
+    void startRejectsInvalidUploadedJson() {
+        MockMultipartFile invalidJson = new MockMultipartFile(
+                "jsonFile",
+                "bad.json",
+                "application/json",
+                "{ invalid json".getBytes(StandardCharsets.UTF_8));
+
+        ResponseEntity<?> response = controller.start("out", null, invalidJson);
+
+        assertEquals(400, response.getStatusCode().value());
+        assertTrue(response.getBody() instanceof Map);
+        assertTrue(String.valueOf(((Map<?, ?>) response.getBody()).get("error"))
+                .startsWith("Uploaded JSON file is invalid:"));
     }
 
     private Map<?, ?> jsonOptionsBody(String type) {

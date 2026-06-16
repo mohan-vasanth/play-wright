@@ -1,5 +1,6 @@
 package com.automation.playwright_framework;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -100,6 +101,8 @@ public class TestLauncherController {
     private volatile Process activeProcess = null;
     private volatile String activeType = null;
     private volatile String activePermitType = null;
+    private volatile String activeJsonSelection = null;
+    private volatile String activeReportPrefix = null;
     private volatile Integer lastExitCode = null;
     private volatile long activeRunStartedAtMillis = Long.MIN_VALUE;
     private final List<String> lineBuffer = new CopyOnWriteArrayList<>();
@@ -169,9 +172,9 @@ public class TestLauncherController {
                         "pmtNumber", currentStatus.pmtNumber() != null ? currentStatus.pmtNumber() : ""));
             }
 
-            String resolvedJsonPath;
+            ResolvedJsonInput resolvedJsonInput;
             try {
-                resolvedJsonPath = resolveJsonInput(config, jsonResource, jsonFile);
+                resolvedJsonInput = resolveJsonInput(config, jsonResource, jsonFile);
             } catch (IllegalArgumentException exception) {
                 return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
             } catch (IOException exception) {
@@ -183,11 +186,21 @@ public class TestLauncherController {
             lastExitCode = null;
             activeType = config.type();
             activePermitType = null;
+            activeJsonSelection = resolvedJsonInput.displayName();
+            activeReportPrefix = config.reportPrefix();
             activeRunStartedAtMillis = System.currentTimeMillis();
+            ArtifactPaths.deleteExistingDeclarationArtifacts(config.reportPrefix());
+            try {
+                ArtifactPaths.createSelectionScreenshot(
+                        config.reportPrefix(),
+                        config.moduleLabel(),
+                        resolvedJsonInput.displayName());
+            } catch (IOException ignored) {
+            }
 
             Path projectRoot = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize();
             String mvnwPath = projectRoot.resolve("mvnw.cmd").toString();
-            List<String> command = buildCommand(config, mvnwPath, resolvedJsonPath);
+            List<String> command = buildCommand(config, mvnwPath, resolvedJsonInput.path().toString());
 
             ProcessBuilder processBuilder = new ProcessBuilder(command);
             processBuilder.directory(projectRoot.toFile());
@@ -221,6 +234,15 @@ public class TestLauncherController {
                     lastExitCode = -1;
                     Thread.currentThread().interrupt();
                 } finally {
+                    try {
+                        ArtifactPaths.writeExecutionLog(lineBuffer);
+                        ArtifactPaths.syncDeclarationArtifacts(activeReportPrefix);
+                        ArtifactPaths.createSelectionScreenshot(
+                                activeReportPrefix,
+                                config.moduleLabel(),
+                                activeJsonSelection);
+                    } catch (IOException ignored) {
+                    }
                     for (SseEmitter emitter : activeEmitters) {
                         try {
                             emitter.send(SseEmitter.event().data("__DONE__"));
@@ -303,7 +325,8 @@ public class TestLauncherController {
                 jobSnapshot != null ? jobSnapshot.jobStatus() : null,
                 jobSnapshot != null ? jobSnapshot.messageReference() : null,
                 jobSnapshot != null ? jobSnapshot.pmtNumber() : null,
-                jobSnapshot != null ? jobSnapshot.reportStatus() : null);
+                jobSnapshot != null ? jobSnapshot.reportStatus() : null,
+                activeJsonSelection);
     }
 
     private JobReportSnapshot resolveJobSnapshot(String reportPrefix, long runStartedAtMillis) {
@@ -492,15 +515,21 @@ public class TestLauncherController {
         return List.copyOf(command);
     }
 
-    private String resolveJsonInput(
+    private ResolvedJsonInput resolveJsonInput(
             LauncherTypeConfig config,
             String jsonResource,
             MultipartFile jsonFile) throws IOException {
         if (jsonFile != null && !jsonFile.isEmpty()) {
-            return storeUploadedJson(config, jsonFile).toString();
+            return new ResolvedJsonInput(
+                    storeUploadedJson(config, jsonFile),
+                    jsonFile.getOriginalFilename() != null && !jsonFile.getOriginalFilename().isBlank()
+                            ? jsonFile.getOriginalFilename().trim()
+                            : config.type() + "-input.json");
         }
         if (jsonResource != null && !jsonResource.isBlank()) {
-            return resolveJsonResourcePath(config, jsonResource).toString();
+            return new ResolvedJsonInput(
+                    resolveJsonResourcePath(config, jsonResource),
+                    jsonResource.trim().replace('\\', '/'));
         }
         throw new IllegalArgumentException("Select a JSON from the folder or upload a JSON file manually.");
     }
@@ -567,7 +596,11 @@ public class TestLauncherController {
         if (fileBytes.length == 0) {
             throw new IllegalArgumentException("Uploaded JSON file is empty.");
         }
-        OBJECT_MAPPER.readTree(fileBytes);
+        try {
+            OBJECT_MAPPER.readTree(fileBytes);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Uploaded JSON file is invalid: " + exception.getOriginalMessage());
+        }
 
         String sanitizedFileName = fileName.replaceAll("[^A-Za-z0-9._-]", "_");
         Path uploadDirectory = Paths.get("target", "launcher-uploads", config.type());
@@ -680,7 +713,8 @@ public class TestLauncherController {
             String jobStatus,
             String messageRef,
             String pmtNumber,
-            String reportStatus) {
+            String reportStatus,
+            String selectedJson) {
     }
 
     private record JobReportSnapshot(
@@ -690,5 +724,10 @@ public class TestLauncherController {
             String pmtNumber,
             String reportStatus,
             boolean terminal) {
+    }
+
+    private record ResolvedJsonInput(
+            Path path,
+            String displayName) {
     }
 }
