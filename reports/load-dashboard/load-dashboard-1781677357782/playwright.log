@@ -1,0 +1,20 @@
+2026-06-17T06:22:37.783008100Z  Run requested for 1 users with concurrency cap 1 tabs.
+2026-06-17T06:22:37.783008100Z  Declaration type selected: Certificate of Origin (COO).
+2026-06-17T06:22:37.783008100Z  Declaration JSON selected: COO-PERMIT.json.
+2026-06-17T06:22:37.783008100Z  Loaded 1 declaration payload(s) for cyclic execution.
+2026-06-17T06:22:37.783008100Z  Browser execution is forced to headed mode so UI actions remain visible.
+2026-06-17T06:22:37.784038500Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-17T06:22:37.816202700Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-17T06:22:37.817203800Z  [User-1] Starting Declaration Workflow
+2026-06-17T06:22:38.969248800Z  [User-1] Browser Tab Opened
+2026-06-17T06:22:38.974272100Z  [User-1] JSON Loaded
+2026-06-17T06:22:38.974272100Z  [User-1] Opening Login Page
+2026-06-17T06:22:41.309040Z  [User-1] Login Success
+2026-06-17T06:22:42.773368600Z  [User-1] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:22:42.773368600Z  [User-1] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:22:43.758904200Z  [User-1] Declaration Created
+2026-06-17T06:25:11.333059600Z  [User-1] Form Filled
+2026-06-17T06:25:17.059347400Z  [User-1] Submitted
+2026-06-17T06:26:19.915512800Z  [User-1] Error Details - [E16142] HS (HARMONISED SYSTEM) CODE FOR ORIGIN CRITERION EXCEEDS MAXIMUM LENGTH OF 6 Field: TradenetDeclaration → InboundMessage → coo:CertificateOfOrigin → coo:Item → cac:ItemCertificate → cbc:HarmonizedSystemCode
+2026-06-17T06:26:19.915512800Z  [User-1] Workflow Failed - [E16142] HS (HARMONISED SYSTEM) CODE FOR ORIGIN CRITERION EXCEEDS MAXIMUM LENGTH OF 6 Field: TradenetDeclaration → InboundMessage → coo:CertificateOfOrigin → coo:Item → cac:ItemCertificate → cbc:HarmonizedSystemCode
+2026-06-17T06:26:20.409245400Z  Declaration workflow completed with 1 failed users.

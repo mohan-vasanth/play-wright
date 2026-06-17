@@ -25,7 +25,7 @@
 [INFO]  T E S T S
 [INFO] -------------------------------------------------------
 [INFO] Running com.automation.playwright_framework.CooDeclarationTestCase1Test
-[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 458.4 s -- in com.automation.playwright_framework.CooDeclarationTestCase1Test
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 287.6 s -- in com.automation.playwright_framework.CooDeclarationTestCase1Test
 [INFO] 
 [INFO] Results:
 [INFO] 
@@ -34,6 +34,6 @@
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
 [INFO] ------------------------------------------------------------------------
-[INFO] Total time:  07:42 min
-[INFO] Finished at: 2026-06-16T16:25:57+05:30
+[INFO] Total time:  04:50 min
+[INFO] Finished at: 2026-06-17T12:22:43+05:30
 [INFO] ------------------------------------------------------------------------

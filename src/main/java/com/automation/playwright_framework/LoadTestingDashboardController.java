@@ -6,9 +6,11 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @RestController
@@ -17,9 +19,13 @@ import java.util.concurrent.TimeUnit;
 public class LoadTestingDashboardController {
 
     private final LoadTestingDashboardService loadTestingDashboardService;
+    private final LoadTestingDeclarationCatalog declarationCatalog;
 
-    public LoadTestingDashboardController(LoadTestingDashboardService loadTestingDashboardService) {
+    public LoadTestingDashboardController(
+            LoadTestingDashboardService loadTestingDashboardService,
+            LoadTestingDeclarationCatalog declarationCatalog) {
         this.loadTestingDashboardService = loadTestingDashboardService;
+        this.declarationCatalog = declarationCatalog;
     }
 
     @PostMapping("/run")
@@ -38,5 +44,10 @@ public class LoadTestingDashboardController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore().mustRevalidate().sMaxAge(0, TimeUnit.SECONDS))
                 .body(loadTestingDashboardService.status());
+    }
+
+    @GetMapping("/json-options")
+    public ResponseEntity<Map<String, Object>> jsonOptions(@RequestParam String type) {
+        return ResponseEntity.ok(declarationCatalog.jsonOptionsPayload(type));
     }
 }

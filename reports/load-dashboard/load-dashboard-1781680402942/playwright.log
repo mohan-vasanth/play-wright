@@ -1,0 +1,127 @@
+2026-06-17T07:13:22.972567900Z  Run requested for 10 users with concurrency cap 10 tabs.
+2026-06-17T07:13:22.972567900Z  Declaration type selected: Certificate of Origin (COO).
+2026-06-17T07:13:22.972567900Z  Declaration JSON selected: COO-PERMIT.json.
+2026-06-17T07:13:22.973606600Z  Loaded 1 declaration payload(s) for cyclic execution.
+2026-06-17T07:13:22.973606600Z  Browser execution is forced to headed mode so UI actions remain visible.
+2026-06-17T07:13:22.975633600Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-17T07:13:23.095694900Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-17T07:13:23.102861100Z  [User-1] Starting Declaration Workflow
+2026-06-17T07:13:23.102861100Z  [User-3] Starting Declaration Workflow
+2026-06-17T07:13:23.103869700Z  [User-2] Starting Declaration Workflow
+2026-06-17T07:13:23.105315700Z  [User-5] Starting Declaration Workflow
+2026-06-17T07:13:23.105315700Z  [User-4] Starting Declaration Workflow
+2026-06-17T07:13:23.105315700Z  [User-7] Starting Declaration Workflow
+2026-06-17T07:13:23.106511Z  [User-8] Starting Declaration Workflow
+2026-06-17T07:13:23.106511Z  [User-6] Starting Declaration Workflow
+2026-06-17T07:13:23.106511Z  [User-10] Starting Declaration Workflow
+2026-06-17T07:13:23.106511Z  [User-9] Starting Declaration Workflow
+2026-06-17T07:13:38.131768200Z  [User-2] Browser Tab Opened
+2026-06-17T07:13:38.159264200Z  [User-5] Browser Tab Opened
+2026-06-17T07:13:38.184748800Z  [User-5] JSON Loaded
+2026-06-17T07:13:38.184748800Z  [User-5] Opening Login Page
+2026-06-17T07:13:38.184748800Z  [User-2] JSON Loaded
+2026-06-17T07:13:38.184748800Z  [User-2] Opening Login Page
+2026-06-17T07:13:38.304609800Z  [User-6] Browser Tab Opened
+2026-06-17T07:13:38.304609800Z  [User-6] JSON Loaded
+2026-06-17T07:13:38.304609800Z  [User-6] Opening Login Page
+2026-06-17T07:13:41.028474600Z  [User-8] Browser Tab Opened
+2026-06-17T07:13:41.029471400Z  [User-8] JSON Loaded
+2026-06-17T07:13:41.029471400Z  [User-8] Opening Login Page
+2026-06-17T07:13:41.064660Z  [User-1] Browser Tab Opened
+2026-06-17T07:13:41.064660Z  [User-1] JSON Loaded
+2026-06-17T07:13:41.064660Z  [User-1] Opening Login Page
+2026-06-17T07:13:41.068659800Z  [User-7] Browser Tab Opened
+2026-06-17T07:13:41.068659800Z  [User-7] JSON Loaded
+2026-06-17T07:13:41.069659600Z  [User-7] Opening Login Page
+2026-06-17T07:13:41.251759400Z  [User-4] Browser Tab Opened
+2026-06-17T07:13:41.252774800Z  [User-4] JSON Loaded
+2026-06-17T07:13:41.252774800Z  [User-4] Opening Login Page
+2026-06-17T07:13:41.690983100Z  [User-10] Browser Tab Opened
+2026-06-17T07:13:41.690983100Z  [User-10] JSON Loaded
+2026-06-17T07:13:41.690983100Z  [User-10] Opening Login Page
+2026-06-17T07:13:42.575878Z  [User-9] Browser Tab Opened
+2026-06-17T07:13:42.576878Z  [User-9] JSON Loaded
+2026-06-17T07:13:42.576878Z  [User-9] Opening Login Page
+2026-06-17T07:13:42.629251400Z  [User-3] Browser Tab Opened
+2026-06-17T07:13:42.629251400Z  [User-3] JSON Loaded
+2026-06-17T07:13:42.629251400Z  [User-3] Opening Login Page
+2026-06-17T07:13:43.849914600Z  [User-5] Login Success
+2026-06-17T07:13:43.857360100Z  [User-2] Login Success
+2026-06-17T07:13:43.958698200Z  [User-6] Login Success
+2026-06-17T07:13:44.789646700Z  [User-1] Login Success
+2026-06-17T07:13:44.983315600Z  [User-7] Login Success
+2026-06-17T07:13:45.084577200Z  [User-8] Login Success
+2026-06-17T07:13:45.126612600Z  [User-4] Login Success
+2026-06-17T07:13:45.607862700Z  [User-2] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:45.607862700Z  [User-2] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:45.831161900Z  [User-5] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:45.831161900Z  [User-5] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:46.017749300Z  [User-6] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:46.017749300Z  [User-6] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:46.020177200Z  [User-10] Login Success
+2026-06-17T07:13:46.322324Z  [User-3] Login Success
+2026-06-17T07:13:46.625135800Z  [User-8] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:46.625135800Z  [User-8] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:46.689894500Z  [User-7] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:46.689894500Z  [User-7] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:46.970625600Z  [User-1] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:46.970625600Z  [User-1] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:47.125139800Z  [User-4] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:47.125139800Z  [User-4] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:48.710887600Z  [User-3] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:48.710887600Z  [User-3] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:48.799072500Z  [User-9] Login Success
+2026-06-17T07:13:48.800108300Z  [User-10] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:48.800108300Z  [User-10] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:49.435455700Z  [User-6] Declaration Created (Job ID: 5538)
+2026-06-17T07:13:49.698221300Z  [User-5] Declaration Created (Job ID: 5540)
+2026-06-17T07:13:49.716735600Z  [User-4] Declaration Created (Job ID: 5542)
+2026-06-17T07:13:49.761282Z  [User-2] Declaration Created (Job ID: 5539)
+2026-06-17T07:13:49.769608700Z  [User-7] Declaration Created (Job ID: 5541)
+2026-06-17T07:13:49.889709Z  [User-8] Declaration Created (Job ID: 5543)
+2026-06-17T07:13:50.430201Z  [User-1] Declaration Created (Job ID: 5544)
+2026-06-17T07:13:52.436962700Z  [User-9] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T07:13:52.436962700Z  [User-9] Selected JSON File - COO-PERMIT.json
+2026-06-17T07:13:52.757138Z  [User-3] Declaration Created (Job ID: 5546)
+2026-06-17T07:13:53.374562200Z  [User-10] Declaration Created (Job ID: 5547)
+2026-06-17T07:13:54.075674900Z  [User-9] Declaration Created (Job ID: 5548)
+2026-06-17T07:16:46.964978900Z  [User-1] Form Filled
+2026-06-17T07:16:53.035502200Z  [User-1] Submitted
+2026-06-17T07:16:57.526792800Z  [User-8] Form Filled
+2026-06-17T07:17:02.617503200Z  [User-3] Form Filled
+2026-06-17T07:17:03.530824500Z  [User-4] Form Filled
+2026-06-17T07:17:03.697979300Z  [User-8] Submitted
+2026-06-17T07:17:04.287131600Z  [User-5] Form Filled
+2026-06-17T07:17:05.355698Z  [User-2] Form Filled
+2026-06-17T07:17:06.177460400Z  [User-7] Form Filled
+2026-06-17T07:17:06.574890Z  [User-6] Form Filled
+2026-06-17T07:17:08.641585900Z  [User-3] Submitted
+2026-06-17T07:17:08.704459500Z  [User-9] Form Filled
+2026-06-17T07:17:09.405775Z  [User-10] Form Filled
+2026-06-17T07:17:09.572599200Z  [User-4] Submitted
+2026-06-17T07:17:10.267739Z  [User-5] Submitted
+2026-06-17T07:17:11.212760800Z  [User-2] Submitted
+2026-06-17T07:17:12.076525100Z  [User-7] Submitted
+2026-06-17T07:17:12.497417900Z  [User-6] Submitted
+2026-06-17T07:17:14.485302800Z  [User-9] Submitted
+2026-06-17T07:17:15.217459200Z  [User-10] Submitted
+2026-06-17T07:17:54.745217400Z  [User-8] Error Details - Validation Failed:
+2026-06-17T07:17:54.746216200Z  [User-8] Workflow Failed - Validation Failed:
+2026-06-17T07:17:59.611976800Z  [User-3] Error Details - Validation Failed:
+2026-06-17T07:17:59.611976800Z  [User-3] Workflow Failed - Validation Failed:
+2026-06-17T07:18:00.541383100Z  [User-4] Error Details - Validation Failed:
+2026-06-17T07:18:00.541383100Z  [User-4] Workflow Failed - Validation Failed:
+2026-06-17T07:18:01.206133Z  [User-5] Error Details - Validation Failed:
+2026-06-17T07:18:01.206133Z  [User-5] Workflow Failed - Validation Failed:
+2026-06-17T07:18:02.221209800Z  [User-2] Error Details - Validation Failed:
+2026-06-17T07:18:02.221209800Z  [User-2] Workflow Failed - Validation Failed:
+2026-06-17T07:18:03.108546800Z  [User-7] Error Details - Validation Failed:
+2026-06-17T07:18:03.108546800Z  [User-7] Workflow Failed - Validation Failed:
+2026-06-17T07:18:03.533892800Z  [User-6] Error Details - Validation Failed:
+2026-06-17T07:18:03.533892800Z  [User-6] Workflow Failed - Validation Failed:
+2026-06-17T07:18:05.504160900Z  [User-9] Error Details - Validation Failed:
+2026-06-17T07:18:05.504160900Z  [User-9] Workflow Failed - Validation Failed:
+2026-06-17T07:18:06.240632400Z  [User-10] Error Details - Validation Failed:
+2026-06-17T07:18:06.240632400Z  [User-10] Workflow Failed - Validation Failed:
+2026-06-17T07:20:26.208665800Z  [User-1] Workflow Failed - Type: Certificate of Origin (COO) | JSON: COO-PERMIT.json | Job ID: N/A | Message Ref: TDX2606120122 | Status: FAILED | Permit: N/A | Response: N/A | Error: N/A
+2026-06-17T07:20:26.826481400Z  Declaration workflow completed with 10 failed users.

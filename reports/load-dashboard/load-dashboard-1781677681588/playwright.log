@@ -1,0 +1,20 @@
+2026-06-17T06:28:01.589306500Z  Run requested for 1 users with concurrency cap 1 tabs.
+2026-06-17T06:28:01.589306500Z  Declaration type selected: Certificate of Origin (COO).
+2026-06-17T06:28:01.589306500Z  Declaration JSON selected: COO-PERMIT.json.
+2026-06-17T06:28:01.589306500Z  Loaded 1 declaration payload(s) for cyclic execution.
+2026-06-17T06:28:01.589306500Z  Browser execution is forced to headed mode so UI actions remain visible.
+2026-06-17T06:28:01.590308300Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-17T06:28:01.699870500Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-17T06:28:01.700869600Z  [User-1] Starting Declaration Workflow
+2026-06-17T06:28:11.112436700Z  [User-1] Browser Tab Opened
+2026-06-17T06:28:11.115436600Z  [User-1] JSON Loaded
+2026-06-17T06:28:11.115436600Z  [User-1] Opening Login Page
+2026-06-17T06:28:13.204180500Z  [User-1] Login Success
+2026-06-17T06:28:14.639810300Z  [User-1] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:28:14.640810500Z  [User-1] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:28:15.630123400Z  [User-1] Declaration Created
+2026-06-17T06:30:43.278765700Z  [User-1] Form Filled
+2026-06-17T06:30:48.891103800Z  [User-1] Submitted
+2026-06-17T06:31:49.008935400Z  [User-1] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:31:49.008935400Z  [User-1] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:31:49.564192300Z  Declaration workflow completed with 1 failed users.

@@ -595,12 +595,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 "Outward Transport Means",
                 "Departure Date",
                 formatUiDate(text(outwardTransport, "departureDate")));
-        fillLookupFieldInSectionIfPresent(
+        fillVerifiedLookupFieldInSectionIfPresent(
                 "Outward Transport Means",
                 "Discharge Port",
                 text(outwardTransport, "dischargePort"),
                 text(outwardTransport, "dischargePort"));
-        fillLookupFieldInSectionIfPresent(
+        fillVerifiedLookupFieldInSectionIfPresent(
                 "Outward Transport Means",
                 "Country of Final Destination",
                 text(outwardTransport, "finalDestinationCountry"),
@@ -701,32 +701,32 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
     private void fillSingleItem(JsonNode item, JsonNode formMetaData, JsonNode certificate, int index) {
         Locator itemDetailsSection = resolveSection("Item Details");
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS Code",
                 0,
                 text(item, "itemHarmonizedSystemCode"),
                 text(item, "itemHarmonizedSystemCode"));
-        fillFieldAfterScopeLabelIfPresent(itemDetailsSection, "Description", 0, text(item, "goodsDescription"));
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(itemDetailsSection, "Description", 0, text(item, "goodsDescription"));
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "COO",
                 0,
                 text(item, "originCountry"),
                 text(item, "originCountry"));
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS Type",
                 0,
                 text(item, "hsType"),
                 text(item, "hsType"));
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "Duty Type",
                 0,
                 text(item, "dutyType"),
                 text(item, "dutyType"));
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS CA",
                 0,
@@ -1065,17 +1065,17 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 "Manufacturing Cost Date",
                 0,
                 formatUiDate(text(itemCertificate, "manufacturingCostDate")));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Item Invoice Number",
                 0,
                 text(itemCertificate, "itemInvoiceNumber"));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Item Invoice Date",
                 0,
                 formatUiDate(text(itemCertificate, "itemInvoiceDate")));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "HS Code",
                 0,
@@ -1090,22 +1090,22 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 "Content Percent (%)",
                 0,
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 1",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 0));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 2",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 1));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 3",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 2));
-        fillFieldAfterScopeLabelIfPresent(
+        fillValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Certificate Item Description",
                 0,

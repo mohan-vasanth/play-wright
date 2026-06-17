@@ -1,0 +1,250 @@
+2026-06-17T04:35:49.410437700Z  User 86: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 87: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 88: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 89: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 90: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 91: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 92: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 93: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 94: starting declaration workflow.
+2026-06-17T04:35:49.411432200Z  User 96: starting declaration workflow.
+2026-06-17T04:35:49.412434500Z  User 95: starting declaration workflow.
+2026-06-17T04:35:49.412434500Z  User 97: starting declaration workflow.
+2026-06-17T04:35:49.412434500Z  User 98: starting declaration workflow.
+2026-06-17T04:35:49.412434500Z  User 99: starting declaration workflow.
+2026-06-17T04:35:49.412434500Z  User 100: starting declaration workflow.
+2026-06-17T04:35:49.468199800Z  User 10: failure - Unknown new child: tracing@c276ba1182fd2a2b3436440cc74d270d
+2026-06-17T04:35:49.468199800Z  User 76: failure - Unknown new child: tracing@c276ba1182fd2a2b3436440cc74d270d
+2026-06-17T04:35:49.468199800Z  User 25: failure - Object doesn't exist: tracing@c276ba1182fd2a2b3436440cc74d270d
+2026-06-17T04:35:49.468199800Z  User 7: failure - Object doesn't exist: tracing@c276ba1182fd2a2b3436440cc74d270d
+2026-06-17T04:35:49.469198200Z  User 22: failure - Cannot invoke "com.microsoft.playwright.impl.TracingImpl.setTracesDir(java.nio.file.Path)" because the return value of "com.microsoft.playwright.impl.BrowserContextImpl.tracing()" is null
+2026-06-17T04:35:49.472222200Z  User 23: failure - Cannot find object to call __adopt__: request-context@0ace8b2becd1836dbc8cedcf51adc4b0
+2026-06-17T04:35:49.476196100Z  User 40: failure - Cannot find object to call __adopt__: request-context@e259127c7e30798c14ca8293fa217420
+2026-06-17T04:35:49.477200300Z  User 87: failure - Cannot find object to call __adopt__: browser-context@a34ef129f4998ff31a222c0b429449ce
+2026-06-17T04:35:49.526743200Z  User 68: failure - Object doesn't exist: tracing@1470ef0c35c64b8d460862013f26221c
+2026-06-17T04:35:49.527730200Z  User 70: failure - Cannot find object to call __adopt__: browser-context@f6e9c86b32356b5d5fe421a369526329
+2026-06-17T04:35:49.588431200Z  User 50: failure - Cannot find object to call __adopt__: request-context@61501b60af17319e949ddb07cc049383
+2026-06-17T04:35:49.589429700Z  User 91: failure - Cannot find object to call __adopt__: browser-context@e142d90b28aaf53dbab6c79d9d171bf5
+2026-06-17T04:35:49.589429700Z  User 19: failure - Cannot find object to call __adopt__: browser-context@e142d90b28aaf53dbab6c79d9d171bf5
+2026-06-17T04:35:49.590429Z  User 11: failure - Object doesn't exist: browser-context@e142d90b28aaf53dbab6c79d9d171bf5
+2026-06-17T04:35:49.591432600Z  User 20: failure - Cannot find object to call __adopt__: browser-context@ab18fdee3435dd42383db05632b601cc
+2026-06-17T04:35:49.592429Z  User 59: failure - Object doesn't exist: browser-context@ab18fdee3435dd42383db05632b601cc
+2026-06-17T04:35:49.592429Z  User 47: failure - Cannot find object to call __adopt__: browser-context@ab18fdee3435dd42383db05632b601cc
+2026-06-17T04:35:49.593430Z  User 69: failure - Cannot find object to call __adopt__: request-context@2671e1389824a6eb8f51727b02c09997
+2026-06-17T04:35:49.663781500Z  User 8: failure - Cannot find object to call __adopt__: browser-context@94f81cd26558941a999e26c00a90c9ba
+2026-06-17T04:35:49.664803200Z  User 93: failure - Cannot find object to call __adopt__: browser-context@7121683ad8fd70d5ab6de403a1b81966
+2026-06-17T04:35:49.799572500Z  User 99: failure - Cannot find object to call __adopt__: request-context@b806cb367b2cefd6a9bb795d1ccc10b2
+2026-06-17T04:35:49.803563900Z  User 92: failure - Cannot find object to call __adopt__: browser-context@244555ad967bdc7b38868a9bc265aa53
+2026-06-17T04:35:49.953355Z  User 9: failure - Object doesn't exist: tracing@579bb4b33b1e9ac9567e6d3f055f3c95
+2026-06-17T04:35:49.953355Z  User 12: failure - Cannot find object to call __adopt__: browser-context@f96914a9b166f991ec5f1b8b8aead998
+2026-06-17T04:35:49.953355Z  User 77: failure - Cannot find object to call __adopt__: browser-context@f96914a9b166f991ec5f1b8b8aead998
+2026-06-17T04:35:49.962354500Z  User 18: failure - Cannot find object to call __adopt__: browser-context@04c1f9eb2123e2b57a5b1125301dbb14
+2026-06-17T04:35:49.968356300Z  User 78: failure - Cannot find command to respond: 48
+2026-06-17T04:35:49.969355400Z  User 100: failure - Object doesn't exist: browser-context@febe2a632dc0d6d2fe32ea6d27c083a5
+2026-06-17T04:35:49.969355400Z  User 41: failure - Cannot find object to call __adopt__: browser-context@febe2a632dc0d6d2fe32ea6d27c083a5
+2026-06-17T04:35:49.969355400Z  User 34: failure - Cannot find object to call __adopt__: browser-context@febe2a632dc0d6d2fe32ea6d27c083a5
+2026-06-17T04:35:50.041064100Z  User 38: failure - Cannot find object to call __adopt__: browser-context@00004a82647f2acfa2b8512f8f62aa47
+2026-06-17T04:35:50.044063200Z  User 36: failure - Cannot find object to call __adopt__: browser-context@4c383d410b3c9c9617d53e585fec19e3
+2026-06-17T04:35:50.046065400Z  User 29: failure - Object doesn't exist: tracing@0ee9133fb03c3d27cfc158f8fa1eb376
+2026-06-17T04:35:50.056065200Z  User 49: failure - Object doesn't exist: tracing@5f7d8ee6ce332f2b4204b5778968ee10
+2026-06-17T04:35:50.056065200Z  User 90: failure - Cannot find object to call __adopt__: request-context@208b18686f5825cbdb80ae3987408ee1
+2026-06-17T04:35:50.056065200Z  User 81: failure - Unknown new child: tracing@5f7d8ee6ce332f2b4204b5778968ee10
+2026-06-17T04:35:50.056065200Z  User 56: failure - Object doesn't exist: tracing@5f7d8ee6ce332f2b4204b5778968ee10
+2026-06-17T04:35:50.056065200Z  User 53: failure - Cannot find object to call __adopt__: request-context@3a46df2605b5dee4b39ff4f51937a952
+2026-06-17T04:35:50.199589800Z  User 75: failure - Cannot find object to call __adopt__: request-context@714003a483d45ba5fcc56ff03ca74cfa
+2026-06-17T04:35:50.200588500Z  User 52: failure - Cannot find object to call __adopt__: request-context@d620bf1307d29637ae58ed0be5af714a
+2026-06-17T04:35:50.200588500Z  User 61: failure - Cannot find command to respond: 82
+2026-06-17T04:35:50.216596500Z  User 48: failure - Cannot find object to call __adopt__: browser-context@b2d5c50ce3414e9fdb535e56042eb6e5
+2026-06-17T04:35:50.221601500Z  User 45: failure - Cannot find object to call __adopt__: request-context@5b03befb8977d6db0cdc47456d3560f4
+2026-06-17T04:35:53.705437600Z  User 17: failure - Cannot find object to call __adopt__: page@396a9ebefc9db86225fed84e408fff44
+2026-06-17T04:35:53.716446900Z  User 2: browser tab opened.
+2026-06-17T04:35:53.729009900Z  User 4: browser tab opened.
+2026-06-17T04:35:53.729009900Z  User 1: browser tab opened.
+2026-06-17T04:35:53.739019800Z  User 2: opening login page.
+2026-06-17T04:35:53.739019800Z  User 1: opening login page.
+2026-06-17T04:35:53.739019800Z  User 4: opening login page.
+2026-06-17T04:35:53.763021700Z  User 3: browser tab opened.
+2026-06-17T04:35:53.763021700Z  User 3: opening login page.
+2026-06-17T04:35:53.775021400Z  User 6: browser tab opened.
+2026-06-17T04:35:53.775021400Z  User 6: opening login page.
+2026-06-17T04:35:53.791006700Z  User 5: browser tab opened.
+2026-06-17T04:35:53.791006700Z  User 5: opening login page.
+2026-06-17T04:35:53.827559300Z  User 82: failure - Unknown new child: frame@599b99e7ffa9bc774c1e657220991ffe
+2026-06-17T04:35:53.827559300Z  User 66: failure - Object doesn't exist: frame@599b99e7ffa9bc774c1e657220991ffe
+2026-06-17T04:35:53.916619600Z  User 72: failure - Cannot find command to respond: 109
+2026-06-17T04:35:53.916619600Z  User 13: browser tab opened.
+2026-06-17T04:35:53.916619600Z  User 13: opening login page.
+2026-06-17T04:35:53.917605200Z  User 15: browser tab opened.
+2026-06-17T04:35:53.917605200Z  User 15: opening login page.
+2026-06-17T04:35:53.997153600Z  User 16: browser tab opened.
+2026-06-17T04:35:53.997153600Z  User 16: opening login page.
+2026-06-17T04:35:53.997153600Z  User 24: browser tab opened.
+2026-06-17T04:35:53.997153600Z  User 24: opening login page.
+2026-06-17T04:35:54.038023400Z  User 35: browser tab opened.
+2026-06-17T04:35:54.038023400Z  User 26: browser tab opened.
+2026-06-17T04:35:54.038023400Z  User 35: opening login page.
+2026-06-17T04:35:54.038023400Z  User 26: opening login page.
+2026-06-17T04:35:54.040014800Z  User 37: browser tab opened.
+2026-06-17T04:35:54.040014800Z  User 37: opening login page.
+2026-06-17T04:35:54.040014800Z  User 27: browser tab opened.
+2026-06-17T04:35:54.040014800Z  User 27: opening login page.
+2026-06-17T04:35:54.053009700Z  User 28: browser tab opened.
+2026-06-17T04:35:54.053009700Z  User 28: opening login page.
+2026-06-17T04:35:54.054939300Z  User 32: browser tab opened.
+2026-06-17T04:35:54.054939300Z  User 31: browser tab opened.
+2026-06-17T04:35:54.054939300Z  User 32: opening login page.
+2026-06-17T04:35:54.054939300Z  User 31: opening login page.
+2026-06-17T04:35:54.072909500Z  User 39: browser tab opened.
+2026-06-17T04:35:54.072909500Z  User 39: opening login page.
+2026-06-17T04:35:54.209430400Z  User 21: browser tab opened.
+2026-06-17T04:35:54.209430400Z  User 21: opening login page.
+2026-06-17T04:35:54.219437500Z  User 30: browser tab opened.
+2026-06-17T04:35:54.219437500Z  User 30: opening login page.
+2026-06-17T04:35:54.224434900Z  User 33: browser tab opened.
+2026-06-17T04:35:54.224434900Z  User 33: opening login page.
+2026-06-17T04:35:54.239947100Z  User 42: browser tab opened.
+2026-06-17T04:35:54.239947100Z  User 42: opening login page.
+2026-06-17T04:35:54.256006300Z  User 43: browser tab opened.
+2026-06-17T04:35:54.256006300Z  User 43: opening login page.
+2026-06-17T04:35:54.256949400Z  User 96: failure - Cannot find object to call __adopt__: page@ea4f9c0a2d7a6cf877a9bd96a0583eea
+2026-06-17T04:35:54.258947900Z  User 44: browser tab opened.
+2026-06-17T04:35:54.258947900Z  User 44: opening login page.
+2026-06-17T04:35:54.266948900Z  User 46: browser tab opened.
+2026-06-17T04:35:54.266948900Z  User 46: opening login page.
+2026-06-17T04:35:54.271950400Z  User 55: browser tab opened.
+2026-06-17T04:35:54.271950400Z  User 55: opening login page.
+2026-06-17T04:35:54.271950400Z  User 51: browser tab opened.
+2026-06-17T04:35:54.271950400Z  User 51: opening login page.
+2026-06-17T04:35:54.286949100Z  User 54: browser tab opened.
+2026-06-17T04:35:54.286949100Z  User 54: opening login page.
+2026-06-17T04:35:54.292949100Z  User 58: browser tab opened.
+2026-06-17T04:35:54.292949100Z  User 58: opening login page.
+2026-06-17T04:35:54.299947300Z  User 71: browser tab opened.
+2026-06-17T04:35:54.299947300Z  User 57: browser tab opened.
+2026-06-17T04:35:54.299947300Z  User 71: opening login page.
+2026-06-17T04:35:54.299947300Z  User 57: opening login page.
+2026-06-17T04:35:54.301947900Z  User 97: failure - Cannot find object to call close: page@87f18d73e0d9d983200480446d82133e
+2026-06-17T04:35:54.312952200Z  User 62: browser tab opened.
+2026-06-17T04:35:54.312952200Z  User 62: opening login page.
+2026-06-17T04:35:54.318955400Z  User 60: browser tab opened.
+2026-06-17T04:35:54.318955400Z  User 60: opening login page.
+2026-06-17T04:35:54.334527100Z  User 73: browser tab opened.
+2026-06-17T04:35:54.334527100Z  User 73: opening login page.
+2026-06-17T04:35:54.334527100Z  User 67: browser tab opened.
+2026-06-17T04:35:54.334527100Z  User 67: opening login page.
+2026-06-17T04:35:54.349512400Z  User 64: browser tab opened.
+2026-06-17T04:35:54.349512400Z  User 64: opening login page.
+2026-06-17T04:35:54.350513100Z  User 65: browser tab opened.
+2026-06-17T04:35:54.350513100Z  User 65: opening login page.
+2026-06-17T04:35:54.364523Z  User 63: browser tab opened.
+2026-06-17T04:35:54.364523Z  User 74: browser tab opened.
+2026-06-17T04:35:54.364523Z  User 74: opening login page.
+2026-06-17T04:35:54.364523Z  User 63: opening login page.
+2026-06-17T04:35:54.381511500Z  User 79: browser tab opened.
+2026-06-17T04:35:54.381511500Z  User 79: opening login page.
+2026-06-17T04:35:54.396540600Z  User 83: browser tab opened.
+2026-06-17T04:35:54.396540600Z  User 83: opening login page.
+2026-06-17T04:35:54.410514400Z  User 85: browser tab opened.
+2026-06-17T04:35:54.410514400Z  User 85: opening login page.
+2026-06-17T04:35:54.411552100Z  User 80: browser tab opened.
+2026-06-17T04:35:54.411552100Z  User 80: opening login page.
+2026-06-17T04:35:54.426521500Z  User 86: browser tab opened.
+2026-06-17T04:35:54.426521500Z  User 84: browser tab opened.
+2026-06-17T04:35:54.426521500Z  User 86: opening login page.
+2026-06-17T04:35:54.426521500Z  User 84: opening login page.
+2026-06-17T04:35:54.426521500Z  User 88: browser tab opened.
+2026-06-17T04:35:54.426521500Z  User 88: opening login page.
+2026-06-17T04:35:54.431039300Z  User 95: failure - Object doesn't exist: frame@526e744d171eb071de3d4e998cbc6c81
+2026-06-17T04:35:54.439035500Z  User 94: failure - Cannot invoke "com.microsoft.playwright.impl.TimeoutSettings.setDefaultTimeout(java.lang.Double)" because "this.timeoutSettings" is null
+2026-06-17T04:35:54.439035500Z  User 94: screenshot capture failed - Cannot invoke "com.microsoft.playwright.impl.TimeoutSettings.timeout(java.lang.Double)" because "this.timeoutSettings" is null
+2026-06-17T04:35:54.456062700Z  User 89: browser tab opened.
+2026-06-17T04:35:54.456062700Z  User 89: opening login page.
+2026-06-17T04:35:54.457034700Z  User 98: browser tab opened.
+2026-06-17T04:35:54.457034700Z  User 98: opening login page.
+2026-06-17T04:35:54.847057700Z  User 74: failure - Cannot find object to call close: page@0172821049d18b2c5ba10852a83a9dfd
+2026-06-17T04:35:58.580092600Z  User 39: failure - Object doesn't exist: response@ac057c034d9476d5fee952af7da7b377
+2026-06-17T04:36:01.293527600Z  User 42: failure - Object doesn't exist: response@685d25056005f7f5d0cc3d53ce8f623a
+2026-06-17T04:36:04.658175700Z  User 6: failure - Cannot find command to respond: 221
+2026-06-17T04:36:13.639020200Z  User 1: failure - Cannot find command to respond: 432
+2026-06-17T04:36:13.657079400Z  User 43: failure - Cannot find command to respond: 368
+2026-06-17T04:36:13.731257500Z  User 86: failure - Cannot find command to respond: 454
+2026-06-17T04:36:13.898216800Z  User 64: failure - Cannot find command to respond: 472
+2026-06-17T04:36:14.008838500Z  User 43: screenshot capture failed - Cannot find command to respond: 524
+2026-06-17T04:36:14.753775Z  User 55: failure - Cannot find command to respond: 603
+2026-06-17T04:36:15.219239800Z  User 16: failure - Cannot find command to respond: 585
+2026-06-17T04:36:15.516880100Z  User 33: failure - Cannot find command to respond: 616
+2026-06-17T04:36:15.516880100Z  User 15: failure - Cannot find command to respond: 616
+2026-06-17T04:36:16.183667200Z  User 62: failure - Cannot find command to respond: 708
+2026-06-17T04:36:16.637608400Z  User 65: failure - Cannot find command to respond: 846
+2026-06-17T04:36:16.803065200Z  User 67: failure - Object doesn't exist: request@522392c911d8a949925798a14db3e4e6
+2026-06-17T04:36:16.989877200Z  User 51: failure - Cannot find command to respond: 949
+2026-06-17T04:36:17.392337100Z  User 2: failure - Cannot find command to respond: 965
+2026-06-17T04:36:17.823796Z  User 21: failure - Cannot find command to respond: 1057
+2026-06-17T04:36:18.685300Z  User 27: login successful.
+2026-06-17T04:36:18.710307500Z  User 13: login successful.
+2026-06-17T04:36:18.710307500Z  User 3: login successful.
+2026-06-17T04:36:18.852617800Z  User 35: login successful.
+2026-06-17T04:36:18.909447600Z  User 4: login successful.
+2026-06-17T04:36:19.913900800Z  User 46: failure - Cannot find command to respond: 1145
+2026-06-17T04:36:20.544755400Z  User 80: failure - Cannot find command to respond: 1184
+2026-06-17T04:36:20.560783700Z  User 3: selected declaration type Certificate of Origin (COO).
+2026-06-17T04:36:20.560783700Z  User 3: selected JSON file CON COO.json.
+2026-06-17T04:36:20.887075300Z  User 13: selected declaration type Certificate of Origin (COO).
+2026-06-17T04:36:20.887075300Z  User 13: selected JSON file CON COO.json.
+2026-06-17T04:36:21.467998100Z  User 57: login successful.
+2026-06-17T04:36:21.589140400Z  User 4: selected declaration type Certificate of Origin (COO).
+2026-06-17T04:36:21.589140400Z  User 4: selected JSON file CON COO.json.
+2026-06-17T04:36:21.769725200Z  User 54: login successful.
+2026-06-17T04:36:22.749567500Z  User 3: failure - COO declaration payload is required.
+2026-06-17T04:36:22.948559600Z  User 13: failure - COO declaration payload is required.
+2026-06-17T04:36:23.883386700Z  User 32: login successful.
+2026-06-17T04:36:23.930373700Z  User 54: failure - Cannot find command to respond: 1277
+2026-06-17T04:36:23.935382200Z  User 4: failure - COO declaration payload is required.
+2026-06-17T04:36:24.165396700Z  User 58: login successful.
+2026-06-17T04:36:24.447116400Z  User 57: selected declaration type Certificate of Origin (COO).
+2026-06-17T04:36:24.447116400Z  User 57: selected JSON file CON COO.json.
+2026-06-17T04:36:25.564403300Z  User 58: selected declaration type Certificate of Origin (COO).
+2026-06-17T04:36:25.564403300Z  User 58: selected JSON file CON COO.json.
+2026-06-17T04:36:26.119670300Z  User 57: failure - COO declaration payload is required.
+2026-06-17T04:36:26.859935600Z  User 58: failure - COO declaration payload is required.
+2026-06-17T04:36:32.996200700Z  User 5: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T04:36:32.996200700Z  User 24: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T04:36:33.073357400Z  User 37: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T04:36:34.249342600Z  User 85: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T04:36:34.318082900Z  User 26: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T04:36:34.350078700Z  User 44: failure - Error { message='Timeout 15000ms exceeded. name='TimeoutError stack='TimeoutError: Timeout 15000ms exceeded. at ProgressController.run (C:\Users\mabis\AppData\Local\Temp\playwright-java-2918846073729786917\package\lib...
+2026-06-17T05:14:49.228541400Z  Stop requested by operator.
+2026-06-17T05:14:50.109970700Z  User 31: failure - Error { message='net::ERR_ABORTED at http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/ name='Error stack='Error: net::ERR_ABORTED at http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/ at Fra...
+2026-06-17T05:14:50.109970700Z  User 28: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 88: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 30: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 71: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 27: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 60: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 79: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 14: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 88: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 60: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 79: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 71: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 84: failure - InterruptedException
+2026-06-17T05:14:50.109970700Z  User 28: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 27: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.109970700Z  User 31: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 30: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 84: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 83: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 35: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  Execution stopped before all users completed.
+2026-06-17T05:14:50.110971400Z  User 98: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 98: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 35: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 32: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 89: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 73: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 89: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 63: failure - InterruptedException
+2026-06-17T05:14:50.110971400Z  User 73: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 32: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 83: screenshot capture failed - Playwright connection closed
+2026-06-17T05:14:50.110971400Z  User 63: screenshot capture failed - Playwright connection closed

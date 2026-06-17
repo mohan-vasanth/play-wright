@@ -8,6 +8,7 @@ com\automation\IptDeclarationPage$PositionedElement.class
 com\automation\CooDeclarationPage$PositionedElement.class
 com\automation\playwright_framework\JMeterExecutionService$ReportResponse.class
 com\automation\playwright_framework\utils.class
+com\automation\playwright_framework\LoadTestingDeclarationCatalog$WorkflowKind.class
 com\automation\playwright_framework\TestLauncherController.class
 com\automation\IptDeclarationPage.class
 com\automation\playwright_framework\TestReportController$TestCaseResult.class
@@ -16,11 +17,13 @@ com\automation\playwright_framework\TestReportController$TestReportResponse.clas
 com\automation\playwright_framework\JMeterExecutionService$RunRequest.class
 com\automation\playwright_framework\JMeterExecutionService$StatusResponse.class
 com\automation\playwright_framework\LoadTestingDashboardService$StopResponse.class
+com\automation\playwright_framework\LoadTestingDeclarationCatalog$DeclarationDefinition.class
 com\automation\playwright_framework\LoadTestingDashboardService$StartResponse.class
 com\automation\playwright_framework\LoadTestingDashboardService$RunRequest.class
 com\automation\OutDeclarationPage$PositionedCpcField.class
 com\automation\playwright_framework\PlaywrightFrameworkApplication.class
 com\automation\playwright_framework\DynamicJmxBuilder.class
+com\automation\playwright_framework\LoadTestingDeclarationCatalog$JsonOption.class
 com\automation\playwright_framework\TestReportController$BatchArtifactType.class
 com\automation\playwright_framework\TestReportController.class
 com\automation\playwright_framework\TestLauncherController$ResolvedJsonInput.class
@@ -28,6 +31,7 @@ com\automation\DeclarationsPage.class
 com\automation\playwright_framework\TestLauncherController$LauncherTypeConfig.class
 com\automation\playwright_framework\TestReportController$BatchReportSummary.class
 com\automation\DeclarationsPage$DeclarationListEntry.class
+com\automation\playwright_framework\LoadTestingDeclarationCatalog.class
 com\automation\playwright_framework\TestLauncherController$LauncherStatusResponse.class
 com\automation\IptDeclarationPage$PositionedField.class
 com\automation\playwright_framework\TestReportController$BatchCaseAccumulator.class
@@ -38,9 +42,12 @@ com\automation\playwright_framework\JMeterExecutionService.class
 com\automation\playwright_framework\JMeterExecutionService$ThresholdAssessment.class
 com\automation\CooDeclarationPage.class
 com\automation\playwright_framework\JMeterExecutionService$ExecutionState.class
+com\automation\playwright_framework\LoadTestingDashboardService$WorkerSession.class
+com\automation\playwright_framework\LoadTestingDashboardService$WorkflowResult.class
 com\automation\playwright_framework\TestReportController$BatchDiagnostics.class
 com\automation\playwright_framework\LoadTestingDashboardService.class
 com\automation\playwright_framework\TestLauncherController$JobReportSnapshot.class
+com\automation\playwright_framework\LoadTestingDashboardService$1.class
 com\automation\playwright_framework\TestReportController$SurefireReportSummary.class
 com\automation\playwright_framework\LoadTestingDashboardService$ScreenshotEntry.class
 com\automation\LoginPage.class

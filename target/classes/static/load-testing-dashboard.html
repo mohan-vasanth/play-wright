@@ -29,7 +29,24 @@
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="env,react">
+<script>
+    window.addEventListener('error', function (event) {
+        const root = document.getElementById('root');
+        if (!root || root.children.length > 0) {
+            return;
+        }
+        root.innerHTML = `
+            <div style="padding:32px;font-family:Segoe UI,sans-serif">
+                <h2 style="margin:0 0 12px">Load testing dashboard failed to load</h2>
+                <p style="margin:0;color:#555">Frontend bootstrap error: ${String(event.message || 'Unknown error')}</p>
+            </div>
+        `;
+    });
+    Babel.registerPreset('react-classic', {
+        plugins: [[Babel.availablePlugins['transform-react-jsx'], { runtime: 'classic' }]]
+    });
+</script>
+<script type="text/babel" data-presets="env,react-classic">
     const {
         Alert,
         AppBar,
@@ -42,10 +59,14 @@
         Container,
         CssBaseline,
         Divider,
+        FormControl,
         FormControlLabel,
         Grid,
+        InputLabel,
         LinearProgress,
+        MenuItem,
         Paper,
+        Select,
         Snackbar,
         Stack,
         Switch,
@@ -66,8 +87,18 @@
         url: 'http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard',
         username: 'mohan',
         password: '12345678',
-        headless: true
+        declarationType: 'ipt',
+        selectedJson: '',
+        headless: false
     };
+
+    const declarationTypes = [
+        { value: 'ipt', label: 'In-Payment (IPT)' },
+        { value: 'inp', label: 'In-Non-Payment (INP)' },
+        { value: 'tnp', label: 'Transhipment (TNP)' },
+        { value: 'out', label: 'Out Payment (OUT)' },
+        { value: 'coo', label: 'Certificate of Origin (COO)' }
+    ];
 
     function normalizeApiBase(base) {
         return String(base || '').trim().replace(/\/$/, '');
@@ -221,9 +252,14 @@
             totalUsers: 0,
             activeUsers: 0,
             completedUsers: 0,
+            executedUsers: 0,
             successCount: 0,
             failureCount: 0,
             openTabsCount: 0,
+            totalTabsOpened: 0,
+            totalJobsCreated: 0,
+            totalJobsSubmitted: 0,
+            draftJobCount: 0,
             averageResponseTime: 0,
             throughput: 0,
             recentLogs: [],
@@ -234,6 +270,9 @@
         const [apiConnectionError, setApiConnectionError] = useState('');
         const [busy, setBusy] = useState(false);
         const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
+        const [jsonOptions, setJsonOptions] = useState([]);
+        const [jsonOptionsMeta, setJsonOptionsMeta] = useState(null);
+        const [jsonOptionsLoading, setJsonOptionsLoading] = useState(false);
 
         const theme = useMemo(() => buildTheme(mode), [mode]);
         const currentStatusColor = statusTone[status.status] || 'default';
@@ -354,6 +393,10 @@
             return () => window.clearInterval(interval);
         }, [apiBaseUrl]);
 
+        useEffect(() => {
+            loadJsonOptions(form.declarationType);
+        }, [form.declarationType, apiBaseUrl]);
+
         function showToast(severity, message) {
             setToast({ open: true, severity, message });
         }
@@ -364,6 +407,39 @@
                 ...current,
                 [name]: type === 'checkbox' ? checked : value
             }));
+        }
+
+        async function loadJsonOptions(type) {
+            if (!type) {
+                setJsonOptions([]);
+                setJsonOptionsMeta(null);
+                setForm(current => ({ ...current, selectedJson: '' }));
+                return;
+            }
+
+            setJsonOptionsLoading(true);
+            try {
+                const payload = await fetchFromApi(`api/load-dashboard/json-options?type=${encodeURIComponent(type)}`);
+                const files = payload.files || [];
+                setJsonOptions(files);
+                setJsonOptionsMeta(payload);
+                setForm(current => {
+                    const currentSelectionStillExists = files.some(file => file.resourcePath === current.selectedJson);
+                    return {
+                        ...current,
+                        selectedJson: currentSelectionStillExists
+                            ? current.selectedJson
+                            : (files[0]?.resourcePath || '')
+                    };
+                });
+            } catch (error) {
+                setJsonOptions([]);
+                setJsonOptionsMeta(null);
+                setForm(current => ({ ...current, selectedJson: '' }));
+                showToast('error', `Unable to load declaration JSON files: ${error.message}`);
+            } finally {
+                setJsonOptionsLoading(false);
+            }
         }
 
         async function refreshStatus(silent = false) {
@@ -391,6 +467,8 @@
                         url: form.url.trim(),
                         username: form.username.trim(),
                         password: form.password,
+                        declarationType: form.declarationType,
+                        selectedJson: form.selectedJson,
                         headless: Boolean(form.headless),
                         jmeterRampUpSeconds: Math.max(1, Math.round(Number(form.totalUsers || 1) / 10)),
                         jmeterLoopCount: 1
@@ -450,10 +528,27 @@
                                         </Typography>
                                         <Typography variant="h5">Web Load Testing Dashboard</Typography>
                                     </Stack>
-                                    <FormControlLabel
-                                        control={<Switch checked={mode === 'dark'} onChange={() => setMode(current => current === 'dark' ? 'light' : 'dark')} />}
-                                        label="Dark mode"
-                                    />
+                                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                        <Button
+                                            variant="outlined"
+                                            color="primary"
+                                            href="test-launcher.html"
+                                            sx={{
+                                                borderRadius: 999,
+                                                px: 2.25,
+                                                py: 1,
+                                                fontWeight: 800,
+                                                whiteSpace: 'nowrap'
+                                            }}
+                                        >
+                                            Permit Workflow Launcher
+                                        </Button>
+                                        <FormControlLabel
+                                            control={<Switch checked={mode === 'dark'} onChange={() => setMode(current => current === 'dark' ? 'light' : 'dark')} />}
+                                            label="Dark mode"
+                                            sx={{ mr: 0 }}
+                                        />
+                                    </Stack>
                                 </Stack>
                             </Container>
                         </Toolbar>
@@ -529,7 +624,7 @@
                                 <SectionCard
                                     eyebrow="Inputs"
                                     title="Execution Parameters"
-                                    description="The browser workflow uses total users as queued sessions and browser tabs as the parallel execution cap. JMeter reuses the same total user count to generate its thread group."
+                                    description="The browser workflow uses total users as queued sessions and browser tabs as the parallel execution cap. Choose the declaration module and a JSON payload file, then the run will log in, open capped browser tabs, populate the declaration form, submit jobs, and surface runtime metrics in the dashboard."
                                     actions={busy ? <CircularProgress size={28} /> : null}
                                 >
                                     <Grid container spacing={2.5}>
@@ -558,12 +653,82 @@
                                         <Grid item xs={12} md={4}>
                                             <TextField fullWidth type="password" label="Password" name="password" value={form.password} onChange={handleFieldChange} />
                                         </Grid>
+                                        <Grid item xs={12} md={4}>
+                                            <FormControl fullWidth>
+                                                <InputLabel id="declaration-type-label">Declaration Type</InputLabel>
+                                                <Select
+                                                    labelId="declaration-type-label"
+                                                    label="Declaration Type"
+                                                    name="declarationType"
+                                                    value={form.declarationType}
+                                                    onChange={handleFieldChange}
+                                                >
+                                                    {declarationTypes.map(option => (
+                                                        <MenuItem key={option.value} value={option.value}>
+                                                            {option.label}
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
+                                        <Grid item xs={12} md={8}>
+                                            <FormControl fullWidth disabled={jsonOptionsLoading || !form.declarationType}>
+                                                <InputLabel id="json-file-label">Declaration JSON File</InputLabel>
+                                                <Select
+                                                    labelId="json-file-label"
+                                                    label="Declaration JSON File"
+                                                    name="selectedJson"
+                                                    value={form.selectedJson}
+                                                    onChange={handleFieldChange}
+                                                >
+                                                    {jsonOptions.map(option => (
+                                                        <MenuItem key={option.resourcePath} value={option.resourcePath}>
+                                                            {option.name}
+                                                        </MenuItem>
+                                                    ))}
+                                                </Select>
+                                            </FormControl>
+                                        </Grid>
                                         <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <FormControlLabel control={<Switch checked={form.headless} name="headless" onChange={handleFieldChange} />} label="Run Playwright Headless" />
+                                            <FormControlLabel
+                                                control={<Switch checked={!form.headless} disabled />}
+                                                label="Visible Browser Mode"
+                                            />
+                                        </Grid>
+                                        <Grid item xs={12}>
+                                            <Paper
+                                                variant="outlined"
+                                                sx={{
+                                                    p: 2,
+                                                    borderRadius: 4,
+                                                    background: theme => theme.palette.mode === 'dark'
+                                                        ? 'rgba(73,182,255,0.05)'
+                                                        : 'rgba(0,87,255,0.03)'
+                                                }}
+                                            >
+                                                <Stack
+                                                    direction={{ xs: 'column', md: 'row' }}
+                                                    spacing={1.5}
+                                                    justifyContent="space-between"
+                                                    alignItems={{ xs: 'flex-start', md: 'center' }}
+                                                >
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {jsonOptionsLoading
+                                                            ? 'Loading declaration JSON files for the selected declaration type.'
+                                                            : `${jsonOptions.length} declaration JSON file(s) available for ${declarationTypes.find(option => option.value === form.declarationType)?.label || 'the selected module'}.`}
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {jsonOptionsMeta?.resourceFolder ? `Source folder: ${jsonOptionsMeta.resourceFolder}` : 'Source folder not resolved yet.'}
+                                                    </Typography>
+                                                </Stack>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                                                    Browser execution always runs in headed mode so login, declaration creation, form filling, and submission remain visible.
+                                                </Typography>
+                                            </Paper>
                                         </Grid>
                                     </Grid>
                                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
-                                        <Button variant="contained" size="large" onClick={handleRun} disabled={busy || status.running}>
+                                        <Button variant="contained" size="large" onClick={handleRun} disabled={busy || status.running || !form.selectedJson || jsonOptionsLoading}>
                                             Run
                                         </Button>
                                         <Button variant="outlined" color="warning" size="large" onClick={handleStop} disabled={busy || !status.running}>
@@ -577,22 +742,40 @@
                                 <SectionCard eyebrow="Browser Workflow" title="Live Dashboard" description="Playwright metrics refresh every few seconds while the browser workers execute.">
                                     <Grid container spacing={2}>
                                         <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Users" value={status.totalUsers || 0} />
+                                            <MetricCard label="Total Users Requested" value={status.totalUsers || 0} />
                                         </Grid>
                                         <Grid item xs={12} sm={6} md={4} lg={2}>
                                             <MetricCard label="Active Users" value={status.activeUsers || 0} accent={theme.palette.secondary.main} />
                                         </Grid>
                                         <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Users Executed" value={status.executedUsers || 0} accent={theme.palette.success.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Tabs Requested" value={status.configuration?.browserTabs || 0} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Tabs Opened" value={status.totalTabsOpened || 0} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Active Tabs" value={status.openTabsCount || 0} accent={theme.palette.primary.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Jobs Created" value={status.totalJobsCreated || 0} accent={theme.palette.success.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Total Jobs Submitted" value={status.totalJobsSubmitted || 0} accent={theme.palette.secondary.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Draft Jobs" value={status.draftJobCount || 0} accent={theme.palette.warning.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
+                                            <MetricCard label="Failed Jobs" value={status.failureCount || 0} accent={theme.palette.error.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={4} lg={2}>
                                             <MetricCard label="Completed Users" value={status.completedUsers || 0} accent={theme.palette.success.main} />
                                         </Grid>
                                         <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Browser Tabs Opened" value={status.openTabsCount || 0} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Success Count" value={status.successCount || 0} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Failure Count" value={status.failureCount || 0} accent={theme.palette.error.main} />
+                                            <MetricCard label="Successful Jobs" value={status.successCount || 0} accent={theme.palette.success.main} />
                                         </Grid>
                                         <Grid item xs={12} md={6}>
                                             <MetricCard label="Average Response Time" value={`${status.averageResponseTime || 0} ms`} />
@@ -600,7 +783,47 @@
                                         <Grid item xs={12} md={6}>
                                             <MetricCard label="Throughput" value={`${status.throughput || 0} users/s`} accent={theme.palette.secondary.main} />
                                         </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <MetricCard label="TPS" value={`${status.transactionsPerSecond || 0} tx/s`} accent={theme.palette.primary.main} />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <MetricCard label="Error Percentage" value={`${status.errorPercentage || 0}%`} accent={theme.palette.warning.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <MetricCard label="Job Creation Status" value={status.latestJobStatus || 'Waiting'} accent={theme.palette.success.main} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <MetricCard label="Job ID" value={status.latestJobId || 'N/A'} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <MetricCard label="Message Reference" value={status.latestMessageReference || 'N/A'} />
+                                        </Grid>
+                                        <Grid item xs={12} sm={6} md={3}>
+                                            <MetricCard label="Permit Number" value={status.latestPermitNumber || 'N/A'} accent={theme.palette.secondary.main} />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <MetricCard label="Start Time" value={status.startedAt ? new Date(status.startedAt).toLocaleString() : 'N/A'} />
+                                        </Grid>
+                                        <Grid item xs={12} md={6}>
+                                            <MetricCard label="End Time" value={status.finishedAt ? new Date(status.finishedAt).toLocaleString() : 'Running'} accent={theme.palette.warning.main} />
+                                        </Grid>
                                     </Grid>
+                                    <Paper variant="outlined" sx={{ mt: 3, p: 2.5, borderRadius: 4 }}>
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={4}>
+                                                <Typography variant="body2" color="text.secondary">Declaration Type</Typography>
+                                                <Typography variant="subtitle1" sx={{ mt: 0.8, fontWeight: 800 }}>
+                                                    {status.declarationTypeLabel || declarationTypes.find(option => option.value === form.declarationType)?.label || 'N/A'}
+                                                </Typography>
+                                            </Grid>
+                                            <Grid item xs={12} md={8}>
+                                                <Typography variant="body2" color="text.secondary">Selected JSON File</Typography>
+                                                <Typography variant="subtitle1" sx={{ mt: 0.8, fontWeight: 800, wordBreak: 'break-word' }}>
+                                                    {status.selectedJson || form.selectedJson || 'N/A'}
+                                                </Typography>
+                                            </Grid>
+                                        </Grid>
+                                    </Paper>
                                     <Box sx={{ mt: 3 }}>
                                         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                                             <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Browser Progress</Typography>

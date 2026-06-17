@@ -1,0 +1,128 @@
+2026-06-17T06:35:16.918392100Z  Run requested for 10 users with concurrency cap 10 tabs.
+2026-06-17T06:35:16.918392100Z  Declaration type selected: Certificate of Origin (COO).
+2026-06-17T06:35:16.918392100Z  Declaration JSON selected: COO-PERMIT.json.
+2026-06-17T06:35:16.918392100Z  Loaded 1 declaration payload(s) for cyclic execution.
+2026-06-17T06:35:16.918392100Z  Browser execution is forced to headed mode so UI actions remain visible.
+2026-06-17T06:35:16.919390700Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-17T06:35:17.068935600Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-17T06:35:17.079867900Z  [User-1] Starting Declaration Workflow
+2026-06-17T06:35:17.086858800Z  [User-3] Starting Declaration Workflow
+2026-06-17T06:35:17.086858800Z  [User-2] Starting Declaration Workflow
+2026-06-17T06:35:17.089877300Z  [User-4] Starting Declaration Workflow
+2026-06-17T06:35:17.090860600Z  [User-5] Starting Declaration Workflow
+2026-06-17T06:35:17.090860600Z  [User-6] Starting Declaration Workflow
+2026-06-17T06:35:17.092860Z  [User-7] Starting Declaration Workflow
+2026-06-17T06:35:17.093869200Z  [User-10] Starting Declaration Workflow
+2026-06-17T06:35:17.094863300Z  [User-9] Starting Declaration Workflow
+2026-06-17T06:35:17.094863300Z  [User-8] Starting Declaration Workflow
+2026-06-17T06:35:19.002579300Z  [User-10] Browser Tab Opened
+2026-06-17T06:35:19.043102800Z  [User-7] Browser Tab Opened
+2026-06-17T06:35:19.045103100Z  [User-10] JSON Loaded
+2026-06-17T06:35:19.045103100Z  [User-10] Opening Login Page
+2026-06-17T06:35:19.068103200Z  [User-7] JSON Loaded
+2026-06-17T06:35:19.068103200Z  [User-7] Opening Login Page
+2026-06-17T06:35:19.111102500Z  [User-1] Browser Tab Opened
+2026-06-17T06:35:19.111102500Z  [User-1] JSON Loaded
+2026-06-17T06:35:19.111102500Z  [User-1] Opening Login Page
+2026-06-17T06:35:19.121103200Z  [User-3] Browser Tab Opened
+2026-06-17T06:35:19.121103200Z  [User-3] JSON Loaded
+2026-06-17T06:35:19.121103200Z  [User-3] Opening Login Page
+2026-06-17T06:35:19.157203200Z  [User-4] Browser Tab Opened
+2026-06-17T06:35:19.158201500Z  [User-4] JSON Loaded
+2026-06-17T06:35:19.158201500Z  [User-4] Opening Login Page
+2026-06-17T06:35:19.249733900Z  [User-6] Browser Tab Opened
+2026-06-17T06:35:19.249733900Z  [User-6] JSON Loaded
+2026-06-17T06:35:19.249733900Z  [User-6] Opening Login Page
+2026-06-17T06:35:20.690136Z  [User-5] Browser Tab Opened
+2026-06-17T06:35:20.690136Z  [User-5] JSON Loaded
+2026-06-17T06:35:20.690136Z  [User-5] Opening Login Page
+2026-06-17T06:35:20.899643Z  [User-2] Browser Tab Opened
+2026-06-17T06:35:20.900635Z  [User-2] JSON Loaded
+2026-06-17T06:35:20.900635Z  [User-2] Opening Login Page
+2026-06-17T06:35:21.774695400Z  [User-3] Login Success
+2026-06-17T06:35:23.007863900Z  [User-8] Browser Tab Opened
+2026-06-17T06:35:23.007863900Z  [User-8] JSON Loaded
+2026-06-17T06:35:23.007863900Z  [User-8] Opening Login Page
+2026-06-17T06:35:23.304516500Z  [User-3] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:23.304516500Z  [User-3] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:23.355048500Z  [User-9] Browser Tab Opened
+2026-06-17T06:35:23.355048500Z  [User-9] JSON Loaded
+2026-06-17T06:35:23.355048500Z  [User-9] Opening Login Page
+2026-06-17T06:35:23.495347200Z  [User-7] Login Success
+2026-06-17T06:35:23.909064700Z  [User-10] Login Success
+2026-06-17T06:35:24.394761300Z  [User-2] Login Success
+2026-06-17T06:35:24.855069300Z  [User-3] Declaration Created
+2026-06-17T06:35:25.013585500Z  [User-1] Login Success
+2026-06-17T06:35:25.068137Z  [User-6] Login Success
+2026-06-17T06:35:25.075136Z  [User-7] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:25.075136Z  [User-7] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:25.647551900Z  [User-10] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:25.647551900Z  [User-10] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:26.343282100Z  [User-2] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:26.343282100Z  [User-2] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:26.415292700Z  [User-9] Login Success
+2026-06-17T06:35:26.813152Z  [User-7] Declaration Created
+2026-06-17T06:35:26.829157500Z  [User-1] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:26.829157500Z  [User-1] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:27.165527700Z  [User-6] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:27.165527700Z  [User-6] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:27.693194700Z  [User-10] Declaration Created
+2026-06-17T06:35:28.034641500Z  [User-9] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:28.034641500Z  [User-9] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:28.445646400Z  [User-2] Declaration Created
+2026-06-17T06:35:29.028260100Z  [User-6] Declaration Created
+2026-06-17T06:35:29.417961400Z  [User-1] Declaration Created
+2026-06-17T06:35:29.612258600Z  [User-5] Login Success
+2026-06-17T06:35:30.030815500Z  [User-9] Declaration Created
+2026-06-17T06:35:30.378937500Z  [User-8] Login Success
+2026-06-17T06:35:31.174109200Z  [User-5] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:31.174109200Z  [User-5] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:31.863062Z  [User-8] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:31.863062Z  [User-8] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:32.659593700Z  [User-5] Declaration Created
+2026-06-17T06:35:33.385354300Z  [User-8] Declaration Created
+2026-06-17T06:35:33.832546700Z  [User-4] Login Success
+2026-06-17T06:35:35.857485Z  [User-4] Selected Declaration Type - Certificate of Origin (COO)
+2026-06-17T06:35:35.857485Z  [User-4] Selected JSON File - COO-PERMIT.json
+2026-06-17T06:35:37.564771Z  [User-4] Declaration Created
+2026-06-17T06:38:16.356226700Z  [User-9] Form Filled
+2026-06-17T06:38:22.679133100Z  [User-9] Submitted
+2026-06-17T06:38:28.471157600Z  [User-7] Form Filled
+2026-06-17T06:38:29.862897600Z  [User-6] Form Filled
+2026-06-17T06:38:29.922447700Z  [User-2] Form Filled
+2026-06-17T06:38:31.192884800Z  [User-1] Form Filled
+2026-06-17T06:38:32.047443700Z  [User-10] Form Filled
+2026-06-17T06:38:32.543030200Z  [User-3] Form Filled
+2026-06-17T06:38:34.505305500Z  [User-7] Submitted
+2026-06-17T06:38:36.008598900Z  [User-2] Submitted
+2026-06-17T06:38:36.062221900Z  [User-6] Submitted
+2026-06-17T06:38:37.290658Z  [User-1] Submitted
+2026-06-17T06:38:38.183401500Z  [User-10] Submitted
+2026-06-17T06:38:38.736309300Z  [User-3] Submitted
+2026-06-17T06:38:38.995646700Z  [User-5] Form Filled
+2026-06-17T06:38:41.342095500Z  [User-4] Form Filled
+2026-06-17T06:38:42.768383500Z  [User-8] Form Filled
+2026-06-17T06:38:44.809749800Z  [User-5] Submitted
+2026-06-17T06:38:47.245129500Z  [User-4] Submitted
+2026-06-17T06:38:48.512017100Z  [User-8] Submitted
+2026-06-17T06:39:25.812410900Z  [User-1] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:25.812410900Z  [User-1] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.084019100Z  [User-10] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.084019100Z  [User-10] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.928726900Z  [User-2] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.928726900Z  [User-2] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.986916900Z  [User-4] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:27.986916900Z  [User-4] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:28.674282200Z  [User-3] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:28.674282200Z  [User-3] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.011494500Z  [User-6] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.011494500Z  [User-6] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.347575700Z  [User-5] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.347575700Z  [User-5] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.895810200Z  [User-7] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:29.895810200Z  [User-7] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:30.380541900Z  [User-9] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:30.380541900Z  [User-9] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:30.865921400Z  [User-8] Error Details - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:30.865921400Z  [User-8] Workflow Failed - Common Rejection Codes ARD - Application Rejected CRHEADER - Permit/Amendment/Cancellation/Refund application not approved CAHEADER - Customs Authority Header error
+2026-06-17T06:39:33.880970300Z  Declaration workflow completed with 10 failed users.

@@ -40,9 +40,12 @@
             </div>
         `;
     });
+    Babel.registerPreset('react-classic', {
+        plugins: [[Babel.availablePlugins['transform-react-jsx'], { runtime: 'classic' }]]
+    });
 </script>
 
-<script type="text/babel" data-presets="env,react">
+<script type="text/babel" data-presets="env,react-classic">
     const {
         Alert,
         AppBar,

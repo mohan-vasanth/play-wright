@@ -1,0 +1,20 @@
+2026-06-17T05:20:47.467571300Z  Run requested for 1 users with concurrency cap 1 tabs.
+2026-06-17T05:20:47.467571300Z  Declaration type selected: In-Payment (IPT).
+2026-06-17T05:20:47.467571300Z  Declaration JSON selected: ipt-declaration-test-case-1.json.
+2026-06-17T05:20:47.467571300Z  Loaded 1 declaration payload(s) for cyclic execution.
+2026-06-17T05:20:47.467571300Z  Browser execution is forced to headed mode so UI actions remain visible.
+2026-06-17T05:20:47.470569600Z  Generated dynamic JMX plan: dynamic-load-test.jmx
+2026-06-17T05:20:47.568228800Z  Started background JMeter execution for target: http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard
+2026-06-17T05:20:47.583785800Z  [User-1] Starting Declaration Workflow
+2026-06-17T05:20:56.089972900Z  [User-1] Browser Tab Opened
+2026-06-17T05:20:56.092972700Z  [User-1] Opening Login Page
+2026-06-17T05:20:58.669056200Z  [User-1] Login Success
+2026-06-17T05:21:00.303778100Z  [User-1] Selected Declaration Type - In-Payment (IPT)
+2026-06-17T05:21:00.303778100Z  [User-1] Selected JSON File - ipt-declaration-test-case-1.json
+2026-06-17T05:21:01.360891200Z  [User-1] Declaration Created
+2026-06-17T05:24:32.868012100Z  [User-1] Form Filled
+2026-06-17T05:24:39.851035Z  [User-1] Submitted
+2026-06-17T05:25:13.716547200Z  Stop requested by operator.
+2026-06-17T05:25:29.435724800Z  [User-1] Job Creation Status - SNT
+2026-06-17T05:25:29.435724800Z  [User-1] Job Created Successfully | Status=SNT | Job ID=5475 | Message Ref=TDX2606170010 | Permit=N/A
+2026-06-17T05:25:30.128578300Z  Execution stopped before all users completed.

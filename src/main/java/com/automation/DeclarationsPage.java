@@ -30,6 +30,24 @@ public class DeclarationsPage {
         this.page = page;
     }
 
+    public String readCurrentJobIdFromUrl() {
+        try {
+            String url = page.url();
+            if (url == null) {
+                return null;
+            }
+            int editIndex = url.lastIndexOf("/edit/");
+            if (editIndex < 0) {
+                return null;
+            }
+            String afterEdit = url.substring(editIndex + 6);
+            String candidate = afterEdit.split("[/?#]")[0].replaceAll("[^0-9]", "");
+            return candidate.isEmpty() ? null : candidate;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
     public void autoAcceptUnsavedChanges() {
         page.evaluate("window.confirm = () => true");
     }
@@ -225,13 +243,6 @@ public class DeclarationsPage {
                             return buildEntry(cells);
                         }
 
-                        if (rowCandidates.length > 0) {
-                            const latestCells = Array.from(rowCandidates[0].querySelectorAll(cellSelector))
-                                .filter(isVisible);
-                            if (latestCells.length > 0) {
-                                return buildEntry(latestCells);
-                            }
-                        }
                         return null;
                     }
                     """, messageReference);
@@ -251,7 +262,7 @@ public class DeclarationsPage {
             page.waitForTimeout(1000);
         }
 
-        return readLatestDeclarationListEntry();
+        return null;
     }
 
     public DeclarationListEntry readLatestDeclarationListEntry() {
