@@ -265,6 +265,137 @@ public class DeclarationsPage {
         return null;
     }
 
+    public DeclarationListEntry readDeclarationListEntryByJobId(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            return readLatestDeclarationListEntry();
+        }
+
+        for (int attempt = 0; attempt < 10; attempt++) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+                    (jobId) => {
+                        const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                        const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                        const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                        const targetJobId = normalize(jobId);
+                        const knownStatuses = ['DRF', 'DRAFT', 'SUB', 'SUBMITTED', 'SNT', 'SENT', 'PMT', 'PERMIT ISSUED', 'PERMIT_ISSUED', 'FLD', 'FAILED', 'FAILURE', 'REJ', 'REJECTED', 'REG', 'REGISTERED'];
+                        const isStatusValue = value => knownStatuses.includes(upper(value));
+                        const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
+                        const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
+                        const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isCreatedByValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
+                        };
+
+                        const headerCandidates = Array.from(document.querySelectorAll(headerSelector)).filter(isVisible);
+                        const headerTexts = headerCandidates.map(textOf).map(upper);
+                        const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
+                        const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
+                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageRefIndex = messageReferenceIndex >= 0
+                            ? messageReferenceIndex
+                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
+                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
+                        const permitNumberIndex = headerTexts.findIndex(text =>
+                            text === 'PERMIT NUMBER'
+                            || text === 'PERMIT NO.'
+                            || text === 'PERMIT NO'
+                            || text === 'PMT NUMBER'
+                            || text === 'PMT NO.'
+                            || text === 'PMT NO');
+
+                        const extractStatus = cells => {
+                            if (statusIndex >= 0 && statusIndex < cells.length) {
+                                const explicitStatus = upper(textOf(cells[statusIndex]));
+                                if (explicitStatus) {
+                                    return explicitStatus;
+                                }
+                            }
+                            return cells
+                                .map(textOf)
+                                .map(upper)
+                                .find(text => knownStatuses.includes(text)) || null;
+                        };
+
+                        const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+                            .filter(row => isVisible(row) && !row.querySelector(headerSelector));
+
+                        for (const row of rowCandidates) {
+                            const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
+                            const rowTexts = cells.map(textOf);
+                            const normalizedRowTexts = rowTexts.map(upper);
+                            const candidateJobId = jobIdIndex >= 0 && jobIdIndex < rowTexts.length
+                                ? rowTexts[jobIdIndex]
+                                : (rowTexts.find(value => /^\\d{3,}$/.test(value || '')) || null);
+                            if (normalize(candidateJobId) !== targetJobId) {
+                                continue;
+                            }
+
+                            let declarationNumber = messageRefIndex >= 0 && messageRefIndex < rowTexts.length
+                                ? rowTexts[messageRefIndex]
+                                : null;
+                            if (!isMessageRefValue(declarationNumber)) {
+                                declarationNumber = rowTexts.find(isMessageRefValue) || null;
+                            }
+
+                            let jobCreatedBy = createdByIndex >= 0 && createdByIndex < rowTexts.length
+                                ? rowTexts[createdByIndex]
+                                : null;
+                            const resolvedStatus = extractStatus(cells);
+                            if (!isCreatedByValue(jobCreatedBy)) {
+                                const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(resolvedStatus));
+                                if (statusCellIndex > 0 && isCreatedByValue(rowTexts[statusCellIndex - 1])) {
+                                    jobCreatedBy = rowTexts[statusCellIndex - 1];
+                                } else {
+                                    jobCreatedBy = rowTexts.find(isCreatedByValue) || null;
+                                }
+                            }
+
+                            let permitNumber = permitNumberIndex >= 0 && permitNumberIndex < rowTexts.length
+                                ? rowTexts[permitNumberIndex]
+                                : null;
+                            if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                                permitNumber = null;
+                            }
+
+                            return {
+                                jobId: candidateJobId,
+                                jobStatus: resolvedStatus,
+                                declarationNumber,
+                                jobCreatedBy,
+                                permitNumber
+                            };
+                        }
+                        return null;
+                    }
+                    """, jobId);
+
+            if (result != null) {
+                String resolvedJobId = stringValue(result.get("jobId"));
+                String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
+                String declarationNumber = stringValue(result.get("declarationNumber"));
+                String jobCreatedBy = stringValue(result.get("jobCreatedBy"));
+                String permitNumber = stringValue(result.get("permitNumber"));
+                if ((resolvedJobId != null && !resolvedJobId.isBlank()) || (jobStatus != null && !jobStatus.isBlank())
+                        || (declarationNumber != null && !declarationNumber.isBlank())
+                        || (jobCreatedBy != null && !jobCreatedBy.isBlank())
+                        || (permitNumber != null && !permitNumber.isBlank())) {
+                    return new DeclarationListEntry(resolvedJobId, jobStatus, declarationNumber, jobCreatedBy, permitNumber);
+                }
+            }
+            page.waitForTimeout(1000);
+        }
+        return null;
+    }
+
     public DeclarationListEntry readLatestDeclarationListEntry() {
         for (int attempt = 0; attempt < 10; attempt++) {
             @SuppressWarnings("unchecked")
@@ -462,6 +593,75 @@ public class DeclarationsPage {
         waitForDeclarationViewScreenVisible(messageReference);
     }
 
+    public void openDeclarationViewByJobId(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            throw new IllegalArgumentException("Job ID is required to open declaration view.");
+        }
+
+        Boolean clicked = (Boolean) page.evaluate("""
+                jobId => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                    const upper = value => normalize(value).toUpperCase();
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return !!style
+                            && style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const textOf = element => normalize(element?.innerText || element?.textContent || '');
+                    const targetJobId = normalize(jobId);
+                    const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
+                    const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
+                    const cellSelector = 'td, [role="cell"], [role="gridcell"], .mat-cell, .ag-cell, clr-dg-cell, .datagrid-cell';
+                    const iconMatch = element => {
+                        const className = upper(element.getAttribute('class'));
+                        return className.includes('EYE')
+                            || className.includes('VIEW')
+                            || className.includes('VISIBILITY');
+                    };
+
+                    const actionTarget = row => {
+                        const actionElements = Array.from(row.querySelectorAll('a, button, [role="button"]'))
+                            .filter(isVisible);
+                        return actionElements.find(element => iconMatch(element)
+                            || upper(textOf(element)).includes('VIEW')
+                            || upper(element.getAttribute('aria-label') || '').includes('VIEW'))
+                            || actionElements[0]
+                            || null;
+                    };
+
+                    const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
+                        .filter(row => isVisible(row) && !row.querySelector(headerSelector));
+                    for (const row of rowCandidates) {
+                        const cells = Array.from(row.querySelectorAll(cellSelector)).filter(isVisible);
+                        const rowTexts = cells.map(textOf);
+                        const candidateJobId = rowTexts.find(value => /^\\d{3,}$/.test(value || ''));
+                        if (normalize(candidateJobId) !== targetJobId) {
+                            continue;
+                        }
+                        const target = actionTarget(row);
+                        if (!target) {
+                            return false;
+                        }
+                        target.scrollIntoView({ block: 'center' });
+                        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                        return true;
+                    }
+                    return false;
+                }
+                """, jobId);
+
+        if (!Boolean.TRUE.equals(clicked)) {
+            throw new IllegalStateException("Unable to open declaration view for job ID: " + jobId);
+        }
+
+        waitForDeclarationViewScreenVisible(null);
+    }
+
     public DeclarationResponseDetails readDeclarationResponseDetails(String messageReference) {
         openDeclarationView(messageReference);
         return readCurrentResponseDetails();
@@ -491,6 +691,54 @@ public class DeclarationsPage {
                     const pickLongest = values => values
                         .filter(Boolean)
                         .sort((left, right) => right.length - left.length)[0] || null;
+                    const readLabeledValue = labels => {
+                        const normalizedLabels = labels.map(upper);
+                        const labelElements = Array.from(document.querySelectorAll('label, dt, th, td, div, span, p, strong'))
+                            .filter(isVisible);
+                        for (const element of labelElements) {
+                            const labelText = upper(textOf(element));
+                            if (!normalizedLabels.some(label => labelText === label || labelText.startsWith(label + ':'))) {
+                                continue;
+                            }
+                            const nextText = normalize(element.nextElementSibling?.innerText || element.nextElementSibling?.textContent || '');
+                            if (nextText && nextText !== '-' && nextText !== '--') {
+                                return nextText;
+                            }
+                            const parentText = normalize(element.parentElement?.innerText || element.parentElement?.textContent || '');
+                            if (parentText) {
+                                const pieces = parentText.split(/\\s{2,}|\\n/).map(normalize).filter(Boolean);
+                                const labelIndex = pieces.findIndex(piece => {
+                                    const normalizedPiece = upper(piece);
+                                    return normalizedLabels.some(label => normalizedPiece === label || normalizedPiece.startsWith(label + ':'));
+                                });
+                                if (labelIndex >= 0 && labelIndex + 1 < pieces.length) {
+                                    const candidate = pieces[labelIndex + 1];
+                                    if (candidate && candidate !== '-' && candidate !== '--') {
+                                        return candidate;
+                                    }
+                                }
+                            }
+                        }
+                        return null;
+                    };
+                    const extractDateTime = value => {
+                        const normalized = normalize(value);
+                        if (!normalized) {
+                            return null;
+                        }
+                        const match = normalized.match(/\\b\\d{2}\\/\\d{2}\\/\\d{4}(?:\\s+\\d{2}:\\d{2}(?::\\d{2})?\\s*[A-Z]{0,4})?\\b/i)
+                            || normalized.match(/\\b\\d{2}-\\d{2}-\\d{4}(?:\\s+\\d{2}:\\d{2}(?::\\d{2})?\\s*[A-Z]{0,4})?\\b/i)
+                            || normalized.match(/\\b\\d{2}-[A-Z]{3}-\\d{4}(?:\\s+\\d{2}:\\d{2}(?::\\d{2})?\\s*[A-Z]{0,4})?\\b/i);
+                        return match ? normalize(match[0]) : normalized;
+                    };
+                    const parseStatusFromText = value => {
+                        const normalized = upper(value);
+                        if (!normalized) {
+                            return null;
+                        }
+                        const knownStatuses = ['DRF', 'DRAFT', 'SUB', 'SUBMITTED', 'SNT', 'SENT', 'PMT', 'PERMIT ISSUED', 'PERMIT_ISSUED', 'FLD', 'FAILED', 'FAILURE', 'REJ', 'REJECTED', 'REG', 'REGISTERED'];
+                        return knownStatuses.find(status => normalized.includes(status)) || null;
+                    };
 
                     const responseTab = Array.from(document.querySelectorAll('[role="tab"], button, a, span, div'))
                         .filter(isVisible)
@@ -664,6 +912,10 @@ public class DeclarationsPage {
                         || parsePermitNumberFromText(rawResponseText);
                     const responseMessage = rawJsonMessage || detailText || bannerText || null;
                     const errorMessage = detailText || rawJsonMessage || bannerText || null;
+                    const urn = readLabeledValue(['URN ID', 'URN']);
+                    const submissionDate = extractDateTime(readLabeledValue(['APPROVAL DATE/TIME', 'SUBMISSION DATE', 'DATE SUBMITTED']));
+                    const dateCreated = extractDateTime(readLabeledValue(['DATE CREATED', 'CREATED DATE', 'CREATED ON']));
+                    const status = parseStatusFromText(readLabeledValue(['STATUS', 'JOB STATUS']) || bannerText || responseMessage || errorMessage || pageTexts.join(' '));
 
                     return {
                         responseMessage,
@@ -671,13 +923,17 @@ public class DeclarationsPage {
                         bannerText,
                         detailText,
                         rawResponseText,
-                        permitNumber: rawJsonPermitNumber || pagePermitNumber || null
+                        permitNumber: rawJsonPermitNumber || pagePermitNumber || null,
+                        urn,
+                        dateCreated,
+                        submissionDate,
+                        status
                     };
                 }
                 """);
 
         if (result == null) {
-            return new DeclarationResponseDetails(null, null, null, null, null, null);
+            return new DeclarationResponseDetails(null, null, null, null, null, null, null, null, null, null);
         }
 
         return new DeclarationResponseDetails(
@@ -686,7 +942,11 @@ public class DeclarationsPage {
                 stringValue(result.get("bannerText")),
                 stringValue(result.get("detailText")),
                 stringValue(result.get("rawResponseText")),
-                stringValue(result.get("permitNumber")));
+                stringValue(result.get("permitNumber")),
+                stringValue(result.get("urn")),
+                stringValue(result.get("dateCreated")),
+                stringValue(result.get("submissionDate")),
+                normalizeJobStatus(stringValue(result.get("status"))));
     }
 
     public DeclarationListEntry waitForDeclarationCompletion(
@@ -1072,6 +1332,10 @@ public class DeclarationsPage {
             String bannerText,
             String detailText,
             String rawResponseText,
-            String permitNumber) {
+            String permitNumber,
+            String urn,
+            String dateCreated,
+            String submissionDate,
+            String status) {
     }
 }

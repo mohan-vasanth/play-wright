@@ -16,8 +16,35 @@
             min-height: 100%;
         }
 
+        html {
+            scroll-behavior: smooth;
+        }
+
         body {
             font-family: Manrope, "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #0f172a !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            .print-card {
+                box-shadow: none !important;
+                border: 1px solid rgba(15, 23, 42, 0.15) !important;
+                background: #ffffff !important;
+            }
         }
     </style>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -49,37 +76,45 @@
 <script type="text/babel" data-presets="env,react-classic">
     const {
         Alert,
-        AppBar,
+        Avatar,
         Box,
         Button,
         Card,
         CardContent,
         Chip,
         CircularProgress,
-        Container,
         CssBaseline,
         Divider,
         FormControl,
-        FormControlLabel,
+        FormHelperText,
         Grid,
         InputLabel,
         LinearProgress,
+        List,
+        ListItemButton,
+        ListItemText,
         MenuItem,
         Paper,
         Select,
         Snackbar,
         Stack,
-        Switch,
+        Table,
+        TableBody,
+        TableCell,
+        TableContainer,
+        TableHead,
+        TableRow,
         TextField,
         ThemeProvider,
-        Toolbar,
         Typography,
         createTheme,
         alpha
     } = MaterialUI;
 
     const { useEffect, useMemo, useState } = React;
+
     const API_BASE_STORAGE_KEY = 'load-testing-dashboard-api-base';
+    const HISTORY_LIMIT = 20;
 
     const defaultForm = {
         totalUsers: '100',
@@ -93,12 +128,39 @@
     };
 
     const declarationTypes = [
-        { value: 'ipt', label: 'In-Payment (IPT)' },
-        { value: 'inp', label: 'In-Non-Payment (INP)' },
-        { value: 'tnp', label: 'Transhipment (TNP)' },
-        { value: 'out', label: 'Out Payment (OUT)' },
-        { value: 'coo', label: 'Certificate of Origin (COO)' }
+        { value: 'ipt', label: 'IPT' },
+        { value: 'inp', label: 'INP' },
+        { value: 'tnp', label: 'TNP' },
+        { value: 'out', label: 'OUT' },
+        { value: 'coo', label: 'COO' }
     ];
+
+    const sidebarItems = [
+        { label: 'Dashboard', href: '#dashboard' },
+        { label: 'Load Testing', href: '#load-testing' },
+        { label: 'Test Configuration', href: '#test-configuration' },
+        { label: 'Job Management', href: '#job-management' },
+        { label: 'Test Results', href: '#test-results' },
+        { label: 'Reports', href: '#reports' },
+        { label: 'Analytics', href: '#analytics' },
+        { label: 'Settings', href: '#settings' }
+    ];
+
+    const statusColors = {
+        SUCCESS: '#22c55e',
+        SUBMITTED: '#22c55e',
+        COMPLETED: '#22c55e',
+        CREATED: '#38bdf8',
+        RUNNING: '#2563eb',
+        PENDING: '#f59e0b',
+        DRAFT: '#f59e0b',
+        STOPPING: '#f59e0b',
+        STOPPED: '#f59e0b',
+        FAILED: '#ef4444',
+        NOT_CREATED: '#ef4444',
+        ERROR: '#ef4444',
+        IDLE: '#94a3b8'
+    };
 
     function normalizeApiBase(base) {
         return String(base || '').trim().replace(/\/$/, '');
@@ -119,45 +181,36 @@
         return stored || defaultApiBaseUrl();
     }
 
-    const statusTone = {
-        IDLE: 'default',
-        RUNNING: 'info',
-        STOPPING: 'warning',
-        STOPPED: 'warning',
-        COMPLETED: 'success',
-        FAILED: 'error'
-    };
-
-    function buildTheme(mode) {
+    function buildTheme() {
         return createTheme({
-            palette: mode === 'dark'
-                ? {
-                    mode: 'dark',
-                    primary: { main: '#49b6ff' },
-                    secondary: { main: '#5de2ae' },
-                    background: { default: '#07111b', paper: '#0d1723' },
-                    warning: { main: '#ffd166' },
-                    error: { main: '#ff6b6b' },
-                    success: { main: '#69f0ae' }
-                }
-                : {
-                    mode: 'light',
-                    primary: { main: '#0057ff' },
-                    secondary: { main: '#00a896' },
-                    background: { default: '#f4f8ff', paper: '#ffffff' },
-                    warning: { main: '#c77d00' },
-                    error: { main: '#d62839' },
-                    success: { main: '#0f9d58' }
+            palette: {
+                mode: 'dark',
+                primary: { main: '#2563eb' },
+                secondary: { main: '#7c3aed' },
+                info: { main: '#06b6d4' },
+                success: { main: '#22c55e' },
+                warning: { main: '#f59e0b' },
+                error: { main: '#ef4444' },
+                text: {
+                    primary: '#f8fafc',
+                    secondary: '#94a3b8'
                 },
+                background: {
+                    default: '#0f172a',
+                    paper: '#111c35'
+                },
+                divider: 'rgba(148, 163, 184, 0.18)'
+            },
             typography: {
                 fontFamily: 'Manrope, "Segoe UI", sans-serif',
                 h1: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
                 h2: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
                 h3: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
                 h4: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
-                h5: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }
+                h5: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 },
+                h6: { fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }
             },
-            shape: { borderRadius: 18 }
+            shape: { borderRadius: 4 }
         });
     }
 
@@ -181,69 +234,330 @@
         return payload;
     }
 
-    function MetricCard({ label, value, accent }) {
+    function clamp(value, min, max) {
+        return Math.min(max, Math.max(min, Number(value) || 0));
+    }
+
+    function formatDateTime(value) {
+        if (!value) {
+            return 'N/A';
+        }
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+    }
+
+    function formatMetric(value, suffix = '') {
+        const numeric = Number(value) || 0;
+        if (numeric >= 1000) {
+            return `${numeric.toLocaleString()}${suffix}`;
+        }
+        if (numeric % 1 !== 0) {
+            return `${numeric.toFixed(2)}${suffix}`;
+        }
+        return `${numeric}${suffix}`;
+    }
+
+    function statusAccent(status) {
+        return statusColors[String(status || 'IDLE').toUpperCase()] || '#94a3b8';
+    }
+
+    function buildHistoryPoint(payload) {
+        return {
+            stamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+            activeUsers: Number(payload.activeUsers || 0),
+            throughput: Number(payload.throughput || 0),
+            responseTime: Number(payload.averageResponseTime || 0),
+            errorPercentage: Number(payload.errorPercentage || 0)
+        };
+    }
+
+    function triggerDownload(fileName, content, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 250);
+    }
+
+    function BellIcon() {
+        return (
+            <Box component="svg" viewBox="0 0 24 24" sx={{ width: 18, height: 18, fill: 'none', stroke: 'currentColor', strokeWidth: 1.9 }}>
+                <path d="M6.5 8.2a5.5 5.5 0 1 1 11 0v4.1l1.3 2.3a.7.7 0 0 1-.61 1.05H4.8a.7.7 0 0 1-.61-1.05l1.3-2.3V8.2Z" />
+                <path d="M9.7 18a2.5 2.5 0 0 0 4.6 0" />
+            </Box>
+        );
+    }
+
+    function DotGridIcon() {
+        return (
+            <Box component="svg" viewBox="0 0 24 24" sx={{ width: 18, height: 18, fill: 'currentColor' }}>
+                <circle cx="6" cy="6" r="1.7" />
+                <circle cx="12" cy="6" r="1.7" />
+                <circle cx="18" cy="6" r="1.7" />
+                <circle cx="6" cy="12" r="1.7" />
+                <circle cx="12" cy="12" r="1.7" />
+                <circle cx="18" cy="12" r="1.7" />
+                <circle cx="6" cy="18" r="1.7" />
+                <circle cx="12" cy="18" r="1.7" />
+                <circle cx="18" cy="18" r="1.7" />
+            </Box>
+        );
+    }
+
+    function GlassPanel({ children, sx, className }) {
         return (
             <Paper
                 elevation={0}
+                className={className}
                 sx={{
-                    p: 2.5,
-                    height: '100%',
-                    borderRadius: 4,
-                    border: theme => `1px solid ${alpha(accent || theme.palette.primary.main, 0.18)}`,
-                    background: theme => theme.palette.mode === 'dark'
-                        ? `linear-gradient(180deg, ${alpha(accent || theme.palette.primary.main, 0.16)}, rgba(7,18,29,0.86))`
-                        : `linear-gradient(180deg, ${alpha(accent || theme.palette.primary.main, 0.1)}, rgba(255,255,255,0.96))`
+                    borderRadius: 5,
+                    overflow: 'hidden',
+                    border: '1px solid rgba(148, 163, 184, 0.14)',
+                    background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.82), rgba(15, 23, 42, 0.58))',
+                    backdropFilter: 'blur(18px)',
+                    boxShadow: '0 18px 44px rgba(2, 8, 23, 0.26)',
+                    ...sx
                 }}
             >
-                <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
-                    {label}
-                </Typography>
-                <Typography variant="h4" sx={{ mt: 1.5, fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700 }}>
-                    {value}
-                </Typography>
+                {children}
             </Paper>
         );
     }
 
-    function SectionCard({ eyebrow, title, description, actions, children }) {
+    function SectionHeader({ eyebrow, title, description, action }) {
         return (
-            <Card
+            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2.5} sx={{ mb: 3 }}>
+                <Box>
+                    <Typography variant="overline" sx={{ color: '#7dd3fc', letterSpacing: '0.22em', fontWeight: 800 }}>
+                        {eyebrow}
+                    </Typography>
+                    <Typography variant="h5" sx={{ mt: 0.75 }}>
+                        {title}
+                    </Typography>
+                    {description ? (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, maxWidth: 820, lineHeight: 1.8 }}>
+                            {description}
+                        </Typography>
+                    ) : null}
+                </Box>
+                {action ? <Box>{action}</Box> : null}
+            </Stack>
+        );
+    }
+
+    function StatusBadge({ label }) {
+        const accent = statusAccent(label);
+        return (
+            <Box
                 sx={{
-                    borderRadius: 6,
-                    border: theme => `1px solid ${alpha(theme.palette.divider, 0.65)}`,
-                    background: theme => theme.palette.mode === 'dark'
-                        ? 'linear-gradient(180deg, rgba(13,24,38,0.92), rgba(8,15,28,0.88))'
-                        : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,250,255,0.92))',
-                    boxShadow: theme => theme.palette.mode === 'dark'
-                        ? '0 24px 70px rgba(0, 0, 0, 0.35)'
-                        : '0 24px 70px rgba(15, 23, 42, 0.10)'
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.35,
+                    py: 0.75,
+                    borderRadius: 999,
+                    color: '#f8fafc',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    backgroundColor: alpha(accent, 0.16),
+                    border: `1px solid ${alpha(accent, 0.3)}`
                 }}
             >
-                <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-                    <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} sx={{ mb: 3 }}>
-                        <Box>
-                            <Typography variant="overline" sx={{ color: 'primary.main', letterSpacing: '0.22em', fontWeight: 800 }}>
-                                {eyebrow}
-                            </Typography>
-                            <Typography variant="h5" sx={{ mt: 1 }}>
-                                {title}
-                            </Typography>
-                            {description ? (
-                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 760, lineHeight: 1.8 }}>
-                                    {description}
-                                </Typography>
-                            ) : null}
-                        </Box>
-                        {actions ? <Box>{actions}</Box> : null}
-                    </Stack>
-                    {children}
-                </CardContent>
-            </Card>
+                <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: accent, boxShadow: `0 0 18px ${accent}` }} />
+                {label || 'IDLE'}
+            </Box>
+        );
+    }
+
+    function MetricCard({ title, value, caption, accent, suffix }) {
+        return (
+            <GlassPanel
+                className="print-card"
+                sx={{
+                    p: 2.25,
+                    minHeight: 148,
+                    position: 'relative',
+                    background: `linear-gradient(180deg, ${alpha(accent, 0.2)}, rgba(15, 23, 42, 0.7))`
+                }}
+            >
+                <Stack spacing={1.2}>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                        {title}
+                    </Typography>
+                    <Typography variant="h4" sx={{ lineHeight: 1.05 }}>
+                        {typeof value === 'number' ? formatMetric(value, suffix) : value}
+                    </Typography>
+                    <Box
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            width: 'fit-content',
+                            px: 1.15,
+                            py: 0.6,
+                            borderRadius: 999,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            color: alpha('#f8fafc', 0.88),
+                            backgroundColor: alpha(accent, 0.14)
+                        }}
+                    >
+                        {caption}
+                    </Box>
+                </Stack>
+                <Box
+                    sx={{
+                        position: 'absolute',
+                        top: -24,
+                        right: -10,
+                        width: 110,
+                        height: 110,
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, ${alpha(accent, 0.24)} 0%, rgba(15, 23, 42, 0) 70%)`
+                    }}
+                />
+            </GlassPanel>
+        );
+    }
+
+    function MiniLineChart({ points, color }) {
+        const width = 320;
+        const height = 90;
+        const safePoints = points && points.length ? points : [0, 0, 0, 0];
+        const max = Math.max(...safePoints, 1);
+        const step = safePoints.length > 1 ? width / (safePoints.length - 1) : width;
+        const coordinates = safePoints.map((point, index) => {
+            const x = index * step;
+            const y = height - (point / max) * (height - 12) - 6;
+            return `${x},${y}`;
+        }).join(' ');
+        const area = `0,${height} ${coordinates} ${width},${height}`;
+
+        return (
+            <Box component="svg" viewBox={`0 0 ${width} ${height}`} sx={{ width: '100%', height: 90 }}>
+                <defs>
+                    <linearGradient id={`fill-${color.replace('#', '')}`} x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0%" stopColor={alpha(color, 0.35)} />
+                        <stop offset="100%" stopColor={alpha(color, 0)} />
+                    </linearGradient>
+                </defs>
+                <path d={`M ${area}`} fill={`url(#fill-${color.replace('#', '')})`} />
+                <polyline
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={coordinates}
+                />
+            </Box>
+        );
+    }
+
+    function MonitoringCard({ title, value, subtitle, color, points }) {
+        return (
+            <GlassPanel className="print-card" sx={{ p: 2.4, height: '100%' }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                    <Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {title}
+                        </Typography>
+                        <Typography variant="h5" sx={{ mt: 1 }}>
+                            {value}
+                        </Typography>
+                        <Typography variant="caption" sx={{ mt: 0.75, color: alpha('#f8fafc', 0.62), display: 'block' }}>
+                            {subtitle}
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: '50%',
+                            backgroundColor: color,
+                            boxShadow: `0 0 18px ${color}`
+                        }}
+                    />
+                </Stack>
+                <Box sx={{ mt: 2 }}>
+                    <MiniLineChart points={points} color={color} />
+                </Box>
+            </GlassPanel>
+        );
+    }
+
+    function GaugeCard({ title, value, note, color }) {
+        const safeValue = clamp(value, 0, 100);
+        return (
+            <GlassPanel className="print-card" sx={{ p: 2.4, height: '100%' }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+                    <Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 700 }}>
+                            {title}
+                        </Typography>
+                        <Typography variant="h5" sx={{ mt: 1 }}>
+                            {safeValue.toFixed(0)}%
+                        </Typography>
+                        <Typography variant="caption" sx={{ mt: 0.75, color: alpha('#f8fafc', 0.62), display: 'block' }}>
+                            {note}
+                        </Typography>
+                    </Box>
+                    <Box
+                        sx={{
+                            position: 'relative',
+                            width: 72,
+                            height: 72,
+                            borderRadius: '50%',
+                            display: 'grid',
+                            placeItems: 'center',
+                            background: `conic-gradient(${color} ${safeValue * 3.6}deg, rgba(148, 163, 184, 0.14) 0deg)`
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                width: 50,
+                                height: 50,
+                                borderRadius: '50%',
+                                backgroundColor: '#0f172a',
+                                border: '1px solid rgba(148, 163, 184, 0.12)'
+                            }}
+                        />
+                    </Box>
+                </Stack>
+            </GlassPanel>
+        );
+    }
+
+    function ReportActionCard({ title, description, buttonLabel, onClick, href, disabled, variant = 'contained' }) {
+        return (
+            <GlassPanel className="print-card" sx={{ p: 2.3, height: '100%' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                    {title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, minHeight: 48, lineHeight: 1.75 }}>
+                    {description}
+                </Typography>
+                <Button
+                    variant={variant}
+                    href={href || undefined}
+                    target={href ? '_blank' : undefined}
+                    rel={href ? 'noreferrer' : undefined}
+                    onClick={href ? undefined : onClick}
+                    disabled={disabled}
+                    sx={{ mt: 2, borderRadius: 999, px: 2.25, fontWeight: 800 }}
+                >
+                    {buttonLabel}
+                </Button>
+            </GlassPanel>
         );
     }
 
     function App() {
-        const [mode, setMode] = useState(() => localStorage.getItem('load-testing-dashboard-mode') || 'light');
         const [form, setForm] = useState(defaultForm);
         const [apiBaseUrl, setApiBaseUrl] = useState(() => resolveInitialApiBaseUrl());
         const [status, setStatus] = useState({
@@ -260,13 +574,18 @@
             totalJobsCreated: 0,
             totalJobsSubmitted: 0,
             draftJobCount: 0,
+            pendingVerificationCount: 0,
             averageResponseTime: 0,
             throughput: 0,
+            transactionsPerSecond: 0,
+            errorPercentage: 0,
             recentLogs: [],
             screenshots: [],
+            userJobResults: [],
             jmeterStatus: null,
             jmeterReportLink: null
         });
+        const [history, setHistory] = useState([]);
         const [apiConnectionError, setApiConnectionError] = useState('');
         const [busy, setBusy] = useState(false);
         const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
@@ -274,34 +593,47 @@
         const [jsonOptionsMeta, setJsonOptionsMeta] = useState(null);
         const [jsonOptionsLoading, setJsonOptionsLoading] = useState(false);
 
-        const theme = useMemo(() => buildTheme(mode), [mode]);
-        const currentStatusColor = statusTone[status.status] || 'default';
+        const theme = useMemo(() => buildTheme(), []);
         const jmeterStatus = status.jmeterStatus || {};
-        const jmeterExecutionStatus = jmeterStatus.status || 'IDLE';
-        const thresholdState = (() => {
-            if (!status.jmeterStatus || jmeterExecutionStatus === 'IDLE') {
-                return {
-                    label: 'Waiting',
-                    accent: theme.palette.primary.main,
-                    message: 'JMeter has not started yet.'
-                };
-            }
-            if (jmeterExecutionStatus === 'RUNNING' || jmeterExecutionStatus === 'STOPPING') {
-                return {
-                    label: 'Pending',
-                    accent: theme.palette.warning.main,
-                    message: jmeterStatus.thresholdMessage || 'Threshold evaluation will be available after JMeter finishes.'
-                };
-            }
-            return {
-                label: jmeterStatus.thresholdsPassed ? 'Passed' : 'Failed',
-                accent: jmeterStatus.thresholdsPassed ? theme.palette.success.main : theme.palette.error.main,
-                message: jmeterStatus.thresholdMessage || 'Threshold evaluation is unavailable.'
-            };
-        })();
-        const progress = status.totalUsers > 0
-            ? Math.min(100, Math.round((status.completedUsers * 100) / status.totalUsers))
+        const systemOnline = !apiConnectionError;
+        const browserTabCap = Number(status.configuration?.browserTabs || form.browserTabs || 0);
+        const utilizationEstimate = browserTabCap > 0
+            ? clamp((Number(status.openTabsCount || 0) / browserTabCap) * 100, 0, 100)
             : 0;
+        const memoryEstimate = Number(status.totalUsers || 0) > 0
+            ? clamp((Number(status.completedUsers || 0) / Number(status.totalUsers || 1)) * 100, 0, 100)
+            : 0;
+        const jmeterThresholdLabel = (() => {
+            if (!status.jmeterStatus || jmeterStatus.status === 'IDLE') {
+                return 'Waiting';
+            }
+            if (jmeterStatus.status === 'RUNNING' || jmeterStatus.status === 'STOPPING') {
+                return 'Pending';
+            }
+            return jmeterStatus.thresholdsPassed ? 'Passed' : 'Failed';
+        })();
+
+        const summaryCards = [
+            { title: 'Total Requested Jobs', value: status.totalUsers || 0, caption: 'Jobs requested for current run', accent: '#2563eb' },
+            { title: 'Jobs Created Successfully', value: status.totalJobsCreated || 0, caption: 'Verified by generated Job ID', accent: '#38bdf8' },
+            { title: 'Jobs Submitted Successfully', value: status.totalJobsSubmitted || 0, caption: 'Verified successful submission', accent: '#22c55e' },
+            { title: 'Jobs Failed', value: status.failureCount || 0, caption: 'Actual workflow failures detected', accent: '#ef4444' },
+            { title: 'Pending / Unverified', value: status.pendingVerificationCount || 0, caption: 'Completed jobs still awaiting final verification', accent: '#f59e0b' },
+            { title: 'Active Jobs', value: status.activeUsers || 0, caption: 'Workers executing now', accent: '#7c3aed' },
+            { title: 'Running Users', value: status.activeUsers || 0, caption: 'Concurrent user sessions', accent: '#06b6d4' },
+            { title: 'Running Browser Tabs', value: status.openTabsCount || 0, caption: 'Live tab concurrency', accent: '#38bdf8' },
+            { title: 'Throughput', value: status.throughput || 0, suffix: ' /s', caption: 'Users processed per second', accent: '#8b5cf6' },
+            { title: 'Response Time', value: status.averageResponseTime || 0, suffix: ' ms', caption: 'Average end-to-end duration', accent: '#f59e0b' }
+        ];
+
+        const activeUserTrend = history.map(point => point.activeUsers);
+        const tpsTrend = history.map(point => point.throughput);
+        const responseTrend = history.map(point => point.responseTime);
+        const errorTrend = history.map(point => point.errorPercentage);
+        const combinedLogs = [
+            ...(status.recentLogs || []),
+            ...((jmeterStatus.recentLogs || []).map(line => `JMETER  ${line}`))
+        ].join('\n');
 
         function rememberApiBase(base) {
             const normalized = normalizeApiBase(base);
@@ -318,7 +650,7 @@
 
             function addCandidate(base) {
                 const normalized = normalizeApiBase(base);
-                if (seen.has(normalized)) {
+                if (!normalized || seen.has(normalized)) {
                     return;
                 }
                 seen.add(normalized);
@@ -332,7 +664,7 @@
             }
             addCandidate('http://localhost:8080');
             addCandidate('http://127.0.0.1:8080');
-            return candidates.filter(Boolean);
+            return candidates;
         }
 
         function resolveApiUrlForBase(base, path) {
@@ -380,10 +712,6 @@
         }
 
         useEffect(() => {
-            localStorage.setItem('load-testing-dashboard-mode', mode);
-        }, [mode]);
-
-        useEffect(() => {
             localStorage.setItem(API_BASE_STORAGE_KEY, normalizeApiBase(apiBaseUrl));
         }, [apiBaseUrl]);
 
@@ -402,10 +730,10 @@
         }
 
         function handleFieldChange(event) {
-            const { name, value, type, checked } = event.target;
+            const { name, value } = event.target;
             setForm(current => ({
                 ...current,
-                [name]: type === 'checkbox' ? checked : value
+                [name]: value
             }));
         }
 
@@ -424,12 +752,10 @@
                 setJsonOptions(files);
                 setJsonOptionsMeta(payload);
                 setForm(current => {
-                    const currentSelectionStillExists = files.some(file => file.resourcePath === current.selectedJson);
+                    const exists = files.some(file => file.resourcePath === current.selectedJson);
                     return {
                         ...current,
-                        selectedJson: currentSelectionStillExists
-                            ? current.selectedJson
-                            : (files[0]?.resourcePath || '')
+                        selectedJson: exists ? current.selectedJson : (files[0]?.resourcePath || '')
                     };
                 });
             } catch (error) {
@@ -446,6 +772,7 @@
             try {
                 const payload = await fetchFromApi(`api/load-dashboard/status?ts=${Date.now()}`);
                 setStatus(payload);
+                setHistory(current => [...current, buildHistoryPoint(payload)].slice(-HISTORY_LIMIT));
                 setApiConnectionError('');
             } catch (error) {
                 setApiConnectionError(error.message);
@@ -469,7 +796,7 @@
                         password: form.password,
                         declarationType: form.declarationType,
                         selectedJson: form.selectedJson,
-                        headless: Boolean(form.headless),
+                        headless: false,
                         jmeterRampUpSeconds: Math.max(1, Math.round(Number(form.totalUsers || 1) / 10)),
                         jmeterLoopCount: 1
                     })
@@ -498,454 +825,934 @@
             }
         }
 
+        function handleExportPdf() {
+            window.print();
+        }
+
+        function handleExportExcel() {
+            const headers = ['Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Creation Status', 'Submission Status', 'Final Status', 'Application Status', 'Error Message', 'Failed Field Details', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Reference', 'Permit Number', 'Screenshot URL', 'Diagnostics URL'];
+            const rows = (status.userJobResults || []).map(item => {
+                const errorMessage = item.errorMessage || item.failureReason || '';
+                return [
+                    item.tabNumber || '',
+                    item.workerSlotNumber || item.tabNumber || '',
+                    item.jobNumber || item.executionOrder || '',
+                    item.jobId || '',
+                    item.creationStatus || '',
+                    item.submissionStatus || item.applicationStatus || '',
+                    item.status || '',
+                    item.applicationStatus || '',
+                    String(errorMessage).replace(/"/g, '""'),
+                    item.failedFieldDetails || '',
+                    item.executionTimeMs ? `${item.executionTimeMs} ms` : '',
+                    item.permitType || status.declarationTypeLabel || '',
+                    item.selectedJson || status.selectedJson || '',
+                    item.jsonRecordNumber || '',
+                    item.createdBy || '',
+                    item.messageReference || '',
+                    item.permitNumber || '',
+                    item.screenshotUrl || '',
+                    item.diagnosticsArtifactUrl || ''
+                ];
+            });
+            const csv = [headers, ...rows]
+                .map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+            triggerDownload(`load-dashboard-${Date.now()}.csv`, csv, 'text/csv;charset=utf-8');
+        }
+
+        function handleDownloadLogs() {
+            triggerDownload(`load-dashboard-logs-${Date.now()}.txt`, combinedLogs || 'No logs captured yet.', 'text/plain;charset=utf-8');
+        }
+
+        const inputSx = {
+            '& .MuiOutlinedInput-root': {
+                borderRadius: 3,
+                backgroundColor: 'rgba(15, 23, 42, 0.42)'
+            },
+            '& .MuiInputLabel-root': {
+                color: '#94a3b8'
+            }
+        };
+
         return (
             <ThemeProvider theme={theme}>
                 <CssBaseline />
                 <Box
                     sx={{
                         minHeight: '100vh',
-                        background: mode === 'dark'
-                            ? 'radial-gradient(circle at top left, rgba(73,182,255,0.18), transparent 28%), radial-gradient(circle at right 15%, rgba(93,226,174,0.12), transparent 24%), linear-gradient(180deg, #06111d 0%, #091726 48%, #030914 100%)'
-                            : 'radial-gradient(circle at top left, rgba(0,87,255,0.12), transparent 28%), radial-gradient(circle at right 15%, rgba(0,168,150,0.10), transparent 24%), linear-gradient(180deg, #f7fbff 0%, #eef5ff 46%, #f9fcff 100%)'
+                        background: 'radial-gradient(circle at top left, rgba(37,99,235,0.28), transparent 24%), radial-gradient(circle at 82% 12%, rgba(124,58,237,0.22), transparent 24%), radial-gradient(circle at 70% 70%, rgba(6,182,212,0.14), transparent 18%), linear-gradient(180deg, #0b1220 0%, #0f172a 44%, #081120 100%)',
+                        position: 'relative',
+                        overflow: 'hidden'
                     }}
                 >
-                    <AppBar
-                        position="sticky"
-                        color="transparent"
-                        elevation={0}
+                    <Box
                         sx={{
-                            backdropFilter: 'blur(18px)',
-                            borderBottom: theme => `1px solid ${alpha(theme.palette.divider, 0.6)}`,
-                            backgroundColor: theme => alpha(theme.palette.background.default, 0.78)
+                            position: 'absolute',
+                            inset: 0,
+                            backgroundImage: 'linear-gradient(rgba(148,163,184,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.03) 1px, transparent 1px)',
+                            backgroundSize: '48px 48px',
+                            maskImage: 'linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.35))',
+                            pointerEvents: 'none'
                         }}
-                    >
-                        <Toolbar sx={{ py: 1.5 }}>
-                            <Container maxWidth="xl">
-                                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                                    <Stack spacing={0.5}>
-                                        <Typography variant="overline" sx={{ letterSpacing: '0.26em', color: 'primary.main', fontWeight: 800 }}>
-                                            Playwright + JMeter
-                                        </Typography>
-                                        <Typography variant="h5">Web Load Testing Dashboard</Typography>
-                                    </Stack>
-                                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                        <Button
-                                            variant="outlined"
-                                            color="primary"
-                                            href="test-launcher.html"
-                                            sx={{
-                                                borderRadius: 999,
-                                                px: 2.25,
-                                                py: 1,
-                                                fontWeight: 800,
-                                                whiteSpace: 'nowrap'
-                                            }}
-                                        >
-                                            Permit Workflow Launcher
-                                        </Button>
-                                        <FormControlLabel
-                                            control={<Switch checked={mode === 'dark'} onChange={() => setMode(current => current === 'dark' ? 'light' : 'dark')} />}
-                                            label="Dark mode"
-                                            sx={{ mr: 0 }}
-                                        />
-                                    </Stack>
-                                </Stack>
-                            </Container>
-                        </Toolbar>
-                    </AppBar>
+                    />
 
-                    <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 } }}>
-                        {apiConnectionError ? (
-                            <Alert severity="warning" sx={{ mb: 3 }}>
-                                Unable to reach the dashboard API at `{(apiBaseUrl || '').trim() || defaultApiBaseUrl()}`. {apiConnectionError}
-                            </Alert>
-                        ) : null}
-                        <Grid container spacing={3}>
-                            <Grid item xs={12}>
-                                <Card
-                                    sx={{
-                                        borderRadius: 7,
-                                        overflow: 'hidden',
-                                        color: '#fff',
-                                        background: mode === 'dark'
-                                            ? 'linear-gradient(135deg, rgba(15,26,46,0.96) 0%, rgba(0,87,255,0.72) 52%, rgba(0,168,150,0.70) 100%)'
-                                            : 'linear-gradient(135deg, #0b1f3a 0%, #0057ff 50%, #00a896 100%)',
-                                        boxShadow: '0 32px 90px rgba(0, 0, 0, 0.22)'
-                                    }}
-                                >
-                                    <CardContent sx={{ p: { xs: 3.5, md: 5 } }}>
-                                        <Grid container spacing={3} alignItems="center">
-                                            <Grid item xs={12} md={7}>
-                                                <Chip
-                                                    label={`Execution Status: ${status.status || 'IDLE'}`}
-                                                    color={currentStatusColor}
-                                                    sx={{ fontWeight: 800, letterSpacing: '0.08em', color: '#fff' }}
-                                                />
-                                                <Typography variant="h2" sx={{ mt: 2, maxWidth: 780, lineHeight: 1.05 }}>
-                                                    Drive browser-tab workflow automation and API load testing from one control plane.
-                                                </Typography>
-                                                <Typography variant="body1" sx={{ mt: 2, maxWidth: 760, color: 'rgba(255,255,255,0.82)', lineHeight: 1.9 }}>
-                                                    Start Playwright workers capped by browser tab count, run JMeter in the background with a generated JMX plan,
-                                                    and watch screenshots, logs, throughput, and report links update live.
-                                                </Typography>
-                                                <Typography variant="body2" sx={{ mt: 2, color: 'rgba(255,255,255,0.76)' }}>
-                                                    API Base URL: {(apiBaseUrl || '').trim() || defaultApiBaseUrl()}
-                                                </Typography>
-                                            </Grid>
-                                            <Grid item xs={12} md={5}>
-                                                <Paper
-                                                    elevation={0}
-                                                    sx={{
-                                                        p: 3,
-                                                        borderRadius: 5,
-                                                        color: '#fff',
-                                                        backgroundColor: 'rgba(255,255,255,0.10)',
-                                                        border: '1px solid rgba(255,255,255,0.12)'
-                                                    }}
-                                                >
-                                                    <Stack spacing={1.5}>
-                                                        <Typography variant="body2" sx={{ opacity: 0.82 }}>Live message</Typography>
-                                                        <Typography variant="h5" sx={{ lineHeight: 1.35 }}>
-                                                            {status.message || 'Ready to run the workflow.'}
-                                                        </Typography>
-                                                        <Divider sx={{ borderColor: 'rgba(255,255,255,0.14)' }} />
-                                                        <Typography variant="body2" sx={{ opacity: 0.82 }}>
-                                                            JMeter thresholds: error rate ≤ 5%, average response time ≤ 2000 ms.
-                                                        </Typography>
-                                                    </Stack>
-                                                </Paper>
-                                            </Grid>
-                                        </Grid>
-                                    </CardContent>
-                                </Card>
-                            </Grid>
-
-                            <Grid item xs={12}>
-                                <SectionCard
-                                    eyebrow="Inputs"
-                                    title="Execution Parameters"
-                                    description="The browser workflow uses total users as queued sessions and browser tabs as the parallel execution cap. Choose the declaration module and a JSON payload file, then the run will log in, open capped browser tabs, populate the declaration form, submit jobs, and surface runtime metrics in the dashboard."
-                                    actions={busy ? <CircularProgress size={28} /> : null}
-                                >
-                                    <Grid container spacing={2.5}>
-                                        <Grid item xs={12} md={3}>
-                                            <TextField fullWidth type="number" label="Number of Users" name="totalUsers" value={form.totalUsers} onChange={handleFieldChange} inputProps={{ min: 1 }} />
-                                        </Grid>
-                                        <Grid item xs={12} md={3}>
-                                            <TextField fullWidth type="number" label="Number of Browser Tabs" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <TextField fullWidth label="URL" name="url" value={form.url} onChange={handleFieldChange} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <TextField
-                                                fullWidth
-                                                label="Dashboard API Base URL"
-                                                name="apiBaseUrl"
-                                                value={apiBaseUrl}
-                                                onChange={event => setApiBaseUrl(event.target.value)}
-                                                helperText="Example: http://localhost:8080 or the Spring Boot server host serving /api/load-dashboard/*"
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12} md={4}>
-                                            <TextField fullWidth label="Username" name="username" value={form.username} onChange={handleFieldChange} />
-                                        </Grid>
-                                        <Grid item xs={12} md={4}>
-                                            <TextField fullWidth type="password" label="Password" name="password" value={form.password} onChange={handleFieldChange} />
-                                        </Grid>
-                                        <Grid item xs={12} md={4}>
-                                            <FormControl fullWidth>
-                                                <InputLabel id="declaration-type-label">Declaration Type</InputLabel>
-                                                <Select
-                                                    labelId="declaration-type-label"
-                                                    label="Declaration Type"
-                                                    name="declarationType"
-                                                    value={form.declarationType}
-                                                    onChange={handleFieldChange}
-                                                >
-                                                    {declarationTypes.map(option => (
-                                                        <MenuItem key={option.value} value={option.value}>
-                                                            {option.label}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                        </Grid>
-                                        <Grid item xs={12} md={8}>
-                                            <FormControl fullWidth disabled={jsonOptionsLoading || !form.declarationType}>
-                                                <InputLabel id="json-file-label">Declaration JSON File</InputLabel>
-                                                <Select
-                                                    labelId="json-file-label"
-                                                    label="Declaration JSON File"
-                                                    name="selectedJson"
-                                                    value={form.selectedJson}
-                                                    onChange={handleFieldChange}
-                                                >
-                                                    {jsonOptions.map(option => (
-                                                        <MenuItem key={option.resourcePath} value={option.resourcePath}>
-                                                            {option.name}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                        </Grid>
-                                        <Grid item xs={12} md={4} sx={{ display: 'flex', alignItems: 'center' }}>
-                                            <FormControlLabel
-                                                control={<Switch checked={!form.headless} disabled />}
-                                                label="Visible Browser Mode"
-                                            />
-                                        </Grid>
-                                        <Grid item xs={12}>
-                                            <Paper
-                                                variant="outlined"
-                                                sx={{
-                                                    p: 2,
-                                                    borderRadius: 4,
-                                                    background: theme => theme.palette.mode === 'dark'
-                                                        ? 'rgba(73,182,255,0.05)'
-                                                        : 'rgba(0,87,255,0.03)'
-                                                }}
-                                            >
-                                                <Stack
-                                                    direction={{ xs: 'column', md: 'row' }}
-                                                    spacing={1.5}
-                                                    justifyContent="space-between"
-                                                    alignItems={{ xs: 'flex-start', md: 'center' }}
-                                                >
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {jsonOptionsLoading
-                                                            ? 'Loading declaration JSON files for the selected declaration type.'
-                                                            : `${jsonOptions.length} declaration JSON file(s) available for ${declarationTypes.find(option => option.value === form.declarationType)?.label || 'the selected module'}.`}
-                                                    </Typography>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        {jsonOptionsMeta?.resourceFolder ? `Source folder: ${jsonOptionsMeta.resourceFolder}` : 'Source folder not resolved yet.'}
-                                                    </Typography>
-                                                </Stack>
-                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                                                    Browser execution always runs in headed mode so login, declaration creation, form filling, and submission remain visible.
-                                                </Typography>
-                                            </Paper>
-                                        </Grid>
-                                    </Grid>
-                                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
-                                        <Button variant="contained" size="large" onClick={handleRun} disabled={busy || status.running || !form.selectedJson || jsonOptionsLoading}>
-                                            Run
-                                        </Button>
-                                        <Button variant="outlined" color="warning" size="large" onClick={handleStop} disabled={busy || !status.running}>
-                                            Stop
-                                        </Button>
-                                    </Stack>
-                                </SectionCard>
-                            </Grid>
-
-                            <Grid item xs={12}>
-                                <SectionCard eyebrow="Browser Workflow" title="Live Dashboard" description="Playwright metrics refresh every few seconds while the browser workers execute.">
-                                    <Grid container spacing={2}>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Users Requested" value={status.totalUsers || 0} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Active Users" value={status.activeUsers || 0} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Users Executed" value={status.executedUsers || 0} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Tabs Requested" value={status.configuration?.browserTabs || 0} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Tabs Opened" value={status.totalTabsOpened || 0} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Active Tabs" value={status.openTabsCount || 0} accent={theme.palette.primary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Jobs Created" value={status.totalJobsCreated || 0} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Total Jobs Submitted" value={status.totalJobsSubmitted || 0} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Draft Jobs" value={status.draftJobCount || 0} accent={theme.palette.warning.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Failed Jobs" value={status.failureCount || 0} accent={theme.palette.error.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Completed Users" value={status.completedUsers || 0} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4} lg={2}>
-                                            <MetricCard label="Successful Jobs" value={status.successCount || 0} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="Average Response Time" value={`${status.averageResponseTime || 0} ms`} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="Throughput" value={`${status.throughput || 0} users/s`} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="TPS" value={`${status.transactionsPerSecond || 0} tx/s`} accent={theme.palette.primary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="Error Percentage" value={`${status.errorPercentage || 0}%`} accent={theme.palette.warning.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={3}>
-                                            <MetricCard label="Job Creation Status" value={status.latestJobStatus || 'Waiting'} accent={theme.palette.success.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={3}>
-                                            <MetricCard label="Job ID" value={status.latestJobId || 'N/A'} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={3}>
-                                            <MetricCard label="Message Reference" value={status.latestMessageReference || 'N/A'} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={3}>
-                                            <MetricCard label="Permit Number" value={status.latestPermitNumber || 'N/A'} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="Start Time" value={status.startedAt ? new Date(status.startedAt).toLocaleString() : 'N/A'} />
-                                        </Grid>
-                                        <Grid item xs={12} md={6}>
-                                            <MetricCard label="End Time" value={status.finishedAt ? new Date(status.finishedAt).toLocaleString() : 'Running'} accent={theme.palette.warning.main} />
-                                        </Grid>
-                                    </Grid>
-                                    <Paper variant="outlined" sx={{ mt: 3, p: 2.5, borderRadius: 4 }}>
-                                        <Grid container spacing={2}>
-                                            <Grid item xs={12} md={4}>
-                                                <Typography variant="body2" color="text.secondary">Declaration Type</Typography>
-                                                <Typography variant="subtitle1" sx={{ mt: 0.8, fontWeight: 800 }}>
-                                                    {status.declarationTypeLabel || declarationTypes.find(option => option.value === form.declarationType)?.label || 'N/A'}
-                                                </Typography>
-                                            </Grid>
-                                            <Grid item xs={12} md={8}>
-                                                <Typography variant="body2" color="text.secondary">Selected JSON File</Typography>
-                                                <Typography variant="subtitle1" sx={{ mt: 0.8, fontWeight: 800, wordBreak: 'break-word' }}>
-                                                    {status.selectedJson || form.selectedJson || 'N/A'}
-                                                </Typography>
-                                            </Grid>
-                                        </Grid>
-                                    </Paper>
-                                    <Box sx={{ mt: 3 }}>
-                                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Browser Progress</Typography>
-                                            <Typography variant="body2" color="text.secondary">
-                                                {status.completedUsers || 0} / {status.totalUsers || 0} users completed
-                                            </Typography>
-                                        </Stack>
-                                        <LinearProgress variant="determinate" value={progress} sx={{ height: 10, borderRadius: 999 }} />
-                                    </Box>
-                                </SectionCard>
-                            </Grid>
-
-                            <Grid item xs={12} lg={7}>
-                                <SectionCard eyebrow="Performance" title="JMeter Results" description="The dashboard starts JMeter in the background using a generated JMX file and surfaces the current metrics directly from the Spring API.">
-                                    <Grid container spacing={2}>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="JMeter Status" value={jmeterExecutionStatus} accent={theme.palette.primary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="Total Requests" value={jmeterStatus.totalRequests || 0} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="Running Users" value={jmeterStatus.running ? (jmeterStatus.configuration?.threads || 0) : 0} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="Average Response Time" value={`${jmeterStatus.averageResponseTime || 0} ms`} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="Latency" value={`${jmeterStatus.averageLatency || 0} ms`} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6} md={4}>
-                                            <MetricCard label="Throughput" value={`${jmeterStatus.throughput || 0} req/s`} accent={theme.palette.secondary.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <MetricCard label="Error Percentage" value={`${jmeterStatus.errorPercentage || 0}%`} accent={theme.palette.warning.main} />
-                                        </Grid>
-                                        <Grid item xs={12} sm={6}>
-                                            <MetricCard label="Threshold Result" value={thresholdState.label} accent={thresholdState.accent} />
-                                        </Grid>
-                                    </Grid>
-                                    <Paper variant="outlined" sx={{ mt: 3, p: 2.5, borderRadius: 4 }}>
-                                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                                            Threshold Evaluation
-                                        </Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, lineHeight: 1.8 }}>
-                                            {thresholdState.message}
-                                        </Typography>
-                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2.5 }}>
-                                            <Button variant="contained" href={resolveArtifactUrl(status.jmeterReportLink) || undefined} target="_blank" rel="noreferrer" disabled={!status.jmeterReportLink || !resolveArtifactUrl(status.jmeterReportLink)}>
-                                                Open HTML Report
-                                            </Button>
-                                            <Button variant="outlined" href={resolveApiUrl('api/jmeter/report/download') || undefined} disabled={!jmeterStatus.reportAvailable || !resolveApiUrl('api/jmeter/report/download')}>
-                                                Download Report
-                                            </Button>
-                                        </Stack>
-                                    </Paper>
-                                </SectionCard>
-                            </Grid>
-
-                            <Grid item xs={12} lg={5}>
-                                <SectionCard eyebrow="Runtime Logs" title="Live Logs" description="Browser-worker logs and recent JMeter output are visible here without opening the filesystem.">
-                                    <Paper
-                                        variant="outlined"
+                    <Box sx={{ position: 'relative', display: 'flex', alignItems: 'stretch' }}>
+                        <Box
+                            component="aside"
+                            className="no-print"
+                            sx={{
+                                width: 290,
+                                minHeight: '100vh',
+                                p: 3,
+                                borderRight: '1px solid rgba(148, 163, 184, 0.1)',
+                                display: { xs: 'none', lg: 'block' },
+                                position: 'sticky',
+                                top: 0
+                            }}
+                        >
+                            <GlassPanel
+                                sx={{
+                                    p: 2.25,
+                                    background: 'linear-gradient(180deg, rgba(18, 30, 60, 0.96), rgba(12, 22, 44, 0.9))',
+                                    border: '1px solid rgba(96, 165, 250, 0.18)',
+                                    boxShadow: '0 16px 34px rgba(8, 15, 30, 0.28)'
+                                }}
+                            >
+                                <Stack direction="row" spacing={1.5} alignItems="center">
+                                    <Box
                                         sx={{
-                                            p: 2.5,
-                                            borderRadius: 4,
-                                            minHeight: 420,
-                                            maxHeight: 420,
-                                            overflow: 'auto',
-                                            fontFamily: 'Consolas, monospace',
-                                            whiteSpace: 'pre-wrap',
-                                            backgroundColor: theme.palette.mode === 'dark' ? '#03101a' : '#f8fbff'
+                                            width: 48,
+                                            height: 48,
+                                            borderRadius: '14px',
+                                            display: 'grid',
+                                            placeItems: 'center',
+                                            background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 55%, #06b6d4 100%)',
+                                            boxShadow: '0 14px 30px rgba(37, 99, 235, 0.35)'
                                         }}
                                     >
-                                        {[...(status.recentLogs || []), ...((jmeterStatus.recentLogs || []).map(line => `JMETER  ${line}`))].join('\n') || 'No logs captured yet.'}
-                                    </Paper>
-                                </SectionCard>
+                                        <DotGridIcon />
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="subtitle2" sx={{ color: '#7dd3fc', letterSpacing: '0.12em', fontWeight: 800 }}>
+                                            CONTROL PLANE
+                                        </Typography>
+                                        <Typography variant="h6">Load Testing Dashboard</Typography>
+                                    </Box>
+                                </Stack>
+
+                                <Stack direction="row" spacing={1.2} sx={{ mt: 2.4 }}>
+                                    <StatusBadge label={systemOnline ? 'ONLINE' : 'OFFLINE'} />
+                                    <StatusBadge label={status.status || 'IDLE'} />
+                                </Stack>
+                            </GlassPanel>
+
+                            <GlassPanel
+                                sx={{
+                                    p: 1.4,
+                                    mt: 2.2,
+                                    background: 'linear-gradient(180deg, rgba(14, 24, 47, 0.94), rgba(11, 19, 38, 0.88))',
+                                    border: '1px solid rgba(148, 163, 184, 0.14)'
+                                }}
+                            >
+                                <Typography variant="overline" sx={{ px: 1.2, color: '#94a3b8', letterSpacing: '0.18em', fontWeight: 800 }}>
+                                    Navigation
+                                </Typography>
+                                <List disablePadding sx={{ mt: 1.2 }}>
+                                    {sidebarItems.map(item => (
+                                        <ListItemButton
+                                            key={item.label}
+                                            component="a"
+                                            href={item.href}
+                                            sx={{
+                                                borderRadius: '14px',
+                                                mb: 0.85,
+                                                px: 1.5,
+                                                py: 1.05,
+                                                color: '#e2e8f0',
+                                                border: '1px solid rgba(148, 163, 184, 0.08)',
+                                                background: 'linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.015))',
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(37, 99, 235, 0.14)',
+                                                    borderColor: 'rgba(96, 165, 250, 0.28)',
+                                                    transform: 'translateX(2px)'
+                                                }
+                                            }}
+                                        >
+                                            <ListItemText
+                                                primary={item.label}
+                                                primaryTypographyProps={{ fontWeight: 700, fontSize: 14 }}
+                                            />
+                                        </ListItemButton>
+                                    ))}
+                                </List>
+                            </GlassPanel>
+
+                            <GlassPanel
+                                sx={{
+                                    p: 2.1,
+                                    mt: 2.2,
+                                    background: 'linear-gradient(180deg, rgba(14, 24, 47, 0.94), rgba(9, 18, 36, 0.9))',
+                                    border: '1px solid rgba(34, 211, 238, 0.12)'
+                                }}
+                            >
+                                <Typography variant="overline" sx={{ color: '#7dd3fc', letterSpacing: '0.16em', fontWeight: 800 }}>
+                                    System Snapshot
+                                </Typography>
+                                <Stack spacing={1.8} sx={{ mt: 2 }}>
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary">Execution Message</Typography>
+                                        <Typography variant="subtitle2" sx={{ mt: 0.8, lineHeight: 1.65 }}>
+                                            {status.message || 'Ready to start.'}
+                                        </Typography>
+                                    </Box>
+                                    <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.12)' }} />
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary">API Base</Typography>
+                                        <Typography variant="subtitle2" sx={{ mt: 0.8, wordBreak: 'break-word' }}>
+                                            {(apiBaseUrl || '').trim() || defaultApiBaseUrl()}
+                                        </Typography>
+                                    </Box>
+                                    <Divider sx={{ borderColor: 'rgba(148, 163, 184, 0.12)' }} />
+                                    <Box>
+                                        <Typography variant="body2" color="text.secondary">Thresholds</Typography>
+                                        <Typography variant="subtitle2" sx={{ mt: 0.8 }}>
+                                            Error rate ≤ 5%, response time ≤ 2000 ms
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </GlassPanel>
+                        </Box>
+
+                        <Box sx={{ flex: 1, minWidth: 0, px: { xs: 2, md: 3.5 }, py: { xs: 2, md: 3 } }}>
+                            <GlassPanel className="no-print" sx={{ p: 2, mb: 3, position: 'sticky', top: 16, zIndex: 5 }}>
+                                <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+                                    <Box>
+                                        <Typography variant="overline" sx={{ color: '#7dd3fc', letterSpacing: '0.22em', fontWeight: 800 }}>
+                                            Enterprise Performance Platform
+                                        </Typography>
+                                        <Typography variant="h4" sx={{ mt: 0.5 }}>
+                                            Web Load Testing Dashboard
+                                        </Typography>
+                                    </Box>
+                                    <Stack direction="row" spacing={1.4} alignItems="center" sx={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                        <Chip
+                                            label={systemOnline ? 'System Online' : 'System Offline'}
+                                            sx={{
+                                                borderRadius: 999,
+                                                fontWeight: 800,
+                                                color: '#f8fafc',
+                                                backgroundColor: alpha(systemOnline ? '#22c55e' : '#ef4444', 0.18),
+                                                border: `1px solid ${alpha(systemOnline ? '#22c55e' : '#ef4444', 0.32)}`
+                                            }}
+                                        />
+                                        <GlassPanel sx={{ px: 1.5, py: 1.1, borderRadius: 999, display: 'flex', alignItems: 'center', gap: 1 }}>
+                                            <BellIcon />
+                                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                                {status.failureCount || 0} alerts
+                                            </Typography>
+                                        </GlassPanel>
+                                        <GlassPanel sx={{ px: 1.15, py: 0.9, borderRadius: 999 }}>
+                                            <Stack direction="row" spacing={1.1} alignItems="center">
+                                                <Avatar sx={{ width: 34, height: 34, bgcolor: '#2563eb', fontSize: 13, fontWeight: 800 }}>
+                                                    {(form.username || 'OP').slice(0, 2).toUpperCase()}
+                                                </Avatar>
+                                                <Box>
+                                                    <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                                                        {form.username || 'Operator'}
+                                                    </Typography>
+                                                    <Typography variant="caption" color="text.secondary">
+                                                        Performance Engineer
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        </GlassPanel>
+                                    </Stack>
+                                </Stack>
+                            </GlassPanel>
+
+                            {apiConnectionError ? (
+                                <Alert severity="warning" sx={{ mb: 3, borderRadius: 4 }}>
+                                    Unable to reach the dashboard API at `{(apiBaseUrl || '').trim() || defaultApiBaseUrl()}`. {apiConnectionError}
+                                </Alert>
+                            ) : null}
+
+                            <Grid container spacing={3}>
+                                <Grid item xs={12} id="dashboard">
+                                    <GlassPanel className="print-card" sx={{ overflow: 'hidden' }}>
+                                        <Box
+                                            sx={{
+                                                p: { xs: 2.5, md: 4 },
+                                                background: 'linear-gradient(135deg, rgba(37,99,235,0.42) 0%, rgba(124,58,237,0.34) 46%, rgba(6,182,212,0.26) 100%)'
+                                            }}
+                                        >
+                                            <Grid container spacing={3} alignItems="stretch">
+                                                <Grid item xs={12} xl={8}>
+                                                    <Stack spacing={2.2}>
+                                                        <StatusBadge label={status.status || 'IDLE'} />
+                                                        <Typography variant="h2" sx={{ maxWidth: 820, lineHeight: 1.02 }}>
+                                                            LOAD TEST DASHBOARD.
+                                                        </Typography>
+                                                        <Typography variant="body1" sx={{ maxWidth: 760, color: alpha('#f8fafc', 0.82), lineHeight: 1.85 }}>
+                                                            Launch declaration workflows, cap browser tab concurrency, monitor verified browser outcomes in real time,
+                                                            and review JMeter HTTP load data separately when that parallel signal is available.
+                                                        </Typography>
+                                                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.4}>
+                                                            <Button
+                                                                variant="contained"
+                                                                size="large"
+                                                                onClick={handleRun}
+                                                                disabled={busy || status.running || !form.selectedJson || jsonOptionsLoading}
+                                                                sx={{
+                                                                    borderRadius: 999,
+                                                                    px: 3,
+                                                                    py: 1.25,
+                                                                    fontWeight: 800,
+                                                                    background: 'linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)'
+                                                                }}
+                                                            >
+                                                                Run Test
+                                                            </Button>
+                                                            <Button
+                                                                variant="outlined"
+                                                                size="large"
+                                                                color="warning"
+                                                                onClick={handleStop}
+                                                                disabled={busy || !status.running}
+                                                                sx={{ borderRadius: 999, px: 3, py: 1.25, fontWeight: 800 }}
+                                                            >
+                                                                Stop Test
+                                                            </Button>
+                                                            <Button
+                                                                variant="text"
+                                                                size="large"
+                                                                href="test-launcher.html"
+                                                                sx={{ borderRadius: 999, px: 3, py: 1.25, color: '#f8fafc', fontWeight: 800 }}
+                                                            >
+                                                                Open Workflow Launcher
+                                                            </Button>
+                                                        </Stack>
+                                                    </Stack>
+                                                </Grid>
+                                                <Grid item xs={12} xl={4}>
+                                                    <GlassPanel sx={{ p: 2.3, height: '100%', background: 'rgba(15, 23, 42, 0.36)' }}>
+                                                        <Stack spacing={2.1}>
+                                                            <Typography variant="overline" sx={{ color: '#bae6fd', letterSpacing: '0.18em', fontWeight: 800 }}>
+                                                                Executive Summary
+                                                            </Typography>
+                                                            <Grid container spacing={1.5}>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Run ID</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
+                                                                        {status.runId || 'N/A'}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Declaration</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.declarationTypeLabel || form.declarationType.toUpperCase()}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Started</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {formatDateTime(status.startedAt)}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Finished</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.finishedAt ? formatDateTime(status.finishedAt) : 'Running'}
+                                                                    </Typography>
+                                                                </Grid>
+                                                            </Grid>
+                                                            <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
+                                                            <Typography variant="body2" sx={{ color: alpha('#f8fafc', 0.75), lineHeight: 1.8 }}>
+                                                                {status.message || 'Ready to run the workflow.'}
+                                                            </Typography>
+                                                            <Stack direction="row" spacing={1.2} flexWrap="wrap">
+                                                                <StatusBadge label={jmeterThresholdLabel} />
+                                                                <StatusBadge label={systemOnline ? 'API READY' : 'API DOWN'} />
+                                                            </Stack>
+                                                        </Stack>
+                                                    </GlassPanel>
+                                                </Grid>
+                                            </Grid>
+                                        </Box>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} id="load-testing">
+                                    <Grid container spacing={2}>
+                                        {summaryCards.map(card => (
+                                            <Grid item xs={12} sm={6} md={3} key={card.title}>
+                                                <MetricCard
+                                                    title={card.title}
+                                                    value={card.value}
+                                                    caption={card.caption}
+                                                    accent={card.accent}
+                                                    suffix={card.suffix}
+                                                />
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                </Grid>
+
+                                <Grid item xs={12} xl={5} id="test-configuration">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Load Test Configuration"
+                                            title="Operator Controls"
+                                            description="Configure target access, user concurrency, tab cap, declaration type, and repository-backed JSON payload selection before launching the run."
+                                            action={busy ? <CircularProgress size={24} /> : null}
+                                        />
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField fullWidth type="number" label="User Count" name="totalUsers" value={form.totalUsers} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField fullWidth type="number" label="Tab Count" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
+                                            </Grid>
+                                            <Grid item xs={12}>
+                                                <TextField fullWidth label="Application URL" name="url" value={form.url} onChange={handleFieldChange} sx={inputSx} />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField fullWidth label="Username" name="username" value={form.username} onChange={handleFieldChange} sx={inputSx} />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField fullWidth type="password" label="Password" name="password" value={form.password} onChange={handleFieldChange} sx={inputSx} />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <FormControl fullWidth sx={inputSx}>
+                                                    <InputLabel id="declaration-type-label">Declaration Type</InputLabel>
+                                                    <Select
+                                                        labelId="declaration-type-label"
+                                                        label="Declaration Type"
+                                                        name="declarationType"
+                                                        value={form.declarationType}
+                                                        onChange={handleFieldChange}
+                                                    >
+                                                        {declarationTypes.map(option => (
+                                                            <MenuItem key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                </FormControl>
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <FormControl fullWidth disabled={jsonOptionsLoading || !form.declarationType} sx={inputSx}>
+                                                    <InputLabel id="json-file-label">JSON Dataset</InputLabel>
+                                                    <Select
+                                                        labelId="json-file-label"
+                                                        label="JSON Dataset"
+                                                        name="selectedJson"
+                                                        value={form.selectedJson}
+                                                        onChange={handleFieldChange}
+                                                    >
+                                                        {jsonOptions.map(option => (
+                                                            <MenuItem key={option.resourcePath} value={option.resourcePath}>
+                                                                {option.name}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                    <FormHelperText>
+                                                        Repository-backed JSON selection for the current declaration type.
+                                                    </FormHelperText>
+                                                </FormControl>
+                                            </Grid>
+                                            <Grid item xs={12}>
+                                                <GlassPanel sx={{ p: 2.1, borderRadius: 4, background: 'rgba(15, 23, 42, 0.44)' }}>
+                                                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
+                                                        <Box>
+                                                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                                                JSON File Library
+                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.75 }}>
+                                                                {jsonOptionsLoading
+                                                                    ? 'Loading available JSON files for the selected declaration type.'
+                                                                    : `${jsonOptions.length} file(s) available. ${jsonOptionsMeta?.resourceFolder ? `Source: ${jsonOptionsMeta.resourceFolder}` : 'Source folder will appear after API lookup.'}`}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Chip
+                                                            label={form.selectedJson ? 'Dataset Ready' : 'No Dataset'}
+                                                            sx={{
+                                                                alignSelf: 'flex-start',
+                                                                fontWeight: 800,
+                                                                color: '#f8fafc',
+                                                                backgroundColor: alpha(form.selectedJson ? '#22c55e' : '#f59e0b', 0.16),
+                                                                border: `1px solid ${alpha(form.selectedJson ? '#22c55e' : '#f59e0b', 0.32)}`
+                                                            }}
+                                                        />
+                                                    </Stack>
+                                                </GlassPanel>
+                                            </Grid>
+                                            <Grid item xs={12}>
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                                                    <Button
+                                                        variant="contained"
+                                                        onClick={handleRun}
+                                                        disabled={busy || status.running || !form.selectedJson || jsonOptionsLoading}
+                                                        sx={{
+                                                            borderRadius: 999,
+                                                            px: 3,
+                                                            py: 1.15,
+                                                            fontWeight: 800,
+                                                            background: 'linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)'
+                                                        }}
+                                                    >
+                                                        Run Test
+                                                    </Button>
+                                                    <Button
+                                                        variant="outlined"
+                                                        color="warning"
+                                                        onClick={handleStop}
+                                                        disabled={busy || !status.running}
+                                                        sx={{ borderRadius: 999, px: 3, py: 1.15, fontWeight: 800 }}
+                                                    >
+                                                        Stop Test
+                                                    </Button>
+                                                </Stack>
+                                            </Grid>
+                                        </Grid>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} xl={7} id="analytics">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Real-Time Monitoring"
+                                            title="Live Monitoring Fabric"
+                                            description="Recent status snapshots are sampled from the Spring API every three seconds to draw the active-user, TPS, response time, and error-rate trends."
+                                        />
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={6}>
+                                                <MonitoringCard
+                                                    title="Active Users Graph"
+                                                    value={formatMetric(status.activeUsers || 0)}
+                                                    subtitle="Recent concurrent user activity"
+                                                    color="#06b6d4"
+                                                    points={activeUserTrend}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <MonitoringCard
+                                                    title="Browser Workflow TPS"
+                                                    value={`${formatMetric(status.transactionsPerSecond || 0)} tx/s`}
+                                                    subtitle="Derived from completed browser workflow jobs"
+                                                    color="#7c3aed"
+                                                    points={tpsTrend}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <MonitoringCard
+                                                    title="Response Time Chart"
+                                                    value={`${formatMetric(status.averageResponseTime || 0)} ms`}
+                                                    subtitle="Average workflow duration"
+                                                    color="#2563eb"
+                                                    points={responseTrend}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <MonitoringCard
+                                                    title="Error Percentage Chart"
+                                                    value={`${formatMetric(status.errorPercentage || 0)}%`}
+                                                    subtitle="Failure pressure across the run"
+                                                    color="#ef4444"
+                                                    points={errorTrend}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <GaugeCard
+                                                    title="CPU Usage (est.)"
+                                                    value={utilizationEstimate}
+                                                    note="Derived from live tab utilization against the configured browser cap."
+                                                    color="#06b6d4"
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <GaugeCard
+                                                    title="Memory Usage (est.)"
+                                                    value={memoryEstimate}
+                                                    note="Progressive execution ratio used as a workload proxy until host telemetry is wired."
+                                                    color="#7c3aed"
+                                                />
+                                            </Grid>
+                                        </Grid>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} id="job-management">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Job Execution Table"
+                                            title="Per-User Execution Grid"
+                                            description="Each completed worker records declaration metadata, operator context, timing, status, and the resulting artifact or failure output."
+                                        />
+                                        {(status.userJobResults || []).length ? (
+                                            <TableContainer sx={{ borderRadius: 4, border: '1px solid rgba(148, 163, 184, 0.12)' }}>
+                                                <Table sx={{ minWidth: 1800 }}>
+                                                    <TableHead>
+                                                        <TableRow sx={{ backgroundColor: 'rgba(37, 99, 235, 0.12)' }}>
+                                                            {['Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Creation Status', 'Submission Status', 'Final Status', 'App Status', 'Error Message', 'Failed Field Details', 'Evidence', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Ref', 'Permit Number'].map(header => (
+                                                                <TableCell key={header} sx={{ color: '#e2e8f0', fontWeight: 800, borderColor: 'rgba(148, 163, 184, 0.12)' }}>
+                                                                    {header}
+                                                                </TableCell>
+                                                            ))}
+                                                        </TableRow>
+                                                    </TableHead>
+                                                    <TableBody>
+                                                        {(status.userJobResults || []).map(item => {
+                                                            const rowStatus = String(item.status || (item.success ? 'SUCCESS' : 'PENDING')).toUpperCase();
+                                                            const errorMessage = item.errorMessage || item.failureReason || 'N/A';
+                                                            return (
+                                                                <TableRow key={`${item.executionOrder}-${item.jobId || item.startTime}`} hover>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.tabNumber || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.workerSlotNumber || item.tabNumber || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobNumber || item.executionOrder || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobId || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        <StatusBadge label={item.creationStatus || 'FAILED'} />
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        <StatusBadge label={item.submissionStatus || 'FAILED'} />
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        <StatusBadge label={rowStatus} />
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        <StatusBadge label={item.applicationStatus || 'N/A'} />
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 320 }}>
+                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                                                            {errorMessage}
+                                                                        </Typography>
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 360 }}>
+                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                                                            {item.failedFieldDetails || 'N/A'}
+                                                                        </Typography>
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', minWidth: 160 }}>
+                                                                        <Stack spacing={1}>
+                                                                            {item.screenshotUrl ? (
+                                                                                <Button
+                                                                                    component="a"
+                                                                                    href={resolveArtifactUrl(item.screenshotUrl)}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    size="small"
+                                                                                    variant="outlined"
+                                                                                    sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
+                                                                                >
+                                                                                    Screenshot
+                                                                                </Button>
+                                                                            ) : (
+                                                                                <Typography variant="body2" color="text.secondary">No screenshot</Typography>
+                                                                            )}
+                                                                            {item.diagnosticsArtifactUrl ? (
+                                                                                <Button
+                                                                                    component="a"
+                                                                                    href={resolveArtifactUrl(item.diagnosticsArtifactUrl)}
+                                                                                    target="_blank"
+                                                                                    rel="noreferrer"
+                                                                                    size="small"
+                                                                                    variant="outlined"
+                                                                                    color="info"
+                                                                                    sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
+                                                                                >
+                                                                                    Diagnostics
+                                                                                </Button>
+                                                                            ) : null}
+                                                                        </Stack>
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        {item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'}
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.permitType || status.declarationTypeLabel || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 240 }}>
+                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                                                                            {item.selectedJson || status.selectedJson || 'N/A'}
+                                                                        </Typography>
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jsonRecordNumber || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.createdBy || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.messageReference || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.permitNumber || 'N/A'}</TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                    </TableBody>
+                                                </Table>
+                                            </TableContainer>
+                                        ) : (
+                                            <GlassPanel sx={{ p: 2.5, borderRadius: 4 }}>
+                                                <Typography variant="body2" color="text.secondary">
+                                                    Job rows will populate after users begin completing the declaration workflow.
+                                                </Typography>
+                                            </GlassPanel>
+                                        )}
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} md={7} id="test-results">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 }, height: '100%' }}>
+                                        <SectionHeader
+                                            eyebrow="Test Results"
+                                            title="Live Logs"
+                                            description="Recent browser workflow logs are shown together with optional JMeter lines, which remain prefixed with JMETER for separation."
+                                        />
+                                        <GlassPanel
+                                            sx={{
+                                                p: 2.2,
+                                                minHeight: 420,
+                                                maxHeight: 420,
+                                                overflow: 'auto',
+                                                borderRadius: 4,
+                                                background: 'rgba(2, 8, 23, 0.72)'
+                                            }}
+                                        >
+                                            <Typography
+                                                component="pre"
+                                                sx={{
+                                                    m: 0,
+                                                    whiteSpace: 'pre-wrap',
+                                                    wordBreak: 'break-word',
+                                                    fontFamily: 'Consolas, monospace',
+                                                    fontSize: 13,
+                                                    color: '#cbd5e1'
+                                                }}
+                                            >
+                                                {combinedLogs || 'No logs captured yet.'}
+                                            </Typography>
+                                        </GlassPanel>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} md={5}>
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 }, height: '100%' }}>
+                                        <SectionHeader
+                                            eyebrow="Separated Results"
+                                            title="Browser Workflow Result"
+                                            description="Browser workflow correctness is reported independently from the optional JMeter HTTP load signal."
+                                        />
+                                        <Stack spacing={1.8}>
+                                            <GlassPanel sx={{ p: 2.1, borderRadius: 4 }}>
+                                                <Typography variant="overline" sx={{ color: '#7dd3fc', letterSpacing: '0.14em', fontWeight: 800 }}>
+                                                    Browser Workflow Result
+                                                </Typography>
+                                                <Grid container spacing={1.5}>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Latest Job ID</Typography>
+                                                        <Typography variant="subtitle1" sx={{ mt: 0.7, fontWeight: 800 }}>{status.latestJobId || 'N/A'}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Permit Number</Typography>
+                                                        <Typography variant="subtitle1" sx={{ mt: 0.7, fontWeight: 800 }}>{status.latestPermitNumber || 'N/A'}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Message Reference</Typography>
+                                                        <Typography variant="subtitle1" sx={{ mt: 0.7, fontWeight: 800 }}>{status.latestMessageReference || 'N/A'}</Typography>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Latest Browser Status</Typography>
+                                                        <Box sx={{ mt: 0.9 }}>
+                                                            <StatusBadge label={status.latestJobStatus || status.status || 'N/A'} />
+                                                        </Box>
+                                                    </Grid>
+                                                </Grid>
+                                            </GlassPanel>
+                                            <GlassPanel sx={{ p: 2.1, borderRadius: 4 }}>
+                                                <Typography variant="overline" sx={{ color: '#bae6fd', letterSpacing: '0.14em', fontWeight: 800 }}>
+                                                    JMeter HTTP Load Result
+                                                </Typography>
+                                                <Grid container spacing={1.5} sx={{ mt: 0.2 }}>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Signal Status</Typography>
+                                                        <Box sx={{ mt: 0.9 }}>
+                                                            <StatusBadge label={jmeterThresholdLabel} />
+                                                        </Box>
+                                                    </Grid>
+                                                    <Grid item xs={6}>
+                                                        <Typography variant="body2" color="text.secondary">Runner State</Typography>
+                                                        <Box sx={{ mt: 0.9 }}>
+                                                            <StatusBadge label={jmeterStatus.status || 'IDLE'} />
+                                                        </Box>
+                                                    </Grid>
+                                                </Grid>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.6, lineHeight: 1.8 }}>
+                                                    {jmeterStatus.thresholdMessage || 'JMeter remains an optional HTTP load signal and does not affect browser workflow success counts.'}
+                                                </Typography>
+                                            </GlassPanel>
+                                            <Box>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Run Completion</Typography>
+                                                    <Typography variant="body2" color="text.secondary">
+                                                        {status.completedUsers || 0} / {status.totalUsers || 0} users completed
+                                                    </Typography>
+                                                </Stack>
+                                                <LinearProgress
+                                                    variant="determinate"
+                                                    value={status.totalUsers > 0 ? clamp((status.completedUsers * 100) / status.totalUsers, 0, 100) : 0}
+                                                    sx={{ height: 12, borderRadius: 999, backgroundColor: 'rgba(148, 163, 184, 0.14)' }}
+                                                />
+                                            </Box>
+                                            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
+                                                Browser workflow summary cards and job tables are calculated only from verified browser execution results.
+                                            </Typography>
+                                        </Stack>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} id="reports">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Reports Section"
+                                            title="Export and Evidence"
+                                            description="Export browser workflow evidence independently, and open the separate JMeter HTML report only when the optional HTTP load signal is available."
+                                        />
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={3}>
+                                                <ReportActionCard
+                                                    title="Export PDF"
+                                                    description="Use the browser print pipeline to save the current dashboard state as a PDF artifact."
+                                                    buttonLabel="Export PDF"
+                                                    onClick={handleExportPdf}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <ReportActionCard
+                                                    title="Export Excel"
+                                                    description="Download the execution table as a CSV file that opens cleanly in Excel."
+                                                    buttonLabel="Export Excel"
+                                                    onClick={handleExportExcel}
+                                                    disabled={!(status.userJobResults || []).length}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <ReportActionCard
+                                                    title="Download Logs"
+                                                    description="Download the combined runtime log output. JMeter lines remain prefixed so they are not confused with browser workflow results."
+                                                    buttonLabel="Download Logs"
+                                                    onClick={handleDownloadLogs}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={3}>
+                                                <ReportActionCard
+                                                    title="Download JMeter Report"
+                                                    description="Open the generated HTML report or download the packaged archive exposed by the backend."
+                                                    buttonLabel="Download Report"
+                                                    href={resolveApiUrl('api/jmeter/report/download')}
+                                                    disabled={!jmeterStatus.reportAvailable || !resolveApiUrl('api/jmeter/report/download')}
+                                                />
+                                            </Grid>
+                                        </Grid>
+                                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ mt: 2.5 }}>
+                                            <Button
+                                                variant="outlined"
+                                                href={resolveArtifactUrl(status.jmeterReportLink) || undefined}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                disabled={!status.jmeterReportLink || !resolveArtifactUrl(status.jmeterReportLink)}
+                                                sx={{ borderRadius: 999, px: 2.5, fontWeight: 800 }}
+                                            >
+                                                Open JMeter HTML Report
+                                            </Button>
+                                            <Button
+                                                variant="text"
+                                                href={resolveApiUrl('report.html') || undefined}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                sx={{ borderRadius: 999, px: 2.5, fontWeight: 800, color: '#cbd5e1' }}
+                                            >
+                                                Open Legacy Report View
+                                            </Button>
+                                        </Stack>
+                                    </GlassPanel>
+                                </Grid>
+
+                                <Grid item xs={12} id="settings">
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Settings"
+                                            title="Connectivity and Runtime Context"
+                                            description="Update the API base URL used by the dashboard and review the current execution context for the active run."
+                                        />
+                                        <Grid container spacing={2}>
+                                            <Grid item xs={12} md={7}>
+                                                <TextField
+                                                    fullWidth
+                                                    label="Dashboard API Base URL"
+                                                    value={apiBaseUrl}
+                                                    onChange={event => setApiBaseUrl(event.target.value)}
+                                                    helperText="Example: http://localhost:8080 or the deployed Spring Boot host serving /api/load-dashboard/*"
+                                                    sx={inputSx}
+                                                />
+                                            </Grid>
+                                            <Grid item xs={12} md={5}>
+                                                <GlassPanel sx={{ p: 2.1, borderRadius: 4, height: '100%' }}>
+                                                    <Typography variant="body2" color="text.secondary">Visible Browser Mode</Typography>
+                                                    <Typography variant="subtitle1" sx={{ mt: 0.8, fontWeight: 800 }}>
+                                                        Forced On
+                                                    </Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.2, lineHeight: 1.75 }}>
+                                                        Browser execution remains headed so workflow activity stays visible during the run.
+                                                    </Typography>
+                                                </GlassPanel>
+                                            </Grid>
+                                        </Grid>
+                                    </GlassPanel>
+                                </Grid>
                             </Grid>
 
-                            <Grid item xs={12}>
-                                <SectionCard eyebrow="Artifacts" title="Screenshots" description="Each user session stores a screenshot after the browser workflow finishes.">
-                                    <Grid container spacing={2}>
-                                        {(status.screenshots || []).length ? status.screenshots.map(item => (
-                                            <Grid item xs={12} sm={6} md={4} lg={3} key={`${item.userIndex}-${item.imageUrl}`}>
-                                                <Paper variant="outlined" sx={{ borderRadius: 4, overflow: 'hidden', height: '100%' }}>
+                            {(status.screenshots || []).length ? (
+                                <Box sx={{ mt: 3 }}>
+                                    <GlassPanel className="print-card" sx={{ p: { xs: 2.4, md: 3 } }}>
+                                        <SectionHeader
+                                            eyebrow="Artifacts"
+                                            title="Recent Workflow Screenshots"
+                                            description="Captured browser artifacts from the latest users are surfaced here for visual verification."
+                                        />
+                                        <Grid container spacing={2}>
+                                            {(status.screenshots || []).slice(0, 8).map(item => (
+                                                <Grid item xs={12} sm={6} lg={3} key={`${item.userIndex}-${item.imageUrl}`}>
+                                                    <GlassPanel sx={{ p: 1.2, borderRadius: 4, height: '100%' }}>
                                                         <Box
                                                             component="img"
                                                             src={resolveArtifactUrl(item.imageUrl) || undefined}
                                                             alt={`User ${item.userIndex} ${item.outcome}`}
-                                                            sx={{ width: '100%', aspectRatio: '16/10', objectFit: 'cover', display: 'block' }}
+                                                            sx={{
+                                                                width: '100%',
+                                                                aspectRatio: '16/10',
+                                                                objectFit: 'cover',
+                                                                display: 'block',
+                                                                borderRadius: 3
+                                                            }}
                                                         />
-                                                    <Box sx={{ p: 2 }}>
-                                                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                                                                User {item.userIndex}
+                                                        <Box sx={{ p: 1.2 }}>
+                                                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                                                    User {item.userIndex}
+                                                                </Typography>
+                                                                <StatusBadge label={item.outcome || 'PENDING'} />
+                                                            </Stack>
+                                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
+                                                                {item.summary || 'Workflow screenshot'}
                                                             </Typography>
-                                                            <Chip size="small" label={item.outcome} color={item.outcome === 'SUCCESS' ? 'success' : 'error'} />
-                                                        </Stack>
-                                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.7 }}>
-                                                            {item.summary || 'Workflow screenshot'}
-                                                        </Typography>
-                                                    </Box>
-                                                </Paper>
-                                            </Grid>
-                                        )) : (
-                                            <Grid item xs={12}>
-                                                <Paper variant="outlined" sx={{ p: 3, borderRadius: 4 }}>
-                                                    <Typography variant="body2" color="text.secondary">
-                                                        Screenshots will appear here after the first browser workers complete.
-                                                    </Typography>
-                                                </Paper>
-                                            </Grid>
-                                        )}
-                                    </Grid>
-                                </SectionCard>
-                            </Grid>
-                        </Grid>
-                    </Container>
+                                                        </Box>
+                                                    </GlassPanel>
+                                                </Grid>
+                                            ))}
+                                        </Grid>
+                                    </GlassPanel>
+                                </Box>
+                            ) : null}
+                        </Box>
+                    </Box>
 
                     <Snackbar
                         open={toast.open}
-                        autoHideDuration={4000}
+                        autoHideDuration={4500}
                         onClose={() => setToast(current => ({ ...current, open: false }))}
                         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                     >
@@ -953,6 +1760,7 @@
                             severity={toast.severity}
                             variant="filled"
                             onClose={() => setToast(current => ({ ...current, open: false }))}
+                            sx={{ borderRadius: 3 }}
                         >
                             {toast.message}
                         </Alert>

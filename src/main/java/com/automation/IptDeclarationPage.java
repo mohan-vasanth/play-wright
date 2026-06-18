@@ -51,6 +51,7 @@ public class IptDeclarationPage {
 
     protected final Page page;
     private boolean summaryDraftSaved;
+    private int validatedFieldEntryCount;
 
     public IptDeclarationPage(Page page) {
         this.page = page;
@@ -65,12 +66,17 @@ public class IptDeclarationPage {
 
     public void populateDraftFrom(JsonNode data) {
         summaryDraftSaved = false;
+        validatedFieldEntryCount = 0;
         fillSectionAndAdvance("Shipment Info (S)", () -> fillShipmentInfo(data));
         fillSectionAndAdvance("Transport Info (T)", () -> fillTransportInfo(data));
         fillSectionAndAdvance("Party Info (P)", () -> fillPartyInfo(data));
         fillSectionAndAdvance("Invoice Info (V)", () -> fillInvoiceInfo(data));
         fillSectionAndAdvance("Items (I)", () -> fillItemInfo(data));
         fillSummary(data);
+    }
+
+    public int validatedFieldEntryCount() {
+        return validatedFieldEntryCount;
     }
 
     public void submitDeclaration() {
@@ -154,6 +160,10 @@ public class IptDeclarationPage {
                             }
 
                             const ownText = normalize(element.innerText || element.textContent);
+                            const section = normalize(
+                                element.closest('app-card, section, .card, .accordion-body, .accordion-item, .tab-pane')
+                                    ?.querySelector('h1, h2, h3, h4, h5, .card-title, .accordion-header, .tab-title, [class*="title"]')
+                                    ?.textContent);
                             const label = normalize(
                                 element.closest('div, td, tr, section, form')?.querySelector('label, .form-label, span, p, div')
                                     ?.textContent);
@@ -162,7 +172,17 @@ public class IptDeclarationPage {
                             const formControlName = normalize(element.getAttribute('formcontrolname'));
                             const id = normalize(element.getAttribute('id'));
                             const type = normalize(element.getAttribute('type'));
-                            return JSON.stringify({
+                            const role = normalize(element.getAttribute('role'));
+                            const currentValue = normalize(
+                                element instanceof HTMLSelectElement
+                                    ? (element.selectedOptions?.[0]?.textContent || element.value)
+                                    : ('value' in element ? element.value : ownText));
+                            const validationMessage = normalize(
+                                element.closest('.clr-form-control, .form-group, td, tr, section, form, .card, .accordion-body')
+                                    ?.querySelector('.clr-subtext, .clr-form-control-error, .invalid-feedback, .error, .errors, [class*="error"], [aria-live="assertive"]')
+                                    ?.textContent);
+                            return {
+                                section,
                                 label,
                                 text: ownText,
                                 placeholder,
@@ -170,9 +190,12 @@ public class IptDeclarationPage {
                                 formControlName,
                                 id,
                                 type,
+                                role,
+                                currentValue,
+                                validationMessage,
                                 ariaInvalid: normalize(element.getAttribute('aria-invalid')),
                                 classes: normalize(element.getAttribute('class'))
-                            });
+                            };
                         };
                         const uniqueTexts = values => {
                             const seen = new Set();
@@ -1270,13 +1293,20 @@ public class IptDeclarationPage {
         JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
         JsonNode cascProduct = item.path("cascProduct");
 
-        fillLookupFieldIfPresent(
+        fillField("Inward HAWB", text(item, "inHawbHucrHblNumber"));
+        fillSelectLikeLookupFieldIfPresent(
                 "Invoice Number",
                 firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")),
                 firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")));
-        fillField("Inward HAWB", text(item, "inHawbHucrHblNumber"));
-        fillLookupField("HS Code", text(item, "itemHarmonizedSystemCode"), text(item, "itemHarmonizedSystemCode"));
-        fillFieldIfPresent("Goods Description", text(item, "goodsDescription"));
+        fillSelectLikeLookupFieldIfPresent(
+                "HS Code",
+                text(item, "itemHarmonizedSystemCode"),
+                text(item, "itemHarmonizedSystemCode"));
+        fillFirstMatchingFieldIfPresent(
+                text(item, "goodsDescription"),
+                "Goods Description",
+                "Item description",
+                "Item Description");
         fillField("Brand", text(item, "brandName"));
         fillLookupFieldIfPresent("COO", text(item, "originCountry"), text(item, "originCountry"));
         fillFieldIfPresent("Model", text(item, "modelDescription"));
@@ -1767,27 +1797,7 @@ public class IptDeclarationPage {
     }
 
     private void fillAdditionalCascTextField(Locator field, String value, String label) {
-        closeTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
-
-        try {
-            field.fill("");
-        } catch (PlaywrightException ignored) {
-            page.keyboard().press("Control+A");
-            page.keyboard().press("Backspace");
-        }
-
-        try {
-            field.fill(value);
-        } catch (PlaywrightException ignored) {
-            field.type(value, new Locator.TypeOptions().setDelay(60));
-        }
-
-        pauseUi(UI_ACTION_PAUSE_MS);
-        ensureRenderedFieldValue(field, value, "Additional CASC " + label);
-        page.keyboard().press("Tab");
-        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+        fillVerifiedTextField(field, value, "Additional CASC " + label);
     }
 
     private void verifyAdditionalCascIdentifications(Locator cascBlock, JsonNode additionalCascIdentifications) {
@@ -2217,17 +2227,7 @@ public class IptDeclarationPage {
             return;
         }
         Locator field = resolveSupplierManufacturerNameField();
-        closeTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
-        field.fill(value);
-        ensureTextFieldValue(field, value);
-        field.press("Tab");
-        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
-        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
-            throw new IllegalStateException("Supplier / Manufacturer Name was not rendered. Expected: "
-                    + value + ", Actual: " + readRenderedFieldValue(field));
-        }
+        fillVerifiedTextField(field, value, "Supplier / Manufacturer Name");
     }
 
     private Locator resolveSupplierManufacturerNameField() {
@@ -2459,6 +2459,18 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
+    protected void fillSelectLikeLookupFieldIfPresent(String label, String value, String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        Locator field = resolveSelectLikeFieldByLabelOrNull(label, 0);
+        if (field == null) {
+            fillLookupFieldIfPresent(label, value, suggestionHints);
+            return;
+        }
+        focusAndType(field, value, true, suggestionHints);
+    }
+
     private void fillOneOfLabels(String value, String... labels) {
         if (value == null || value.isBlank()) {
             return;
@@ -2471,6 +2483,19 @@ public class IptDeclarationPage {
             }
         }
         throw new IllegalStateException("Unable to resolve field for labels: " + String.join(", ", labels));
+    }
+
+    private void fillFirstMatchingFieldIfPresent(String value, String... labels) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        for (String label : labels) {
+            Locator field = resolveFieldByLabelOrNull(label, 0);
+            if (field != null) {
+                focusAndType(field, value, false);
+                return;
+            }
+        }
     }
 
     private void fillOneOfLabelsIfPresent(String value, String... labels) {
@@ -2676,8 +2701,10 @@ public class IptDeclarationPage {
     protected void focusAndType(Locator field, String value, boolean selectSuggestion, String... suggestionHints) {
         closeTransientOverlays();
         field.scrollIntoViewIfNeeded();
+        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
 
         if (trySelectNativeDropdown(field, value, suggestionHints)) {
+            ensureFieldEntryCommitted(field, value, selectSuggestion, expectedValues);
             page.keyboard().press("Tab");
             pauseUi(UI_NEXT_FIELD_PAUSE_MS);
             return;
@@ -2689,28 +2716,108 @@ public class IptDeclarationPage {
         page.keyboard().type(value);
         pauseUi(UI_ACTION_PAUSE_MS);
         if (selectSuggestion) {
-            waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, suggestionHints);
-            boolean suggestionClicked = clickVisibleSuggestion(suggestionHints);
-            if (!suggestionClicked) {
-                try {
-                    page.keyboard().press("ArrowDown");
-                    pauseUi(UI_ACTION_PAUSE_MS);
-                    suggestionClicked = clickVisibleSuggestion(suggestionHints);
-                    if (!suggestionClicked) {
-                        suggestionClicked = clickFirstVisibleSuggestion();
-                        if (!suggestionClicked) {
-                            page.keyboard().press("Enter");
-                            pauseUi(UI_ACTION_PAUSE_MS);
-                        }
-                    }
-                } catch (PlaywrightException ignored) {
-                }
-            }
-            pauseUi(UI_ACTION_PAUSE_MS);
-            ensureLookupValue(field, value);
+            commitSuggestionSelection(field, value, suggestionHints, expectedValues);
+        } else {
+            ensureFieldEntryCommitted(field, value, false, expectedValues);
         }
         page.keyboard().press("Tab");
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+    }
+
+    protected void fillVerifiedTextField(Locator field, String value, String fieldLabel) {
+        fillVerifiedTextField(field, value, fieldLabel, true);
+    }
+
+    protected void fillVerifiedTextField(Locator field, String value, String fieldLabel, boolean moveToNextField) {
+        if (field == null || value == null || value.isBlank()) {
+            return;
+        }
+
+        closeTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+        field.click(new Locator.ClickOptions().setForce(true));
+        clearFieldForEntry(field);
+        try {
+            field.type(value, new Locator.TypeOptions().setDelay(60));
+        } catch (PlaywrightException ignored) {
+            page.keyboard().type(value);
+        }
+        pauseUi(UI_ACTION_PAUSE_MS);
+        try {
+            ensureFieldEntryCommitted(field, value, false, List.of(value));
+        } catch (IllegalStateException exception) {
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    fieldLabel + " value was not rendered",
+                    field,
+                    value), exception);
+        }
+        if (moveToNextField) {
+            page.keyboard().press("Tab");
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+        }
+    }
+
+    private List<String> expectedFieldValues(String value, String... suggestionHints) {
+        List<String> expectedValues = new ArrayList<>();
+        appendCandidate(expectedValues, value);
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                appendCandidate(expectedValues, suggestionHint);
+            }
+        }
+        return expectedValues;
+    }
+
+    private void commitSuggestionSelection(
+            Locator field,
+            String value,
+            String[] suggestionHints,
+            List<String> expectedValues) {
+        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, suggestionHints);
+        boolean suggestionClicked = clickVisibleSuggestion(suggestionHints);
+        if (!suggestionClicked) {
+            try {
+                page.keyboard().press("ArrowDown");
+                pauseUi(UI_ACTION_PAUSE_MS);
+                suggestionClicked = clickVisibleSuggestion(suggestionHints);
+                if (!suggestionClicked) {
+                    suggestionClicked = clickFirstVisibleSuggestion();
+                    if (!suggestionClicked) {
+                        page.keyboard().press("Enter");
+                        pauseUi(UI_ACTION_PAUSE_MS);
+                    }
+                }
+            } catch (PlaywrightException ignored) {
+            }
+        }
+        pauseUi(UI_ACTION_PAUSE_MS);
+        ensureLookupValue(field, value);
+        ensureFieldEntryCommitted(field, value, true, expectedValues);
+    }
+
+    private void ensureFieldEntryCommitted(
+            Locator field,
+            String value,
+            boolean lookupField,
+            List<String> expectedValues) {
+        String[] candidates = expectedValues.toArray(String[]::new);
+        if (!waitForAnyRenderedFieldValue(field, 1200, candidates)) {
+            if (isNativeSelectField(field)) {
+                trySelectNativeDropdown(field, value, candidates);
+            } else if (lookupField) {
+                ensureLookupValue(field, value);
+            } else {
+                ensureTextFieldValue(field, value);
+            }
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1800, candidates)) {
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    "Field value was not rendered",
+                    field,
+                    value,
+                    candidates));
+        }
+        validatedFieldEntryCount++;
     }
 
     private void fillVerifiedLookupField(Locator field, String value, String... suggestionHints) {
@@ -2757,8 +2864,11 @@ public class IptDeclarationPage {
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
 
         if (!waitForAnyRenderedFieldValue(field, 1500, expectedValues)) {
-            throw new IllegalStateException("Lookup value was not rendered. Expected: "
-                    + value + ", Actual: " + readRenderedFieldValue(field));
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    "Lookup value was not rendered",
+                    field,
+                    value,
+                    expectedValues));
         }
     }
 
@@ -2859,6 +2969,33 @@ public class IptDeclarationPage {
                 }
             }
 
+            // Brief wait for dynamically-loaded SELECT options (e.g. invoice numbers populated after save)
+            page.waitForTimeout(600);
+
+            // Second attempt via Playwright after the wait
+            if (value != null && !value.isBlank()) {
+                try {
+                    List<String> byValue = field.selectOption(value);
+                    if (byValue != null && !byValue.isEmpty()) {
+                        return true;
+                    }
+                } catch (PlaywrightException ignored) {
+                }
+                // Also try matching each hint as a label
+                for (String hint : candidates) {
+                    if (hint == null || hint.isBlank() || hint.equalsIgnoreCase(value)) {
+                        continue;
+                    }
+                    try {
+                        List<String> byHint = field.selectOption(hint);
+                        if (byHint != null && !byHint.isEmpty()) {
+                            return true;
+                        }
+                    } catch (PlaywrightException ignored) {
+                    }
+                }
+            }
+
             Boolean matched = (Boolean) field.evaluate("""
                     (element, expectedValues) => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
@@ -2867,6 +3004,9 @@ public class IptDeclarationPage {
                         const option = options.find(candidate => {
                             const optionText = normalize(candidate.textContent);
                             const optionValue = normalize(candidate.value);
+                            if (!optionValue) {
+                                return false;
+                            }
                             return expected.some(current =>
                                 optionText === current
                                 || optionValue === current
@@ -2885,23 +3025,63 @@ public class IptDeclarationPage {
                         return true;
                     }
                     """, candidates);
-            return Boolean.TRUE.equals(matched);
+            if (Boolean.TRUE.equals(matched)) {
+                // Re-select via Playwright's native API after the JavaScript path to ensure Angular's
+                // SelectControlValueAccessor receives a proper browser change event and updates the FormControl
+                try {
+                    Object currentVal = field.evaluate("el => el.value");
+                    if (currentVal instanceof String s && !s.isBlank()) {
+                        try {
+                            field.selectOption(s);
+                        } catch (PlaywrightException ignored) {
+                        }
+                    }
+                } catch (PlaywrightException ignored) {
+                }
+                return true;
+            }
+            return false;
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private boolean isNativeSelectField(Locator field) {
+        try {
+            String tagName = String.valueOf(field.evaluate("element => element.tagName"));
+            return "SELECT".equalsIgnoreCase(normalize(tagName));
         } catch (PlaywrightException ignored) {
             return false;
         }
     }
 
     private void ensureLookupValue(Locator field, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
         try {
-            String currentValue = normalize(inputValueOrEmpty(field));
-            if (!currentValue.isBlank()) {
+            String currentValue = normalize(readRenderedFieldValue(field));
+            String normalizedExpected = normalize(value);
+            if (!currentValue.isBlank()
+                    && (currentValue.equalsIgnoreCase(normalizedExpected)
+                    || currentValue.contains(normalizedExpected)
+                    || normalizedExpected.contains(currentValue))) {
                 return;
             }
             field.evaluate("""
                     (element, newValue) => {
-                        element.value = newValue;
-                        element.dispatchEvent(new Event('input', { bubbles: true }));
-                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        const target = element.closest('.ng-select, [role="combobox"], [class*="select"], [class*="combobox"]')
+                            ?.querySelector?.("input:not([type='hidden']), textarea, [contenteditable='true']")
+                            || element;
+                        if ('value' in target) {
+                            target.value = newValue;
+                            target.setAttribute?.('value', newValue);
+                        } else if (target.isContentEditable) {
+                            target.textContent = newValue;
+                        }
+                        target.dispatchEvent(new Event('input', { bubbles: true }));
+                        target.dispatchEvent(new Event('change', { bubbles: true }));
+                        target.dispatchEvent(new Event('blur', { bubbles: true }));
                     }
                     """, value);
         } catch (PlaywrightException ignored) {
@@ -2950,11 +3130,6 @@ public class IptDeclarationPage {
             return String.valueOf(field.evaluate("""
                     element => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
-                        const directValue = normalize(element.value);
-                        if (directValue) {
-                            return directValue;
-                        }
-
                         const ariaValueText = normalize(element.getAttribute('aria-valuetext'));
                         if (ariaValueText) {
                             return ariaValueText;
@@ -2976,11 +3151,100 @@ public class IptDeclarationPage {
                             return parentSelectedText;
                         }
 
+                        if (element instanceof HTMLSelectElement && element.selectedOptions?.length > 0) {
+                            const selectedOptionText = normalize(element.selectedOptions[0].textContent);
+                            if (selectedOptionText) {
+                                return selectedOptionText;
+                            }
+                        }
+
+                        const directValue = normalize(element.value);
+                        if (directValue) {
+                            return directValue;
+                        }
+
                         return normalize(element.innerText || element.textContent);
                     }
                     """));
         } catch (PlaywrightException ignored) {
             return inputValueOrEmpty(field);
+        }
+    }
+
+    protected String describeControl(Locator field) {
+        try {
+            return String.valueOf(field.evaluate("""
+                    element => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const ownLabel = normalize(
+                            element.closest('label')?.innerText
+                            || element.getAttribute('aria-label')
+                            || element.getAttribute('placeholder'));
+                        const nearbyLabel = normalize(
+                            element.closest('td, tr, [role="row"], .clr-form-control, .form-group, .ng-select, .mat-mdc-form-field')
+                                ?.querySelector?.('label, .clr-control-label, .clr-form-control-label, .form-label, [class*="label"]')
+                                ?.textContent);
+                        const section = normalize(
+                            element.closest('app-card, section, .card, .accordion-body, .accordion-item, .tab-pane')
+                                ?.querySelector?.('h1, h2, h3, h4, h5, .card-title, .accordion-header, .tab-title, [class*="title"]')
+                                ?.textContent);
+                        const role = normalize(element.getAttribute('role'));
+                        const tag = normalize(element.tagName);
+                        const type = normalize(element.getAttribute('type'));
+                        const formControlName = normalize(element.getAttribute('formcontrolname'));
+                        const name = normalize(element.getAttribute('name'));
+                        const id = normalize(element.getAttribute('id'));
+                        const placeholder = normalize(element.getAttribute('placeholder'));
+                        const classes = normalize(element.className);
+                        const selectedOption = element instanceof HTMLSelectElement && element.selectedOptions?.length > 0
+                            ? normalize(element.selectedOptions[0].textContent || element.selectedOptions[0].value)
+                            : '';
+                        const parts = [
+                            section ? `section=${section}` : '',
+                            (ownLabel || nearbyLabel) ? `label=${ownLabel || nearbyLabel}` : '',
+                            tag ? `tag=${tag}` : '',
+                            role ? `role=${role}` : '',
+                            type ? `type=${type}` : '',
+                            formControlName ? `formControl=${formControlName}` : '',
+                            name ? `name=${name}` : '',
+                            id ? `id=${id}` : '',
+                            placeholder ? `placeholder=${placeholder}` : '',
+                            selectedOption ? `selected=${selectedOption}` : '',
+                            classes ? `class=${classes}` : ''
+                        ].filter(Boolean);
+                        return parts.join(', ');
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return "<control-details-unavailable>";
+        }
+    }
+
+    protected String buildFieldVerificationFailure(String context, Locator field, String expectedValue, String... expectedAlternatives) {
+        List<String> expected = new ArrayList<>();
+        appendCandidate(expected, expectedValue);
+        if (expectedAlternatives != null) {
+            for (String expectedAlternative : expectedAlternatives) {
+                appendCandidate(expected, expectedAlternative);
+            }
+        }
+        return context
+                + ". Expected: " + String.join(" | ", expected)
+                + ", Actual: " + readRenderedFieldValue(field)
+                + ", Control: " + describeControl(field);
+    }
+
+    private void clearFieldForEntry(Locator field) {
+        try {
+            field.fill("");
+            return;
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            page.keyboard().press("Control+A");
+            page.keyboard().press("Backspace");
+        } catch (PlaywrightException ignored) {
         }
     }
 
@@ -3034,8 +3298,11 @@ public class IptDeclarationPage {
         }
 
         if (!waitForAnyRenderedFieldValue(field, 1000, expectedValue, htmlDateValue)) {
-            throw new IllegalStateException("Date value was not rendered. Expected: " + expectedValue
-                    + ", Actual: " + readRenderedFieldValue(field));
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    "Date value was not rendered",
+                    field,
+                    expectedValue,
+                    htmlDateValue));
         }
     }
 
@@ -3063,8 +3330,11 @@ public class IptDeclarationPage {
         }
 
         if (!waitForAnyRenderedFieldValue(field, 1000, expectedUiValue, htmlDateValue)) {
-            throw new IllegalStateException("Native date value was not rendered. Expected: " + expectedUiValue
-                    + " / " + htmlDateValue + ", Actual: " + readRenderedFieldValue(field));
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    "Native date value was not rendered",
+                    field,
+                    expectedUiValue,
+                    htmlDateValue));
         }
     }
 
@@ -3261,23 +3531,7 @@ public class IptDeclarationPage {
 
     private void clearAndTypePartyField(Locator field, String value) {
         page.waitForTimeout(300);
-        field.click(new Locator.ClickOptions().setForce(true));
-        try {
-            field.fill("");
-        } catch (Exception ignored) {
-            page.keyboard().press("Control+A");
-            page.keyboard().press("Backspace");
-        }
-        field.type(value, new Locator.TypeOptions().setDelay(100));
-        if (!waitForAnyRenderedFieldValue(field, 500, value)) {
-            try {
-                field.fill(value);
-            } catch (PlaywrightException ignored) {
-            }
-        }
-        if (!waitForAnyRenderedFieldValue(field, 500, value)) {
-            ensureTextFieldValue(field, value);
-        }
+        fillVerifiedTextField(field, value, "Party Field", false);
         page.waitForTimeout(500);
     }
 
@@ -4427,8 +4681,10 @@ public class IptDeclarationPage {
             ensureTextFieldValue(field, expectedValue);
         }
         if (!waitForAnyRenderedFieldValue(field, 1500, expectedValue)) {
-            throw new IllegalStateException(label + " value was not rendered. Expected: "
-                    + expectedValue + ", Actual: " + readRenderedFieldValue(field));
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    label + " value was not rendered",
+                    field,
+                    expectedValue));
         }
     }
 
@@ -4581,7 +4837,7 @@ public class IptDeclarationPage {
         Locator matchingLabels = page.locator("xpath=" + labelQuery);
         Locator associatedControl = resolveAssociatedControl(page.locator("body"), matchingLabels, occurrence, controlQuery);
         if (associatedControl != null) {
-            return associatedControl;
+            return preferNativeSelect(associatedControl);
         }
 
         Locator fromNearestContainer = page.locator(
@@ -4589,7 +4845,7 @@ public class IptDeclarationPage {
                         + "//*[" + controlQuery + "])[1]");
         Locator visibleFromNearestContainer = firstVisible(fromNearestContainer);
         if (visibleFromNearestContainer != null) {
-            return visibleFromNearestContainer;
+            return preferNativeSelect(visibleFromNearestContainer);
         }
 
         Locator fromLabel = page.locator(
@@ -4607,6 +4863,61 @@ public class IptDeclarationPage {
             return visiblePlaceholder;
         }
         return null;
+    }
+
+    protected Locator resolveSelectLikeFieldByLabelOrNull(String label, int occurrence) {
+        waitForFormControls();
+        String escapedLabel = toXpathLiteral(label);
+        String controlQuery = "self::select or @role='combobox' or @role='listbox' or @aria-haspopup='listbox'"
+                + " or @aria-haspopup='menu' or contains(@class, 'ng-select') or contains(@class, 'mat-mdc-select')"
+                + " or contains(@class, 'mat-select') or contains(@class, 'clr-select')"
+                + " or contains(@class, 'select') or contains(@class, 'dropdown')";
+        String labelQuery =
+                "//*[self::label or self::span or self::div or self::p]"
+                        + "[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")])]";
+
+        Locator matchingLabels = page.locator("xpath=" + labelQuery);
+        Locator associatedControl = resolveAssociatedControl(page.locator("body"), matchingLabels, occurrence, controlQuery);
+        if (associatedControl != null) {
+            return associatedControl;
+        }
+
+        Locator fromNearestContainer = page.locator(
+                "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
+                        + "//*[" + controlQuery + "])[1]");
+        Locator visibleFromNearestContainer = firstVisible(fromNearestContainer);
+        if (visibleFromNearestContainer != null) {
+            return visibleFromNearestContainer;
+        }
+
+        Locator fromLabel = page.locator(
+                "xpath=(" + labelQuery + ")[" + (occurrence + 1)
+                        + "]/following::*[" + controlQuery + "][1]");
+        Locator visibleFromLabel = firstVisible(fromLabel);
+        return visibleFromLabel == null ? null : preferNativeSelect(visibleFromLabel);
+    }
+
+    private Locator preferNativeSelect(Locator field) {
+        if (field == null) {
+            return null;
+        }
+        try {
+            String tagName = String.valueOf(field.evaluate("element => element.tagName || ''"));
+            if ("SELECT".equalsIgnoreCase(normalize(tagName))) {
+                return field;
+            }
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            Locator nestedSelect = firstVisible(field.locator("select"));
+            if (nestedSelect != null) {
+                return nestedSelect;
+            }
+        } catch (PlaywrightException ignored) {
+        }
+        return field;
     }
 
     protected Locator resolveFieldByLabelInSectionOrNull(String sectionTitle, String label, int occurrence) {
@@ -5707,6 +6018,18 @@ public class IptDeclarationPage {
 
     private void waitForFormControls() {
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        try {
+            page.waitForFunction("""
+                    () => {
+                        const isVisible = element => !!element
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        return Array.from(document.querySelectorAll(
+                            "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
+                            .some(element => isVisible(element) && !element.disabled);
+                    }
+                    """);
+        } catch (PlaywrightException ignored) {
+        }
         page.waitForTimeout(300);
     }
 

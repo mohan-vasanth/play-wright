@@ -761,27 +761,23 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return;
         }
 
+        IllegalStateException lastFailure = null;
         for (String label : labels) {
             Locator field = resolveFieldByLabelInSectionOrNull(sectionTitle, label, 0);
             if (field == null) {
                 continue;
             }
 
-            focusAndType(field, value, false);
-            if (waitForAnyRenderedFieldValue(field, 1500, value)) {
-                return;
-            }
-
             try {
-                field.fill(value);
-            } catch (PlaywrightException ignored) {
-            }
-            if (waitForAnyRenderedFieldValue(field, 1500, value)) {
+                fillVerifiedTextField(field, value, sectionTitle + " / " + label);
                 return;
+            } catch (IllegalStateException failure) {
+                lastFailure = failure;
             }
+        }
 
-            throw new IllegalStateException(label + " value was not rendered. Expected: "
-                    + value + ", Actual: " + readRenderedFieldValue(field));
+        if (lastFailure != null) {
+            throw lastFailure;
         }
     }
 

@@ -23,12 +23,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,15 +50,18 @@ public class LoadTestingDashboardService {
     private static final long LOGIN_RETRY_DELAY_MS = Long.getLong("tradenix.login.retry.delay.ms", 1500L);
     private static final String DEFAULT_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
     private static final String DEFAULT_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
-    private static final int LOGIN_PARALLELISM = Integer.getInteger("tradenix.login.parallelism", 12);
+    private static final String DEFAULT_BG_INDICATOR = System.getProperty("tradenix.default.bg.indicator", "D");
+    private static final int LOGIN_PARALLELISM = Integer.getInteger("tradenix.login.parallelism", 1);
     private static final int BROWSER_LAUNCH_PARALLELISM = Integer.getInteger("tradenix.browser.launch.parallelism", 8);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final DateTimeFormatter MESSAGE_REFERENCE_DATE = DateTimeFormatter.ofPattern("yyMMdd");
 
     private final JMeterExecutionService jMeterExecutionService;
     private final LoadTestingDeclarationCatalog declarationCatalog;
     private final DynamicJmxBuilder dynamicJmxBuilder = new DynamicJmxBuilder();
     private final Semaphore loginSemaphore = new Semaphore(LOGIN_PARALLELISM, true);
     private final Semaphore browserLaunchSemaphore = new Semaphore(BROWSER_LAUNCH_PARALLELISM, true);
+    private final Semaphore workerStartupSemaphore = new Semaphore(1, true);
 
     private final Deque<String> recentLogs = new ArrayDeque<>();
     private final List<ScreenshotEntry> screenshots = new ArrayList<>();
@@ -76,6 +85,7 @@ public class LoadTestingDashboardService {
     private volatile int totalJobsCreated;
     private volatile int totalJobsSubmitted;
     private volatile int draftJobCount;
+    private volatile int pendingVerificationCount;
     private volatile long totalWorkflowDurationMs;
     private volatile Path runScreenshotsDirectory;
     private volatile Path runReportsDirectory;
@@ -83,7 +93,6 @@ public class LoadTestingDashboardService {
     private volatile Thread coordinatorThread;
     private volatile ExecutorService workerPool;
     private volatile LoadTestingDeclarationCatalog.DeclarationDefinition currentDefinition;
-    private volatile List<JsonNode> currentDeclarationPayloads = List.of();
     private volatile WorkflowResult latestWorkflowResult;
 
     public LoadTestingDashboardService(
@@ -131,14 +140,13 @@ public class LoadTestingDashboardService {
 
         this.currentRequest = normalizedRequest;
         this.currentDefinition = definition;
-        this.currentDeclarationPayloads = List.copyOf(preparedPayloads);
         this.latestWorkflowResult = null;
         this.startedAt = Instant.now();
         this.finishedAt = null;
         this.running = true;
         this.stopRequested = false;
         this.status = "RUNNING";
-        this.message = "Starting declaration workflow workers and background JMeter execution.";
+        this.message = "Starting browser workflow workers. Optional JMeter HTTP load signal will run in parallel when available.";
         this.runningUsers = 0;
         this.openTabsCount = 0;
         this.totalTabsOpened = 0;
@@ -149,6 +157,7 @@ public class LoadTestingDashboardService {
         this.totalJobsCreated = 0;
         this.totalJobsSubmitted = 0;
         this.draftJobCount = 0;
+        this.pendingVerificationCount = 0;
         this.totalWorkflowDurationMs = 0L;
         this.recentLogs.clear();
         this.screenshots.clear();
@@ -160,6 +169,7 @@ public class LoadTestingDashboardService {
         appendLog("Browser execution is forced to headed mode so UI actions remain visible.");
 
         Path jmxPath = runReportsDirectory.resolve("dynamic-load-test.jmx");
+        boolean jmeterPlanReady = false;
         try {
             dynamicJmxBuilder.writePlan(
                     jmxPath,
@@ -167,10 +177,11 @@ public class LoadTestingDashboardService {
                     normalizedRequest.totalUsers(),
                     normalizedRequest.jmeterRampUpSeconds() > 0 ? normalizedRequest.jmeterRampUpSeconds() : defaultRampUp(normalizedRequest.totalUsers()),
                     normalizedRequest.jmeterLoopCount() > 0 ? normalizedRequest.jmeterLoopCount() : 1);
+            jmeterPlanReady = true;
             appendLog("Generated dynamic JMX plan: " + jmxPath.getFileName());
         } catch (IOException exception) {
-            resetToFailedState("Unable to generate JMX plan: " + exception.getMessage());
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, message);
+            appendLog("JMeter plan generation warning: " + exception.getMessage());
+            appendLog("Browser workflow execution will continue without the optional JMeter HTTP load signal.");
         }
 
         JMeterExecutionService.RunRequest jmeterRequest = new JMeterExecutionService.RunRequest(
@@ -183,20 +194,26 @@ public class LoadTestingDashboardService {
                 runId,
                 normalizedRequest.selectedJson());
 
-        try {
-            jMeterExecutionService.runGeneratedPlan(jmeterRequest, jmxPath);
-            appendLog("Started background JMeter execution for target: " + normalizedRequest.url());
-        } catch (ResponseStatusException exception) {
-            resetToFailedState("Unable to start JMeter: " + exception.getReason());
-            throw exception;
+        if (jmeterPlanReady) {
+            try {
+                jMeterExecutionService.runGeneratedPlan(jmeterRequest, jmxPath);
+                appendLog("Started optional background JMeter HTTP load execution for target: " + normalizedRequest.url());
+            } catch (ResponseStatusException exception) {
+                appendLog("JMeter startup warning: " + exception.getReason());
+                appendLog("Browser workflow execution will continue independently of JMeter.");
+            }
+        } else {
+            appendLog("Skipped optional JMeter execution because the JMX plan was not available.");
         }
 
         workerPool = Executors.newFixedThreadPool(Math.max(1, Math.min(normalizedRequest.browserTabs(), normalizedRequest.totalUsers())));
-        coordinatorThread = new Thread(() -> executeRun(normalizedRequest), "load-dashboard-coordinator");
+        coordinatorThread = new Thread(
+                () -> executeRun(normalizedRequest, definition, List.copyOf(preparedPayloads)),
+                "load-dashboard-coordinator");
         coordinatorThread.setDaemon(true);
         coordinatorThread.start();
 
-        return new StartResponse(true, runId, "Load testing dashboard run started.");
+        return new StartResponse(true, runId, "Browser workflow run started. Optional JMeter HTTP load signal starts only when available.");
     }
 
     public synchronized StopResponse stop() {
@@ -217,7 +234,7 @@ public class LoadTestingDashboardService {
         } catch (Exception ignored) {
         }
 
-        return new StopResponse(true, "Stop signal sent to Playwright workers and JMeter.");
+        return new StopResponse(true, "Stop signal sent to browser workflow workers and optional JMeter execution.");
     }
 
     public synchronized StatusResponse status() {
@@ -246,6 +263,7 @@ public class LoadTestingDashboardService {
                 totalJobsCreated,
                 totalJobsSubmitted,
                 draftJobCount,
+                pendingVerificationCount,
                 round(averageResponseTime),
                 round(throughput),
                 round(throughput),
@@ -261,42 +279,80 @@ public class LoadTestingDashboardService {
                         .sorted(Comparator.comparing(ScreenshotEntry::capturedAt).reversed())
                         .limit(MAX_SCREENSHOTS)
                         .toList(),
-                List.copyOf(userJobResults),
+                userJobResults.stream()
+                        .sorted(Comparator.comparingInt(UserJobResult::executionOrder))
+                        .toList(),
                 jmeterStatus,
                 htmlReportLink);
     }
 
-    private void executeRun(RunRequest request) {
-        List<Future<?>> futures = new ArrayList<>();
+    private void executeRun(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            List<JsonNode> preparedPayloads) {
+        SharedBrowserSession sharedBrowserSession = null;
+        boolean coordinatorFailed = false;
+        String coordinatorFailureMessage = null;
         try {
-            for (int userIndex = 1; userIndex <= request.totalUsers(); userIndex++) {
-                final int currentUserIndex = userIndex;
-                futures.add(workerPool.submit(() -> executeSingleUser(request, currentUserIndex)));
-            }
+            sharedBrowserSession = createSharedBrowserSession(request);
+            SharedBrowserSession workerBrowserSession = sharedBrowserSession;
+            appendLog("Launched a single shared browser window for this run.");
+            primeAuthenticatedSession(workerBrowserSession, request);
+            int workerCount = Math.max(1, Math.min(request.browserTabs(), request.totalUsers()));
+            appendLog("Shared session authenticated. Launching " + workerCount
+                    + " worker tab(s) to process " + request.totalUsers() + " queued job(s).");
 
-            for (Future<?> future : futures) {
+            BlockingQueue<JobWorkItem> jobQueue = new ArrayBlockingQueue<>(request.totalUsers());
+            for (int userIndex = 1; userIndex <= request.totalUsers(); userIndex++) {
                 if (stopRequested) {
                     break;
                 }
+                jobQueue.offer(prepareJobWorkItem(userIndex, preparedPayloads));
+            }
+
+            List<Future<?>> workerFutures = new ArrayList<>();
+            for (int workerIndex = 1; workerIndex <= workerCount; workerIndex++) {
+                final int workerTabNumber = workerIndex;
+                workerFutures.add(workerPool.submit(() ->
+                        executeWorkerTab(request, definition, workerTabNumber, workerBrowserSession, jobQueue)));
+            }
+
+            for (Future<?> future : workerFutures) {
                 try {
                     future.get();
-                } catch (Exception exception) {
-                    appendLog("Worker coordination error: " + rootMessage(exception));
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                } catch (Exception ignored) {
+                    // individual user failures are already logged inside executeSingleUser
                 }
             }
+        } catch (Exception exception) {
+            coordinatorFailed = true;
+            coordinatorFailureMessage = rootMessage(exception);
+            appendLog("Shared browser setup failed: " + coordinatorFailureMessage);
         } finally {
             if (workerPool != null) {
                 workerPool.shutdownNow();
             }
+            closeQuietly(sharedBrowserSession);
             synchronized (this) {
+                openTabsCount = 0;
                 running = false;
                 finishedAt = Instant.now();
+                int unresolvedCount = Math.max(0, completedUsers - successCount - failureCount);
                 if (stopRequested) {
                     status = "STOPPED";
                     message = "Execution stopped before all users completed.";
+                } else if (coordinatorFailed) {
+                    status = "FAILED";
+                    message = "Execution failed before tabs completed: " + coordinatorFailureMessage;
                 } else if (failureCount > 0) {
                     status = "COMPLETED";
                     message = "Declaration workflow completed with " + failureCount + " failed users.";
+                } else if (unresolvedCount > 0) {
+                    status = "COMPLETED";
+                    message = "Declaration workflow completed with " + unresolvedCount + " jobs pending verification.";
                 } else {
                     status = "COMPLETED";
                     message = "Declaration workflow completed successfully.";
@@ -307,62 +363,117 @@ public class LoadTestingDashboardService {
         }
     }
 
-    private void executeSingleUser(RunRequest request, int userIndex) {
-        long startedAtMillis = System.currentTimeMillis();
+    private void executeWorkerTab(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            int tabNumber,
+            SharedBrowserSession sharedBrowserSession,
+            BlockingQueue<JobWorkItem> jobQueue) {
         WorkerSession session = null;
-        BrowserContext context = null;
-        Page page = null;
-        WorkflowResult result = null;
         boolean tabOpened = false;
-
-        markUserStarted(userIndex);
         try {
-            session = createWorkerSession(request);
-            context = session.context();
-            page = session.page();
-            configurePage(page);
-            tabOpened = true;
-            markTabOpened(userIndex);
-            result = executeWorkflow(request, userIndex, page);
-            if (result.success()) {
-                appendUserLog(userIndex, "Job Created Successfully"
-                        + " | Status=" + firstNonBlank(result.jobStatus(), "N/A")
-                        + " | Job ID=" + firstNonBlank(result.jobId(), "N/A")
-                        + " | Message Ref=" + firstNonBlank(result.messageReference(), "N/A")
-                        + " | Permit=" + firstNonBlank(result.permitNumber(), "N/A"));
-            } else {
-                appendUserLog(userIndex, "Workflow Failed - " + firstNonBlank(result.errorMessage(), result.responseMessage(), result.summary(), "Unknown error"));
+            acquirePermit(workerStartupSemaphore, "worker startup");
+            try {
+                session = createWorkerSession(sharedBrowserSession);
+                Page page = session.page();
+                configurePage(page);
+                openWorkerPage(new LoginPage(page), request, 0);
+                tabOpened = true;
+                markWorkerTabOpened(tabNumber);
+            } finally {
+                workerStartupSemaphore.release();
             }
-            captureScreenshot(page, userIndex, result.success() ? "success" : "failure", result.summary());
-        } catch (Exception exception) {
-            String errorMessage = rootMessage(exception);
-            appendUserLog(userIndex, "Failure - " + errorMessage);
-            result = new WorkflowResult(
-                    false,
-                    null,
-                    "FAILED",
-                    null,
-                    null,
-                    currentDefinition != null ? currentDefinition.moduleLabel() : request.declarationType(),
-                    request.selectedJson(),
-                    null,
-                    errorMessage,
-                    errorMessage,
-                    false,
-                    false,
-                    false);
-            if (page != null) {
-                captureScreenshot(page, userIndex, "failure", errorMessage);
+
+            while (!stopRequested) {
+                JobWorkItem job = jobQueue.poll();
+                if (job == null) {
+                    break;
+                }
+                executeSingleQueuedJob(request, definition, job, tabNumber, session.page());
             }
         } finally {
             closeQuietly(session);
-            markUserFinished(userIndex, result, System.currentTimeMillis() - startedAtMillis, tabOpened);
+            if (tabOpened) {
+                markWorkerTabClosed(tabNumber);
+            }
         }
     }
 
-    private WorkflowResult executeWorkflow(RunRequest request, int userIndex, Page page) {
-        LoadTestingDeclarationCatalog.DeclarationDefinition definition = declarationCatalog.resolveDefinition(request.declarationType());
-        JsonNode payload = resolvePayloadForUser(userIndex);
+    private void executeSingleQueuedJob(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            JobWorkItem job,
+            int tabNumber,
+            Page page) {
+        long startedAtMillis = System.currentTimeMillis();
+        Instant startedAtInstant = Instant.now();
+        WorkflowResult result = null;
+        ScreenshotEntry screenshotEntry = null;
+        int userIndex = job.userIndex();
+
+        markUserStarted(userIndex);
+        try {
+            result = executeWorkflow(request, definition, job, tabNumber, page, true);
+            if (result.submissionVerified()) {
+                appendUserLog(userIndex, "Job Submitted Successfully"
+                        + " | Creation Status=" + firstNonBlank(result.creationStatus(), "N/A")
+                        + " | Submission Status=" + firstNonBlank(result.submissionStatus(), "N/A")
+                        + " | Job ID=" + firstNonBlank(result.jobId(), "N/A")
+                        + " | Message Ref=" + firstNonBlank(result.messageReference(), "N/A")
+                        + " | Permit=" + firstNonBlank(result.permitNumber(), "N/A"));
+            } else if (result.creationVerified()) {
+                appendUserLog(userIndex, "Job Created But Submission Not Verified"
+                        + " | Creation Status=" + firstNonBlank(result.creationStatus(), "N/A")
+                        + " | Submission Status=" + firstNonBlank(result.submissionStatus(), "N/A")
+                        + " | Job ID=" + firstNonBlank(result.jobId(), "N/A")
+                        + " | Error=" + firstNonBlank(result.errorMessage(), "N/A"));
+            } else {
+                appendUserLog(userIndex, "Workflow Failed - " + firstNonBlank(result.errorMessage(), result.responseMessage(), result.summary(), "Unknown error"));
+            }
+            screenshotEntry = resolveCompletionScreenshot(page, userIndex, result);
+        } catch (Exception exception) {
+            String errorMessage = rootMessage(exception);
+            appendUserLog(userIndex, "Failure - " + errorMessage);
+            result = buildWorkflowFailureResult(
+                    request,
+                    definition,
+                    null,
+                    null,
+                    job.recordNumber(),
+                    userIndex,
+                    tabNumber,
+                    0,
+                    0,
+                    false,
+                    errorMessage,
+                    List.of());
+            if (page != null) {
+                screenshotEntry = resolveCompletionScreenshot(page, userIndex, result);
+            }
+        } finally {
+            long finishedAtMillis = System.currentTimeMillis();
+            userJobResults.add(buildUserJobResult(
+                    userIndex,
+                    tabNumber,
+                    result,
+                    screenshotEntry,
+                    startedAtInstant,
+                    Instant.ofEpochMilli(finishedAtMillis),
+                    finishedAtMillis - startedAtMillis));
+            markUserFinished(userIndex, result, finishedAtMillis - startedAtMillis, false);
+        }
+    }
+
+    private WorkflowResult executeWorkflow(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            JobWorkItem job,
+            int tabNumber,
+            Page page,
+            boolean sessionReady) {
+        int userIndex = job.userIndex();
+        JsonNode payload = job.payload();
+        int jsonRecordNumber = job.recordNumber();
         List<String> payloadIssues = validatePreparedPayload(definition, payload);
         if (!payloadIssues.isEmpty()) {
             throw new IllegalStateException("Missing Field: " + String.join(", ", payloadIssues));
@@ -370,55 +481,304 @@ public class LoadTestingDashboardService {
         LoginPage loginPage = new LoginPage(page);
         DeclarationsPage declarationsPage = new DeclarationsPage(page);
         IptDeclarationPage declarationPage = createDeclarationPage(definition, page);
+        String initialJobId = null;
+        String messageReference = payload.path("header").path("messageReference").asText(null);
+        int filledFieldCount = 0;
+        boolean submissionAttempted = false;
+        EvidenceArtifacts evidenceArtifacts = null;
 
-        appendUserLog(userIndex, "JSON Loaded");
-        appendUserLog(userIndex, "Opening Login Page");
-        performLogin(loginPage, request, userIndex);
-        appendUserLog(userIndex, "Login Success");
+        try {
+            appendUserLog(userIndex, "Tab Number - " + tabNumber);
+            appendUserLog(userIndex, "Job Number - " + userIndex);
+            appendUserLog(userIndex, "JSON File - " + request.selectedJson());
+            appendUserLog(userIndex, "JSON Record Number - " + jsonRecordNumber);
+            appendUserLog(userIndex, "JSON Loaded");
+            if (!sessionReady) {
+                openWorkerPage(loginPage, request, userIndex);
+            }
+            appendUserLog(userIndex, "Login Session Ready");
 
-        openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
-        appendUserLog(userIndex, "Selected Declaration Type - " + definition.moduleLabel());
-        appendUserLog(userIndex, "Selected JSON File - " + request.selectedJson());
+            openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
+            appendUserLog(userIndex, "Selected Declaration Type - " + definition.moduleLabel());
+            appendUserLog(userIndex, "Selected JSON File - " + request.selectedJson());
 
-        declarationsPage.createNewDeclarationDraft(
-                definition.route(),
-                definition.expectedVisibleTexts().toArray(String[]::new));
-        String initialJobId = declarationsPage.readCurrentJobIdFromUrl();
-        appendUserLog(userIndex, "Declaration Created (Job ID: " + firstNonBlank(initialJobId, "pending") + ")");
+            declarationsPage.createNewDeclarationDraft(
+                    definition.route(),
+                    definition.expectedVisibleTexts().toArray(String[]::new));
+            initialJobId = declarationsPage.readCurrentJobIdFromUrl();
+            if (initialJobId != null && !initialJobId.isBlank()) {
+                appendUserLog(userIndex, "Declaration Created (Job ID: " + initialJobId + ")");
+            } else {
+                appendUserLog(userIndex, "Declaration Draft Opened - Job ID not generated yet");
+            }
 
-        String messageReference = firstNonBlank(
-                declarationPage.readCurrentMessageReference(),
-                payload.path("header").path("messageReference").asText(null));
+            messageReference = waitForCurrentMessageReference(declarationPage, payload);
 
-        declarationPage.populateDraftFrom(payload);
-        appendUserLog(userIndex, "Form Filled");
-        declarationPage.submitDeclaration();
-        appendUserLog(userIndex, "Submitted");
+            appendUserLog(userIndex, "Starting Form Population");
+            declarationPage.populateDraftFrom(payload);
+            filledFieldCount = declarationPage.validatedFieldEntryCount();
+            appendUserLog(userIndex, "Form Filled - " + filledFieldCount + " fields validated");
 
-        String diagnostics = safeDiagnostics(declarationPage);
-        List<String> invalidFields = extractInvalidFieldLabels(diagnostics);
-        DeclarationsPage.DeclarationListEntry submittedEntry =
-                safeReadSubmittedDeclarationEntry(declarationsPage, messageReference);
-        WorkflowResult result = finalizeSubmittedDeclaration(
-                page,
+            // Pre-submission validation: check for invalid fields before submitting
+            String preDiagnostics = safeDiagnostics(declarationPage);
+            List<ValidationIssue> preValidationIssues = extractValidationIssues(preDiagnostics);
+            if (!preValidationIssues.isEmpty()) {
+                appendUserLog(userIndex, "Pre-Submit Check: " + preValidationIssues.size() + " invalid field(s) detected - retrying form fill");
+                for (ValidationIssue issue : preValidationIssues) {
+                    appendUserLog(userIndex, "Invalid Before Submit: " + formatValidationIssue(issue));
+                }
+                declarationPage.populateDraftFrom(payload);
+                filledFieldCount = declarationPage.validatedFieldEntryCount();
+                preDiagnostics = safeDiagnostics(declarationPage);
+                preValidationIssues = extractValidationIssues(preDiagnostics);
+                if (preValidationIssues.isEmpty()) {
+                    appendUserLog(userIndex, "Retry Succeeded - all fields valid before submit");
+                } else {
+                    String validationSummary = summarizeValidationIssues(preValidationIssues, 5);
+                    appendUserLog(userIndex, "Retry Incomplete - " + preValidationIssues.size() + " field(s) still invalid: "
+                            + validationSummary);
+                    return buildWorkflowFailureResult(
+                            request,
+                            definition,
+                            initialJobId,
+                            messageReference,
+                            jsonRecordNumber,
+                            userIndex,
+                            tabNumber,
+                            filledFieldCount,
+                            preValidationIssues.size(),
+                            false,
+                            "Pre-submit validation failed: " + validationSummary,
+                            preValidationIssues,
+                            captureFailureEvidence(
+                                    page,
+                                    userIndex,
+                                    buildWorkflowFailureResult(
+                                            request,
+                                            definition,
+                                            initialJobId,
+                                            messageReference,
+                                            jsonRecordNumber,
+                                            userIndex,
+                                            tabNumber,
+                                            filledFieldCount,
+                                            preValidationIssues.size(),
+                                            false,
+                                            "Pre-submit validation failed: " + validationSummary,
+                                            preValidationIssues),
+                                    preDiagnostics,
+                                    preValidationIssues));
+                }
+            } else {
+                appendUserLog(userIndex, "Pre-Submit Check: all fields valid");
+            }
+
+            declarationPage.submitDeclaration();
+            submissionAttempted = true;
+            appendUserLog(userIndex, "Submission Attempted");
+
+            String diagnostics = safeDiagnostics(declarationPage);
+            List<ValidationIssue> validationIssues = extractValidationIssues(diagnostics);
+            List<String> invalidFields = validationIssues.stream()
+                    .map(this::validationIssueLabel)
+                    .distinct()
+                    .toList();
+            int missingFieldCount = validationIssues.size();
+            String immediateFailureMessage = firstNonBlank(
+                    extractErrorMessage(diagnostics),
+                    !validationIssues.isEmpty() ? "Validation Error - " + summarizeValidationIssues(validationIssues, 5) : null);
+            if (immediateFailureMessage != null) {
+                evidenceArtifacts = captureFailureEvidence(
+                        page,
+                        userIndex,
+                        buildWorkflowFailureResult(
+                                request,
+                                definition,
+                                initialJobId,
+                                messageReference,
+                                jsonRecordNumber,
+                                userIndex,
+                                tabNumber,
+                                filledFieldCount,
+                                missingFieldCount,
+                                true,
+                                immediateFailureMessage,
+                                validationIssues),
+                        diagnostics,
+                        validationIssues);
+            }
+            DeclarationsPage.DeclarationListEntry submittedEntry =
+                    safeReadSubmittedDeclarationEntry(declarationsPage, messageReference, initialJobId);
+            WorkflowResult result = finalizeSubmittedDeclaration(
+                    page,
+                    request,
+                    loginPage,
+                    declarationsPage,
+                    definition,
+                    payload,
+                    initialJobId,
+                    messageReference,
+                    submittedEntry,
+                    diagnostics,
+                    validationIssues,
+                    evidenceArtifacts,
+                    jsonRecordNumber,
+                    userIndex,
+                    tabNumber,
+                    filledFieldCount,
+                    missingFieldCount);
+            appendUserLog(userIndex, "Filled Fields Count - " + filledFieldCount);
+            appendUserLog(userIndex, "Missing Fields Count - " + missingFieldCount);
+            appendUserLog(userIndex, "Creation Status - " + firstNonBlank(result.creationStatus(), "FAILED"));
+            appendUserLog(userIndex, "Submission Status - " + firstNonBlank(result.submissionStatus(), "FAILED"));
+            for (String invalidField : invalidFields) {
+                appendUserLog(userIndex, "Missing Field: " + invalidField);
+            }
+            if (!invalidFields.isEmpty()) {
+                appendUserLog(userIndex, "Validation Diagnostics - " + truncate(diagnostics, 1200));
+            }
+            if (result.submissionVerified()) {
+                appendUserLog(userIndex, "Verified Status - " + firstNonBlank(result.jobStatus(), "SUB"));
+            } else if (result.creationVerified()) {
+                appendUserLog(userIndex, "Verified Job ID - " + firstNonBlank(result.jobId(), initialJobId, "N/A"));
+            } else if (result.errorMessage() != null && !result.errorMessage().isBlank()) {
+                appendUserLog(userIndex, "Error Details - " + truncate(result.errorMessage(), 220));
+            }
+            return result;
+        } catch (Exception exception) {
+            String diagnostics = safeDiagnostics(declarationPage);
+            List<ValidationIssue> validationIssues = extractValidationIssues(diagnostics);
+            WorkflowResult failureResult = buildWorkflowFailureResult(
+                    request,
+                    definition,
+                    initialJobId,
+                    messageReference,
+                    jsonRecordNumber,
+                    userIndex,
+                    tabNumber,
+                    filledFieldCount,
+                    validationIssues.size(),
+                    submissionAttempted,
+                    rootMessage(exception),
+                    validationIssues);
+            EvidenceArtifacts capturedEvidence = captureFailureEvidence(
+                    page,
+                    userIndex,
+                    failureResult,
+                    diagnostics,
+                    validationIssues);
+            return buildWorkflowFailureResult(
+                    request,
+                    definition,
+                    initialJobId,
+                    messageReference,
+                    jsonRecordNumber,
+                    userIndex,
+                    tabNumber,
+                    filledFieldCount,
+                    validationIssues.size(),
+                    submissionAttempted,
+                    rootMessage(exception),
+                    validationIssues,
+                    capturedEvidence);
+        }
+    }
+
+    private WorkflowResult buildWorkflowFailureResult(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            String jobId,
+            String messageReference,
+            int jsonRecordNumber,
+            int userIndex,
+            int tabNumber,
+            int filledFieldCount,
+            int missingFieldCount,
+            boolean submissionAttempted,
+            String errorMessage,
+            List<ValidationIssue> validationIssues) {
+        return buildWorkflowFailureResult(
                 request,
-                loginPage,
-                declarationsPage,
                 definition,
-                payload,
+                jobId,
                 messageReference,
-                submittedEntry,
-                diagnostics);
-        for (String invalidField : invalidFields) {
-            appendUserLog(userIndex, "Missing Field: " + invalidField);
-        }
-        if (result.success()) {
-            appendUserLog(userIndex, "Job Creation Status - " + firstNonBlank(result.jobStatus(), "SUB"));
-        } else if (result.errorMessage() != null && !result.errorMessage().isBlank()) {
-            appendUserLog(userIndex, "Error Details - " + truncate(result.errorMessage(), 220));
-        }
-        userJobResults.add(buildUserJobResult(userIndex, result));
-        return result;
+                jsonRecordNumber,
+                userIndex,
+                tabNumber,
+                filledFieldCount,
+                missingFieldCount,
+                submissionAttempted,
+                errorMessage,
+                validationIssues,
+                null);
+    }
+
+    private WorkflowResult buildWorkflowFailureResult(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            String jobId,
+            String messageReference,
+            int jsonRecordNumber,
+            int userIndex,
+            int tabNumber,
+            int filledFieldCount,
+            int missingFieldCount,
+            boolean submissionAttempted,
+            String errorMessage,
+            List<ValidationIssue> validationIssues,
+            EvidenceArtifacts evidenceArtifacts) {
+        boolean creationVerified = jobId != null && !jobId.isBlank();
+        boolean draftStatus = false;
+        boolean failureOccurred = true;
+        String creationStatus = resolveCreationStatus(creationVerified);
+        String submissionStatus = resolveSubmissionStatus(false, failureOccurred, submissionAttempted, draftStatus);
+        String reportStatus = resolveReportStatus(false, failureOccurred, creationVerified, submissionAttempted);
+        String validationSummary = summarizeValidationIssues(validationIssues, 5);
+        String resolvedErrorMessage = firstNonBlank(
+                errorMessage,
+                !validationIssues.isEmpty() ? "Validation Error - " + validationSummary : null);
+        String summary = buildSummary(
+                definition.moduleLabel(),
+                request.selectedJson(),
+                jobId,
+                tabNumber,
+                userIndex,
+                messageReference,
+                creationVerified ? "DRF" : "FAILED",
+                creationStatus,
+                submissionStatus,
+                null,
+                null,
+                resolvedErrorMessage);
+        return new WorkflowResult(
+                false,
+                jobId,
+                creationVerified ? "DRF" : "FAILED",
+                messageReference,
+                null,
+                null,
+                null,
+                null,
+                null,
+                definition.moduleLabel(),
+                request.selectedJson(),
+                null,
+                resolvedErrorMessage,
+                summary,
+                creationVerified,
+                submissionAttempted,
+                jsonRecordNumber,
+                tabNumber,
+                filledFieldCount,
+                missingFieldCount,
+                draftStatus,
+                failureOccurred,
+                creationStatus,
+                submissionStatus,
+                reportStatus,
+                validationSummary,
+                evidenceArtifacts != null && evidenceArtifacts.screenshotEntry() != null ? evidenceArtifacts.screenshotEntry().imageUrl() : null,
+                evidenceArtifacts != null ? evidenceArtifacts.diagnosticsArtifactUrl() : null);
     }
 
     private WorkflowResult finalizeSubmittedDeclaration(
@@ -428,9 +788,17 @@ public class LoadTestingDashboardService {
             DeclarationsPage declarationsPage,
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
             JsonNode payload,
+            String initialJobId,
             String messageReference,
             DeclarationsPage.DeclarationListEntry submittedEntry,
-            String diagnostics) {
+            String diagnostics,
+            List<ValidationIssue> validationIssues,
+            EvidenceArtifacts evidenceArtifacts,
+            int jsonRecordNumber,
+            int userIndex,
+            int tabNumber,
+            int filledFieldCount,
+            int missingFieldCount) {
         DeclarationsPage.DeclarationListEntry trackedEntry = submittedEntry;
         try {
             openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
@@ -440,7 +808,7 @@ public class LoadTestingDashboardService {
                         firstNonBlank(
                                 trackedEntry != null ? trackedEntry.declarationNumber() : null,
                                 messageReference),
-                        trackedEntry != null ? trackedEntry.jobId() : null,
+                        firstNonBlank(trackedEntry != null ? trackedEntry.jobId() : null, initialJobId),
                         Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
             }
         } catch (Exception exception) {
@@ -465,51 +833,134 @@ public class LoadTestingDashboardService {
 
         String jobStatus = firstNonBlank(
                 trackedEntry != null ? trackedEntry.jobStatus() : null,
+                responseDetails != null ? responseDetails.status() : null,
                 inferStatusFromDiagnostics(diagnostics, responseDetails));
-        String jobId = trackedEntry != null ? trackedEntry.jobId() : null;
+        String jobId = firstNonBlank(trackedEntry != null ? trackedEntry.jobId() : null, initialJobId);
         String resolvedMessageReference = firstNonBlank(
                 trackedEntry != null ? trackedEntry.declarationNumber() : null,
                 messageReference,
                 payload.path("header").path("messageReference").asText(null));
+        String createdBy = trackedEntry != null ? trackedEntry.jobCreatedBy() : null;
         String permitNumber = firstNonBlank(
                 trackedEntry != null ? trackedEntry.permitNumber() : null,
                 responseDetails != null ? responseDetails.permitNumber() : null);
+        String urn = responseDetails != null ? responseDetails.urn() : null;
+        String dateCreated = responseDetails != null ? responseDetails.dateCreated() : null;
+        String submissionDate = responseDetails != null ? responseDetails.submissionDate() : null;
         String responseMessage = firstNonBlank(
                 responseDetails != null ? responseDetails.responseMessage() : null,
                 responseDetails != null ? responseDetails.detailText() : null,
                 responseDetails != null ? responseDetails.bannerText() : null,
                 extractResponseMessage(diagnostics));
-        List<String> invalidFields = extractInvalidFieldLabels(diagnostics);
         String errorMessage = firstNonBlank(
                 responseDetails != null ? responseDetails.errorMessage() : null,
                 extractErrorMessage(diagnostics),
-                !invalidFields.isEmpty() ? "Validation Error - Missing fields: " + String.join(", ", invalidFields) : null);
-        boolean success = isSuccessfulJobStatus(jobStatus) || (errorMessage == null && responseMessage != null);
+                !validationIssues.isEmpty() ? "Validation Error - " + summarizeValidationIssues(validationIssues, 5) : null);
+        boolean creationVerified = jobId != null && !jobId.isBlank();
+        boolean submissionVerified = creationVerified
+                && isSuccessfulJobStatus(jobStatus)
+                && firstNonBlank(errorMessage) == null
+                && validationIssues.isEmpty();
+        boolean draftStatus = isDraftJobStatus(jobStatus);
+        boolean failureOccurred = hasActualFailure(jobStatus, errorMessage, creationVerified, submissionVerified, draftStatus, validationIssues);
+        String creationStatus = resolveCreationStatus(creationVerified);
+        String submissionStatus = resolveSubmissionStatus(submissionVerified, failureOccurred, true, draftStatus);
+        String reportStatus = resolveReportStatus(submissionVerified, failureOccurred, creationVerified, true);
+        String validationSummary = summarizeValidationIssues(validationIssues, 5);
         String summary = buildSummary(
                 definition.moduleLabel(),
                 request.selectedJson(),
                 jobId,
+                tabNumber,
+                userIndex,
                 resolvedMessageReference,
                 jobStatus,
+                creationStatus,
+                submissionStatus,
                 permitNumber,
                 responseMessage,
                 errorMessage);
 
+        if (!failureOccurred && !draftStatus) {
+            prepareEvidenceView(page, loginPage, declarationsPage, definition, request, resolvedMessageReference, jobId);
+        }
+
         return new WorkflowResult(
-                success,
+                submissionVerified,
                 jobId,
                 jobStatus,
                 resolvedMessageReference,
                 permitNumber,
+                urn,
+                createdBy,
+                dateCreated,
+                submissionDate,
                 definition.moduleLabel(),
                 request.selectedJson(),
                 responseMessage,
                 errorMessage,
                 summary,
+                creationVerified,
                 true,
-                true,
-                "DRF".equalsIgnoreCase(firstNonBlank(jobStatus))
-                        || "DRAFT".equalsIgnoreCase(firstNonBlank(jobStatus)));
+                jsonRecordNumber,
+                tabNumber,
+                filledFieldCount,
+                missingFieldCount,
+                draftStatus,
+                failureOccurred,
+                creationStatus,
+                submissionStatus,
+                reportStatus,
+                validationSummary,
+                evidenceArtifacts != null && evidenceArtifacts.screenshotEntry() != null ? evidenceArtifacts.screenshotEntry().imageUrl() : null,
+                evidenceArtifacts != null ? evidenceArtifacts.diagnosticsArtifactUrl() : null);
+    }
+
+    private void openWorkerPage(LoginPage loginPage, RunRequest request, int userIndex) {
+        appendUserLog(userIndex, "Opening Authenticated Worker Tab");
+        String workerLandingUrl = resolveWorkerLandingUrl(request.url());
+        loginPage.open(workerLandingUrl);
+        if (loginPage.isAuthenticated() || loginPage.waitForAuthenticatedState(10000)) {
+            return;
+        }
+
+        if (loginPage.waitForLoginFormVisible(3000)) {
+            appendUserLog(userIndex, "Shared session not authenticated; login required");
+            performLogin(loginPage, request, userIndex);
+            return;
+        }
+
+        loginPage.open(request.url());
+        if (loginPage.isAuthenticated() || loginPage.waitForAuthenticatedState(10000)) {
+            return;
+        }
+
+        if (loginPage.waitForLoginFormVisible(3000)) {
+            appendUserLog(userIndex, "Shared session requires re-authentication");
+            performLogin(loginPage, request, userIndex);
+            return;
+        }
+
+        if (loginPage.isAuthenticated()) {
+            return;
+        }
+
+        appendUserLog(userIndex, "Unable to verify authenticated state from shared session; retrying login");
+        performLogin(loginPage, request, userIndex);
+    }
+
+    private String resolveWorkerLandingUrl(String configuredUrl) {
+        if (configuredUrl == null || configuredUrl.isBlank()) {
+            return configuredUrl;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(configuredUrl);
+            int port = uri.getPort();
+            String origin = uri.getScheme() + "://" + uri.getHost() + (port > -1 ? ":" + port : "");
+            return origin + "/dashboard";
+        } catch (Exception ignored) {
+            return configuredUrl;
+        }
     }
 
     private void openDeclarationListWithRelogin(
@@ -529,13 +980,32 @@ public class LoadTestingDashboardService {
             try {
                 acquirePermit(loginSemaphore, "login");
                 try {
-                    loginPage.navigate(request.url());
-                    loginPage.loginAsUser(
-                            request.username(),
-                            request.password(),
-                            preferredForwarder(),
-                            preferredDepartment());
-                    loginPage.waitForAuthenticatedState();
+                    if (!loginPage.isAuthenticated()) {
+                        if (!loginPage.isLoginFormVisible()) {
+                            loginPage.open(request.url());
+                        }
+                        if (!loginPage.isAuthenticated()) {
+                            if (!loginPage.isLoginFormVisible()) {
+                                loginPage.waitForLoginFormVisible(5000);
+                            }
+                            if (!loginPage.isLoginFormVisible()) {
+                                loginPage.navigate(request.url());
+                            }
+                        }
+                    }
+                    if (!loginPage.isAuthenticated()) {
+                        if (!loginPage.isLoginFormVisible()) {
+                            loginPage.navigate(request.url());
+                        }
+                        loginPage.loginAsUser(
+                                request.username(),
+                                request.password(),
+                                preferredForwarder(),
+                                preferredDepartment());
+                        if (!loginPage.waitForAuthenticatedState(30000)) {
+                            throw new IllegalStateException("Login completed but authenticated dashboard was not detected.");
+                        }
+                    }
                 } finally {
                     loginSemaphore.release();
                 }
@@ -589,14 +1059,34 @@ public class LoadTestingDashboardService {
                 declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
                 fallbackMessageReference);
         if (trackedMessageReference == null) {
-            return null;
+            String trackedJobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
+            if (trackedJobId == null) {
+                return null;
+            }
+            try {
+                openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
+                declarationsPage.openDeclarationViewByJobId(trackedJobId);
+                return declarationsPage.readCurrentResponseDetails();
+            } catch (Exception ignored) {
+                return null;
+            }
         }
 
         try {
             openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
             return declarationsPage.readDeclarationResponseDetails(trackedMessageReference);
         } catch (Exception ignored) {
-            return null;
+            try {
+                String trackedJobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
+                if (trackedJobId == null) {
+                    return null;
+                }
+                openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
+                declarationsPage.openDeclarationViewByJobId(trackedJobId);
+                return declarationsPage.readCurrentResponseDetails();
+            } catch (Exception ignoredAgain) {
+                return null;
+            }
         }
     }
 
@@ -642,7 +1132,8 @@ public class LoadTestingDashboardService {
                 declarationsPage,
                 firstNonBlank(
                         currentEntry != null ? currentEntry.declarationNumber() : null,
-                        fallbackMessageReference));
+                        fallbackMessageReference),
+                currentEntry != null ? currentEntry.jobId() : null);
         if (hasTrackingDetails(refreshedByReference)) {
             return refreshedByReference;
         }
@@ -698,12 +1189,22 @@ public class LoadTestingDashboardService {
 
     private DeclarationsPage.DeclarationListEntry safeReadSubmittedDeclarationEntry(
             DeclarationsPage declarationsPage,
-            String messageReference) {
+            String messageReference,
+            String jobId) {
         try {
-            return declarationsPage.readDeclarationListEntry(messageReference);
+            DeclarationsPage.DeclarationListEntry byMessageReference = declarationsPage.readDeclarationListEntry(messageReference);
+            if (hasTrackingDetails(byMessageReference)) {
+                return byMessageReference;
+            }
         } catch (Exception ignored) {
-            return null;
         }
+        try {
+            if (jobId != null && !jobId.isBlank()) {
+                return declarationsPage.readDeclarationListEntryByJobId(jobId);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private IptDeclarationPage createDeclarationPage(
@@ -716,12 +1217,148 @@ public class LoadTestingDashboardService {
         };
     }
 
-    private JsonNode resolvePayloadForUser(int userIndex) {
-        if (currentDeclarationPayloads == null || currentDeclarationPayloads.isEmpty()) {
+    private JobWorkItem prepareJobWorkItem(int userIndex, List<JsonNode> preparedPayloads) {
+        if (preparedPayloads == null || preparedPayloads.isEmpty()) {
             throw new IllegalStateException("No declaration payloads are loaded for the current run.");
         }
-        int index = Math.floorMod(userIndex - 1, currentDeclarationPayloads.size());
-        return currentDeclarationPayloads.get(index);
+        int index = Math.floorMod(userIndex - 1, preparedPayloads.size());
+        JsonNode template = preparedPayloads.get(index);
+        JsonNode isolatedPayload = template.deepCopy();
+        if (isolatedPayload instanceof ObjectNode objectNode) {
+            isolatedPayload = personalizePayloadForUser(objectNode, userIndex);
+        }
+        return new JobWorkItem(userIndex, index + 1, isolatedPayload);
+    }
+
+    private JsonNode personalizePayloadForUser(ObjectNode payload, int userIndex) {
+        String messageReference = generateMessageReference(userIndex);
+        ObjectNode header = objectNode(payload, "header");
+        header.put("messageReference", messageReference);
+
+        ObjectNode uniqueReferenceNumber = objectNode(header, "uniqueReferenceNumber");
+        uniqueReferenceNumber.put("date", Instant.now().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyyMMdd")));
+        uniqueReferenceNumber.put("sequenceNumeric", String.format("%04d", ((userIndex - 1) % 9000) + 1000));
+
+        Map<String, String> personalizedInvoiceNumbers = new HashMap<>();
+        JsonNode invoicesNode = payload.path("invoice");
+        if (invoicesNode instanceof ArrayNode invoices) {
+            for (int index = 0; index < invoices.size(); index++) {
+                JsonNode invoiceNode = invoices.get(index);
+                if (invoiceNode instanceof ObjectNode invoice) {
+                    String originalInvoiceNumber = blankToNull(text(invoice, "invoiceNumber"));
+                    String personalizedInvoiceNumber = appendUserSuffix(
+                            firstNonBlank(originalInvoiceNumber, "INV"),
+                            userIndex,
+                            index + 1,
+                            20);
+                    invoice.put("invoiceNumber", personalizedInvoiceNumber);
+                    if (originalInvoiceNumber != null) {
+                        personalizedInvoiceNumbers.put(normalizeReferenceKey(originalInvoiceNumber), personalizedInvoiceNumber);
+                    }
+                    personalizedInvoiceNumbers.put(normalizeReferenceKey(personalizedInvoiceNumber), personalizedInvoiceNumber);
+                }
+            }
+        }
+
+        JsonNode supportingDocumentsNode = payload.path("supportingDocumentReference");
+        if (supportingDocumentsNode instanceof ArrayNode supportingDocuments) {
+            for (int index = 0; index < supportingDocuments.size(); index++) {
+                JsonNode documentNode = supportingDocuments.get(index);
+                if (documentNode instanceof ObjectNode document) {
+                    String documentId = firstNonBlank(text(document, "documentID"), "DOC");
+                    document.put("documentID", appendUserSuffix(documentId, userIndex, index + 1, 20));
+                }
+            }
+        }
+
+        JsonNode itemsNode = payload.path("item");
+        if (itemsNode instanceof ArrayNode items) {
+            for (int index = 0; index < items.size(); index++) {
+                JsonNode itemNode = items.get(index);
+                if (!(itemNode instanceof ObjectNode item)) {
+                    continue;
+                }
+                String itemInvoiceNumber = blankToNull(text(item, "itemInvoiceNumber"));
+                String personalizedInvoiceNumber = resolvePersonalizedInvoiceNumber(
+                        personalizedInvoiceNumbers,
+                        itemInvoiceNumber);
+                if (personalizedInvoiceNumber != null) {
+                    item.put("itemInvoiceNumber", personalizedInvoiceNumber);
+                }
+                JsonNode shippingMarksInformationNode = item.path("shippingMarksInformation");
+                if (shippingMarksInformationNode instanceof ArrayNode shippingMarksInformation) {
+                    for (int shippingIndex = 0; shippingIndex < shippingMarksInformation.size(); shippingIndex++) {
+                        JsonNode shippingInfoNode = shippingMarksInformation.get(shippingIndex);
+                        if (!(shippingInfoNode instanceof ObjectNode shippingInfo)) {
+                            continue;
+                        }
+                        JsonNode shippingMarksNode = shippingInfo.path("shippingMarks");
+                        if (shippingMarksNode instanceof ArrayNode shippingMarks && !shippingMarks.isEmpty()) {
+                            String firstShippingMark = blankToNull(shippingMarks.get(0).asText(null));
+                            if (firstShippingMark != null) {
+                                shippingMarks.set(0, shippingMarks.textNode(appendUserSuffix(firstShippingMark, userIndex, index + 1, 30)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return payload;
+    }
+
+    private String resolvePersonalizedInvoiceNumber(Map<String, String> personalizedInvoiceNumbers, String itemInvoiceNumber) {
+        if (personalizedInvoiceNumbers.isEmpty()) {
+            return null;
+        }
+        if (itemInvoiceNumber != null) {
+            String mappedInvoiceNumber = personalizedInvoiceNumbers.get(normalizeReferenceKey(itemInvoiceNumber));
+            if (mappedInvoiceNumber != null) {
+                return mappedInvoiceNumber;
+            }
+        }
+        if (personalizedInvoiceNumbers.size() == 1) {
+            return personalizedInvoiceNumbers.values().iterator().next();
+        }
+        return null;
+    }
+
+    private String normalizeReferenceKey(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "").trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String generateMessageReference(int userIndex) {
+        String datePart = Instant.now().atZone(ZoneId.systemDefault()).format(MESSAGE_REFERENCE_DATE);
+        int runSequence = Math.floorMod(runId != null ? runId.hashCode() : (int) System.currentTimeMillis(), 100);
+        int userSequence = ((userIndex - 1) % 100);
+        return "TDX" + datePart + String.format("%02d%02d", runSequence, userSequence);
+    }
+
+    private String appendUserSuffix(String value, int userIndex, int itemIndex, int maxLength) {
+        String base = value == null ? "" : value.replaceAll("\\s+", "");
+        String suffix = "U" + userIndex + "I" + itemIndex;
+        if (base.isEmpty()) {
+            base = "REF";
+        }
+        String combined = base + suffix;
+        return combined.length() > maxLength ? combined.substring(0, maxLength) : combined;
+    }
+
+    private String waitForCurrentMessageReference(IptDeclarationPage declarationPage, JsonNode payload) {
+        long deadline = System.currentTimeMillis() + 10000L;
+        while (System.currentTimeMillis() <= deadline) {
+            String currentMessageReference = declarationPage.readCurrentMessageReference();
+            if (currentMessageReference != null && !currentMessageReference.isBlank()) {
+                return currentMessageReference;
+            }
+            try {
+                Thread.sleep(250L);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return payload.path("header").path("messageReference").asText(null);
     }
 
     private JsonNode preparePayloadForWorkflow(
@@ -731,10 +1368,27 @@ public class LoadTestingDashboardService {
             return payload;
         }
         ObjectNode copy = payload.deepCopy();
+        applyDefaultHeaderValues(definition, copy);
         if (definition.workflowKind() == LoadTestingDeclarationCatalog.WorkflowKind.COO) {
             normalizeCooPayload(copy);
         }
         return copy;
+    }
+
+    private void applyDefaultHeaderValues(
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            ObjectNode payload) {
+        if (definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.IPT_STYLE
+                && definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.OUT) {
+            return;
+        }
+        if (DEFAULT_BG_INDICATOR == null || DEFAULT_BG_INDICATOR.isBlank()) {
+            return;
+        }
+        ObjectNode header = objectNode(payload, "header");
+        if (isBlank(text(header, "bankerGuaranteeCode"))) {
+            header.put("bankerGuaranteeCode", DEFAULT_BG_INDICATOR.trim());
+        }
     }
 
     private void normalizeCooPayload(ObjectNode payload) {
@@ -829,7 +1483,7 @@ public class LoadTestingDashboardService {
             JsonNode payload) {
         List<String> issues = new ArrayList<>();
         requireText(payload, issues, "header.messageReference");
-        requireText(payload, issues, "header.applicationType");
+        requireAnyText(payload, issues, "header.applicationType", "header.declarationType", "header.commonAccessReference", "type");
 
         if (definition.workflowKind() == LoadTestingDeclarationCatalog.WorkflowKind.COO) {
             requireAnyText(payload, issues, "party.exporterParty.partyDetail.partyIdentification.id", "party.exporterParty.partyIdentification.id");
@@ -1031,9 +1685,99 @@ public class LoadTestingDashboardService {
         return upper.equals("SUB")
                 || upper.equals("SNT")
                 || upper.equals("PMT")
+                || upper.equals("REG")
                 || upper.equals("SUBMITTED")
+                || upper.equals("REGISTERED")
                 || upper.equals("PERMIT ISSUED")
                 || upper.equals("PERMIT_ISSUED");
+    }
+
+    private boolean isDraftJobStatus(String jobStatus) {
+        String normalized = firstNonBlank(jobStatus);
+        if (normalized == null) {
+            return false;
+        }
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        return upper.equals("DRF") || upper.equals("DRAFT");
+    }
+
+    private boolean isFailedJobStatus(String jobStatus) {
+        String normalized = firstNonBlank(jobStatus);
+        if (normalized == null) {
+            return false;
+        }
+        String upper = normalized.toUpperCase(Locale.ROOT);
+        return upper.equals("FLD")
+                || upper.equals("FAILED")
+                || upper.equals("FAILURE")
+                || upper.equals("REJ")
+                || upper.equals("REJECTED");
+    }
+
+    private boolean hasActualFailure(
+            String jobStatus,
+            String errorMessage,
+            boolean creationVerified,
+            boolean submissionVerified,
+            boolean draftStatus,
+            List<ValidationIssue> validationIssues) {
+        if (submissionVerified) {
+            return false;
+        }
+        if (validationIssues != null && !validationIssues.isEmpty()) {
+            return true;
+        }
+        if (firstNonBlank(errorMessage) != null) {
+            return true;
+        }
+        if (isFailedJobStatus(jobStatus) || draftStatus) {
+            return true;
+        }
+        return !creationVerified;
+    }
+
+    private String resolveCreationStatus(boolean creationVerified) {
+        return creationVerified ? "CREATED" : "FAILED";
+    }
+
+    private String resolveSubmissionStatus(
+            boolean submissionVerified,
+            boolean failureOccurred,
+            boolean submissionAttempted,
+            boolean draftStatus) {
+        if (submissionVerified) {
+            return "SUBMITTED";
+        }
+        if (failureOccurred) {
+            return "FAILED";
+        }
+        if (submissionAttempted) {
+            return "PENDING";
+        }
+        if (draftStatus) {
+            return "DRAFT";
+        }
+        return "PENDING";
+    }
+
+    private String resolveReportStatus(
+            boolean submissionVerified,
+            boolean failureOccurred,
+            boolean creationVerified,
+            boolean submissionAttempted) {
+        if (submissionVerified) {
+            return "SUBMITTED";
+        }
+        if (failureOccurred) {
+            return "FAILED";
+        }
+        if (submissionAttempted) {
+            return "PENDING";
+        }
+        if (creationVerified) {
+            return "CREATED";
+        }
+        return "PENDING";
     }
 
     private String extractResponseMessage(String diagnostics) {
@@ -1044,7 +1788,7 @@ public class LoadTestingDashboardService {
         return extractDiagnosticsField(diagnostics, "errorMessage");
     }
 
-    private List<String> extractInvalidFieldLabels(String diagnostics) {
+    private List<ValidationIssue> extractValidationIssues(String diagnostics) {
         if (diagnostics == null || diagnostics.isBlank()) {
             return List.of();
         }
@@ -1055,35 +1799,115 @@ public class LoadTestingDashboardService {
                 return List.of();
             }
 
-            List<String> labels = new ArrayList<>();
+            List<ValidationIssue> issues = new ArrayList<>();
             for (JsonNode invalidElementNode : invalidElements) {
-                String rawElement = invalidElementNode.asText(null);
-                if (rawElement == null || rawElement.isBlank()) {
+                if (invalidElementNode == null || invalidElementNode.isNull() || invalidElementNode.isMissingNode()) {
                     continue;
                 }
 
-                String label = rawElement;
-                try {
-                    JsonNode element = OBJECT_MAPPER.readTree(rawElement);
-                    label = firstNonBlank(
-                            blankToNull(element.path("label").asText(null)),
-                            blankToNull(element.path("placeholder").asText(null)),
-                            blankToNull(element.path("formControlName").asText(null)),
-                            blankToNull(element.path("name").asText(null)),
-                            blankToNull(element.path("id").asText(null)),
-                            blankToNull(element.path("text").asText(null)));
-                } catch (Exception ignored) {
+                JsonNode element = invalidElementNode;
+                if (invalidElementNode.isTextual()) {
+                    String rawElement = invalidElementNode.asText(null);
+                    if (rawElement == null || rawElement.isBlank()) {
+                        continue;
+                    }
+                    try {
+                        element = OBJECT_MAPPER.readTree(rawElement);
+                    } catch (Exception ignored) {
+                        element = OBJECT_MAPPER.createObjectNode().put("text", rawElement);
+                    }
                 }
 
-                label = normalizeFieldLabel(label);
-                if (label != null && !labels.contains(label)) {
-                    labels.add(label);
+                ValidationIssue issue = new ValidationIssue(
+                        normalizeFieldLabel(firstNonBlank(blankToNull(element.path("section").asText(null)))),
+                        normalizeFieldLabel(firstNonBlank(
+                                blankToNull(element.path("label").asText(null)),
+                                blankToNull(element.path("placeholder").asText(null)),
+                                blankToNull(element.path("formControlName").asText(null)),
+                                blankToNull(element.path("name").asText(null)),
+                                blankToNull(element.path("id").asText(null)),
+                                blankToNull(element.path("text").asText(null)))),
+                        normalizeFieldLabel(blankToNull(element.path("id").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("formControlName").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("name").asText(null))),
+                        normalizeFieldLabel(firstNonBlank(
+                                blankToNull(element.path("currentValue").asText(null)),
+                                blankToNull(element.path("text").asText(null)))),
+                        normalizeFieldLabel(blankToNull(element.path("validationMessage").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("placeholder").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("type").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("role").asText(null))),
+                        normalizeFieldLabel(blankToNull(element.path("text").asText(null))));
+                if (!containsEquivalentValidationIssue(issues, issue)) {
+                    issues.add(issue);
                 }
             }
-            return List.copyOf(labels);
+            return List.copyOf(issues);
         } catch (Exception ignored) {
             return List.of();
         }
+    }
+
+    private boolean containsEquivalentValidationIssue(List<ValidationIssue> existing, ValidationIssue candidate) {
+        String candidateKey = normalizeValidationIssueKey(candidate);
+        for (ValidationIssue issue : existing) {
+            if (normalizeValidationIssueKey(issue).equals(candidateKey)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeValidationIssueKey(ValidationIssue issue) {
+        return String.join("|",
+                firstNonBlank(issue.section(), ""),
+                firstNonBlank(issue.label(), ""),
+                firstNonBlank(issue.domId(), ""),
+                firstNonBlank(issue.formControlName(), ""),
+                firstNonBlank(issue.name(), ""));
+    }
+
+    private List<String> extractInvalidFieldLabels(String diagnostics) {
+        return extractValidationIssues(diagnostics).stream()
+                .map(this::validationIssueLabel)
+                .distinct()
+                .toList();
+    }
+
+    private String validationIssueLabel(ValidationIssue issue) {
+        return firstNonBlank(
+                issue.label(),
+                issue.formControlName(),
+                issue.name(),
+                issue.domId(),
+                issue.rawText(),
+                "Unknown Field");
+    }
+
+    private String formatValidationIssue(ValidationIssue issue) {
+        return String.join(" | ",
+                "Section=" + firstNonBlank(issue.section(), "Unknown"),
+                "Field=" + firstNonBlank(issue.label(), issue.formControlName(), issue.name(), issue.domId(), "Unknown"),
+                "Control Id=" + firstNonBlank(issue.domId(), "N/A"),
+                "Form Control=" + firstNonBlank(issue.formControlName(), "N/A"),
+                "Name=" + firstNonBlank(issue.name(), "N/A"),
+                "Value=" + firstNonBlank(issue.attemptedValue(), "N/A"),
+                "Validation=" + firstNonBlank(issue.validationMessage(), issue.rawText(), "N/A"));
+    }
+
+    private String summarizeValidationIssues(List<ValidationIssue> issues, int limit) {
+        if (issues == null || issues.isEmpty()) {
+            return null;
+        }
+        List<String> fragments = new ArrayList<>();
+        int capped = Math.max(1, limit);
+        for (int index = 0; index < issues.size() && index < capped; index++) {
+            fragments.add(formatValidationIssue(issues.get(index)));
+        }
+        if (issues.size() > capped) {
+            fragments.add("+" + (issues.size() - capped) + " more");
+        }
+        return String.join(" ; ", fragments);
     }
 
     private String normalizeFieldLabel(String label) {
@@ -1135,17 +1959,25 @@ public class LoadTestingDashboardService {
             String declarationType,
             String selectedJson,
             String jobId,
+            int tabNumber,
+            int jobNumber,
             String messageReference,
             String jobStatus,
+            String creationStatus,
+            String submissionStatus,
             String permitNumber,
             String responseMessage,
             String errorMessage) {
         return String.join(" | ",
                 "Type: " + firstNonBlank(declarationType, "N/A"),
                 "JSON: " + firstNonBlank(selectedJson, "N/A"),
+                "Tab Number: " + (tabNumber > 0 ? tabNumber : 0),
+                "Job Number: " + (jobNumber > 0 ? jobNumber : 0),
                 "Job ID: " + firstNonBlank(jobId, "N/A"),
                 "Message Ref: " + firstNonBlank(messageReference, "N/A"),
                 "Status: " + firstNonBlank(jobStatus, "N/A"),
+                "Creation Status: " + firstNonBlank(creationStatus, "N/A"),
+                "Submission Status: " + firstNonBlank(submissionStatus, "N/A"),
                 "Permit: " + firstNonBlank(permitNumber, "N/A"),
                 "Response: " + firstNonBlank(responseMessage, "N/A"),
                 "Error: " + firstNonBlank(errorMessage, "N/A"));
@@ -1156,16 +1988,39 @@ public class LoadTestingDashboardService {
         page.setDefaultNavigationTimeout(Long.getLong("playwright.navigation.timeout.ms", 60000L));
     }
 
-    private WorkerSession createWorkerSession(RunRequest request) {
+    private SharedBrowserSession createSharedBrowserSession(RunRequest request) {
         acquirePermit(browserLaunchSemaphore, "browser launch");
+        Playwright playwright = null;
+        Browser browser = null;
+        BrowserContext context = null;
         try {
-            Playwright playwright = Playwright.create();
-            Browser browser = launchBrowser(playwright, request);
-            BrowserContext context = browser.newContext();
-            Page page = context.newPage();
-            return new WorkerSession(playwright, browser, context, page);
+            playwright = Playwright.create();
+            browser = launchBrowser(playwright, request);
+            context = browser.newContext();
+            return new SharedBrowserSession(playwright, browser, context);
+        } catch (Exception exception) {
+            closeQuietly(context);
+            closeQuietly(browser);
+            closeQuietly(playwright);
+            throw exception;
         } finally {
             browserLaunchSemaphore.release();
+        }
+    }
+
+    private WorkerSession createWorkerSession(SharedBrowserSession sharedBrowserSession) {
+        return new WorkerSession(sharedBrowserSession.context().newPage());
+    }
+
+    private void primeAuthenticatedSession(SharedBrowserSession sharedBrowserSession, RunRequest request) {
+        Page bootstrapPage = null;
+        try {
+            bootstrapPage = sharedBrowserSession.context().newPage();
+            configurePage(bootstrapPage);
+            appendLog("Priming the shared authenticated browser context before opening worker tabs.");
+            performLogin(new LoginPage(bootstrapPage), request, 0);
+        } finally {
+            closeQuietly(bootstrapPage);
         }
     }
 
@@ -1198,10 +2053,15 @@ public class LoadTestingDashboardService {
         appendUserLog(userIndex, "Starting Declaration Workflow");
     }
 
-    private synchronized void markTabOpened(int userIndex) {
+    private synchronized void markWorkerTabOpened(int tabNumber) {
         openTabsCount++;
         totalTabsOpened++;
-        appendUserLog(userIndex, "Browser Tab Opened");
+        appendLog("Worker tab opened - Tab " + tabNumber);
+    }
+
+    private synchronized void markWorkerTabClosed(int tabNumber) {
+        openTabsCount = Math.max(0, openTabsCount - 1);
+        appendLog("Worker tab closed - Tab " + tabNumber);
     }
 
     private synchronized void markUserFinished(int userIndex, WorkflowResult result, long durationMs, boolean tabOpened) {
@@ -1213,20 +2073,25 @@ public class LoadTestingDashboardService {
         executedUsers++;
         totalWorkflowDurationMs += Math.max(durationMs, 0L);
 
-        boolean success = result != null && result.success();
+        boolean success = result != null && result.submissionVerified();
         if (success) {
             successCount++;
         } else {
-            failureCount++;
+            if (result != null && result.failureOccurred()) {
+                failureCount++;
+            }
         }
-        if (result != null && result.declarationCreated()) {
+        if (result != null && result.creationVerified()) {
             totalJobsCreated++;
         }
-        if (result != null && result.submissionAttempted()) {
+        if (result != null && result.submissionVerified()) {
             totalJobsSubmitted++;
         }
         if (result != null && result.draftStatus()) {
             draftJobCount++;
+        }
+        if (result != null && !result.submissionVerified() && !result.failureOccurred()) {
+            pendingVerificationCount++;
         }
 
         if (result != null) {
@@ -1261,20 +2126,211 @@ public class LoadTestingDashboardService {
         }
     }
 
-    private void captureScreenshot(Page page, int userIndex, String outcome, String summary) {
+    private ScreenshotEntry resolveCompletionScreenshot(Page page, int userIndex, WorkflowResult result) {
+        if (result != null && result.evidenceScreenshotUrl() != null && !result.evidenceScreenshotUrl().isBlank()) {
+            return new ScreenshotEntry(
+                    userIndex,
+                    result.failureOccurred() ? "FAILURE" : "SUCCESS",
+                    result.evidenceScreenshotUrl(),
+                    truncate(result.summary(), 220),
+                    Instant.now().toString());
+        }
+        return captureScreenshot(page, userIndex, result != null && result.success() ? "success" : "failure", result);
+    }
+
+    private ScreenshotEntry captureScreenshot(Page page, int userIndex, String outcome, WorkflowResult result) {
         try {
-            String fileName = String.format("user-%03d-%s.png", userIndex, outcome);
+            renderScreenshotEvidenceBanner(page, userIndex, result);
+            String fileName = buildScreenshotFileName(userIndex, outcome, result);
             Path outputPath = runScreenshotsDirectory.resolve(fileName);
             page.screenshot(new Page.ScreenshotOptions().setFullPage(true).setPath(outputPath));
-            addScreenshot(new ScreenshotEntry(
+            ScreenshotEntry entry = new ScreenshotEntry(
                     userIndex,
                     outcome.toUpperCase(Locale.ROOT),
                     "/dashboard-screenshots/load-dashboard/" + runId + "/" + fileName,
-                    truncate(summary, 220),
-                    Instant.now().toString()));
+                    truncate(result != null ? result.summary() : null, 220),
+                    Instant.now().toString());
+            addScreenshot(entry);
+            return entry;
         } catch (Exception exception) {
             appendUserLog(userIndex, "Screenshot Capture Failed - " + rootMessage(exception));
+            return null;
         }
+    }
+
+    private EvidenceArtifacts captureFailureEvidence(
+            Page page,
+            int userIndex,
+            WorkflowResult result,
+            String diagnostics,
+            List<ValidationIssue> validationIssues) {
+        if (page == null || result == null) {
+            return null;
+        }
+        try {
+            String diagnosticsArtifactUrl = writeDiagnosticsArtifact(userIndex, result, diagnostics, validationIssues);
+            ScreenshotEntry screenshotEntry = captureScreenshot(page, userIndex, "failure-initial", result);
+            return new EvidenceArtifacts(screenshotEntry, diagnosticsArtifactUrl);
+        } catch (Exception exception) {
+            appendUserLog(userIndex, "Failure Evidence Capture Failed - " + rootMessage(exception));
+            return null;
+        }
+    }
+
+    private String writeDiagnosticsArtifact(
+            int userIndex,
+            WorkflowResult result,
+            String diagnostics,
+            List<ValidationIssue> validationIssues) {
+        if (runReportsDirectory == null) {
+            return null;
+        }
+        try {
+            Files.createDirectories(runReportsDirectory);
+            String fileName = buildDiagnosticsFileName(userIndex, result);
+            Path outputPath = runReportsDirectory.resolve(fileName);
+            Map<String, Object> payloadMap = new HashMap<>();
+            payloadMap.put("userIndex", userIndex);
+            payloadMap.put("capturedAt", Instant.now().toString());
+            payloadMap.put("summary", firstNonBlank(result.summary()));
+            payloadMap.put("jobId", firstNonBlank(result.jobId()));
+            payloadMap.put("messageReference", firstNonBlank(result.messageReference()));
+            payloadMap.put("creationStatus", firstNonBlank(result.creationStatus()));
+            payloadMap.put("submissionStatus", firstNonBlank(result.submissionStatus()));
+            payloadMap.put("reportStatus", firstNonBlank(result.reportStatus()));
+            payloadMap.put("applicationStatus", firstNonBlank(result.jobStatus()));
+            payloadMap.put("selectedJson", firstNonBlank(result.selectedJson()));
+            payloadMap.put("jsonRecordNumber", result.jsonRecordNumber());
+            payloadMap.put("validationSummary", firstNonBlank(result.validationSummary(), summarizeValidationIssues(validationIssues, 10)));
+            payloadMap.put("validationIssues", validationIssues == null ? List.of() : validationIssues);
+            payloadMap.put("rawDiagnostics", firstNonBlank(diagnostics, ""));
+            String payload = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(payloadMap);
+            Files.writeString(outputPath, payload, StandardCharsets.UTF_8);
+            return "/dashboard-reports/load-dashboard/" + runId + "/" + fileName;
+        } catch (Exception exception) {
+            appendUserLog(userIndex, "Diagnostics Artifact Failed - " + rootMessage(exception));
+            return null;
+        }
+    }
+
+    private String buildDiagnosticsFileName(int userIndex, WorkflowResult result) {
+        String base = firstNonBlank(result.jobId(), result.messageReference(), "user-" + String.format("%03d", userIndex));
+        return sanitizeFileComponent(base) + "-diagnostics.json";
+    }
+
+    private void renderScreenshotEvidenceBanner(Page page, int userIndex, WorkflowResult result) {
+        if (page == null || result == null) {
+            return;
+        }
+        try {
+            String reportStatus = firstNonBlank(result.reportStatus(), result.success() ? "SUCCESS" : "FAILED");
+            Map<String, Object> details = new HashMap<>();
+            details.put("userIndex", userIndex);
+            details.put("reportStatus", reportStatus);
+            details.put("applicationStatus", firstNonBlank(result.jobStatus()));
+            details.put("jobId", firstNonBlank(result.jobId()));
+            details.put("messageReference", firstNonBlank(result.messageReference()));
+            details.put("permitNumber", firstNonBlank(result.permitNumber()));
+            details.put("urn", firstNonBlank(result.urn()));
+            details.put("createdBy", firstNonBlank(result.createdBy(), currentRequest != null ? currentRequest.username() : null));
+            details.put("dateCreated", firstNonBlank(result.dateCreated()));
+            details.put("submissionDate", firstNonBlank(result.submissionDate()));
+            details.put("creationStatus", firstNonBlank(result.creationStatus()));
+            details.put("submissionStatus", firstNonBlank(result.submissionStatus()));
+            page.evaluate("""
+                    details => {
+                        const existing = document.getElementById('load-dashboard-evidence-banner');
+                        if (existing) {
+                            existing.remove();
+                        }
+                        const banner = document.createElement('div');
+                        banner.id = 'load-dashboard-evidence-banner';
+                        banner.style.position = 'fixed';
+                        banner.style.top = '16px';
+                        banner.style.right = '16px';
+                        banner.style.zIndex = '2147483647';
+                        banner.style.maxWidth = '520px';
+                        banner.style.padding = '12px 16px';
+                        banner.style.background = 'rgba(7, 18, 34, 0.94)';
+                        banner.style.color = '#ffffff';
+                        banner.style.border = '2px solid #49b6ff';
+                        banner.style.borderRadius = '12px';
+                        banner.style.boxShadow = '0 12px 32px rgba(0,0,0,0.35)';
+                        banner.style.fontFamily = 'Segoe UI, Arial, sans-serif';
+                        banner.style.fontSize = '14px';
+                        banner.style.lineHeight = '1.45';
+                        banner.innerHTML = `
+                            <div style="font-weight:700;font-size:16px;margin-bottom:8px">Execution Evidence - User ${details.userIndex}</div>
+                            <div>Report Status: ${details.reportStatus || 'N/A'}</div>
+                            <div>Application Status: ${details.applicationStatus || 'N/A'}</div>
+                            <div>Creation Status: ${details.creationStatus || 'N/A'}</div>
+                            <div>Submission Status: ${details.submissionStatus || 'N/A'}</div>
+                            <div>Job ID: ${details.jobId || 'N/A'}</div>
+                            <div>Message Ref: ${details.messageReference || 'N/A'}</div>
+                            <div>Permit No: ${details.permitNumber || 'N/A'}</div>
+                            <div>URN: ${details.urn || 'N/A'}</div>
+                            <div>Created By: ${details.createdBy || 'N/A'}</div>
+                            <div>Date Created: ${details.dateCreated || 'N/A'}</div>
+                            <div>Submission Date: ${details.submissionDate || 'N/A'}</div>
+                        `;
+                        document.body.appendChild(banner);
+                    }
+                    """, details);
+            page.waitForTimeout(300);
+        } catch (Exception exception) {
+            appendUserLog(userIndex, "Evidence Banner Failed - " + rootMessage(exception));
+        }
+    }
+
+    private void prepareEvidenceView(
+            Page page,
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            RunRequest request,
+            String messageReference,
+            String jobId) {
+        if ((messageReference == null || messageReference.isBlank()) && (jobId == null || jobId.isBlank())) {
+            return;
+        }
+        try {
+            openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
+            if (messageReference != null && !messageReference.isBlank()) {
+                declarationsPage.openDeclarationView(messageReference);
+            } else {
+                declarationsPage.openDeclarationViewByJobId(jobId);
+            }
+            declarationsPage.readCurrentResponseDetails();
+        } catch (Exception exception) {
+            try {
+                if (jobId != null && !jobId.isBlank()) {
+                    openDeclarationListWithRelogin(page, loginPage, declarationsPage, definition, request);
+                    declarationsPage.openDeclarationViewByJobId(jobId);
+                    declarationsPage.readCurrentResponseDetails();
+                    return;
+                }
+            } catch (Exception ignored) {
+            }
+            appendLog("Evidence view warning: " + rootMessage(exception));
+        }
+    }
+
+    private String buildScreenshotFileName(int userIndex, String outcome, WorkflowResult result) {
+        String jobId = result != null ? firstNonBlank(result.jobId()) : null;
+        if (jobId != null) {
+            return sanitizeFileComponent("JOB" + jobId)
+                    + ("success".equalsIgnoreCase(outcome) ? ".png" : "-" + sanitizeFileComponent(outcome) + ".png");
+        }
+        String messageReference = result != null ? firstNonBlank(result.messageReference()) : null;
+        if (messageReference != null) {
+            return sanitizeFileComponent(messageReference) + "-" + sanitizeFileComponent(outcome) + ".png";
+        }
+        return String.format("user-%03d-%s.png", userIndex, sanitizeFileComponent(outcome));
+    }
+
+    private String sanitizeFileComponent(String value) {
+        String normalized = value == null ? "artifact" : value.replaceAll("[^A-Za-z0-9._-]", "-");
+        return normalized.isBlank() ? "artifact" : normalized;
     }
 
     private void flushPlaywrightLog() {
@@ -1357,6 +2413,15 @@ public class LoadTestingDashboardService {
         }
     }
 
+    private void closeQuietly(Page page) {
+        try {
+            if (page != null) {
+                page.close();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private void closeQuietly(Browser browser) {
         try {
             if (browser != null) {
@@ -1367,6 +2432,15 @@ public class LoadTestingDashboardService {
     }
 
     private void closeQuietly(WorkerSession session) {
+        try {
+            if (session != null) {
+                session.close();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void closeQuietly(SharedBrowserSession session) {
         try {
             if (session != null) {
                 session.close();
@@ -1425,56 +2499,69 @@ public class LoadTestingDashboardService {
         return Math.round(value * 100.0d) / 100.0d;
     }
 
-    private UserJobResult buildUserJobResult(int userIndex, WorkflowResult result) {
-        String jobStatus = result != null ? firstNonBlank(result.jobStatus()) : null;
+    private UserJobResult buildUserJobResult(
+            int userIndex,
+            Integer tabNumber,
+            WorkflowResult result,
+            ScreenshotEntry screenshotEntry,
+            Instant startedAt,
+            Instant finishedAt,
+            long executionTimeMs) {
+        String applicationStatus = result != null ? firstNonBlank(result.jobStatus()) : null;
+        String reportStatus = result != null ? firstNonBlank(result.reportStatus()) : null;
+        boolean successful = result != null && result.submissionVerified();
+        String failureReason = successful
+                ? null
+                : buildFailureReason(result, applicationStatus);
         return new UserJobResult(
                 userIndex,
+                tabNumber != null ? tabNumber : 0,
+                tabNumber != null ? tabNumber : 0,
+                userIndex,
                 result != null ? result.jobId() : null,
-                result != null ? result.messageReference() : null,
-                jobStatus,
-                deriveFldStatus(jobStatus),
-                deriveRegStatus(jobStatus),
-                derivePmtStatus(jobStatus),
-                result != null ? result.permitNumber() : null,
-                result != null && result.success(),
-                result != null ? result.errorMessage() : null,
                 result != null ? result.declarationType() : null,
+                firstNonBlank(result != null ? result.createdBy() : null, currentRequest != null ? currentRequest.username() : null),
+                firstNonBlank(reportStatus, "FAILED"),
+                result != null ? result.creationStatus() : "FAILED",
+                result != null ? result.submissionStatus() : "FAILED",
+                startedAt != null ? startedAt.toString() : null,
+                finishedAt != null ? finishedAt.toString() : null,
+                Math.max(executionTimeMs, 0L),
+                failureReason,
+                screenshotEntry != null ? screenshotEntry.imageUrl() : null,
+                result != null ? result.messageReference() : null,
+                applicationStatus,
+                result != null ? result.permitNumber() : null,
+                result != null ? result.urn() : null,
+                successful,
+                result != null ? result.errorMessage() : null,
                 result != null ? result.selectedJson() : null,
+                result != null ? result.jsonRecordNumber() : userIndex,
+                result != null ? result.filledFieldCount() : 0,
+                result != null ? result.missingFieldCount() : 0,
+                result != null ? result.validationSummary() : null,
+                result != null ? result.diagnosticsArtifactUrl() : null,
                 Instant.now().toString());
     }
 
-    private String deriveFldStatus(String jobStatus) {
-        if (jobStatus == null) {
-            return "PENDING";
+    private String buildFailureReason(WorkflowResult result, String applicationStatus) {
+        if (result == null) {
+            return "Workflow did not return a result.";
         }
-        return switch (jobStatus.toUpperCase(Locale.ROOT)) {
-            case "FLD" -> "FAILED";
-            case "REJ" -> "REJECTED";
-            case "SUB", "SNT", "PMT", "REG" -> "COMPLETED";
-            default -> "PENDING";
-        };
-    }
-
-    private String deriveRegStatus(String jobStatus) {
-        if (jobStatus == null) {
-            return "PENDING";
+        String detailedReason = firstNonBlank(
+                result.errorMessage(),
+                result.validationSummary(),
+                result.responseMessage(),
+                result.summary());
+        if (applicationStatus != null) {
+            if (detailedReason == null) {
+                return "Application Status: " + applicationStatus;
+            }
+            if (!detailedReason.toUpperCase(Locale.ROOT).contains(applicationStatus.toUpperCase(Locale.ROOT))) {
+                return "Application Status: " + applicationStatus + " | " + detailedReason;
+            }
         }
-        return switch (jobStatus.toUpperCase(Locale.ROOT)) {
-            case "REG", "PMT" -> "COMPLETED";
-            case "FLD", "REJ" -> "FAILED";
-            default -> "PENDING";
-        };
-    }
-
-    private String derivePmtStatus(String jobStatus) {
-        if (jobStatus == null) {
-            return "PENDING";
-        }
-        return switch (jobStatus.toUpperCase(Locale.ROOT)) {
-            case "PMT" -> "APPROVED";
-            case "FLD", "REJ" -> "REJECTED";
-            default -> "PENDING";
-        };
+        return detailedReason;
     }
 
     private String rootMessage(Exception exception) {
@@ -1509,18 +2596,33 @@ public class LoadTestingDashboardService {
     }
 
     public record UserJobResult(
-            int userIndex,
+            int executionOrder,
+            int tabNumber,
+            int workerSlotNumber,
+            int jobNumber,
             String jobId,
+            String permitType,
+            String createdBy,
+            String status,
+            String creationStatus,
+            String submissionStatus,
+            String startTime,
+            String endTime,
+            long executionTimeMs,
+            String failureReason,
+            String screenshotUrl,
             String messageReference,
-            String jobStatus,
-            String fldStatus,
-            String regStatus,
-            String pmtStatus,
+            String applicationStatus,
             String permitNumber,
+            String urn,
             boolean success,
             String errorMessage,
-            String declarationType,
             String selectedJson,
+            int jsonRecordNumber,
+            int filledFieldCount,
+            int missingFieldCount,
+            String failedFieldDetails,
+            String diagnosticsArtifactUrl,
             String capturedAt) {
     }
 
@@ -1568,6 +2670,7 @@ public class LoadTestingDashboardService {
             int totalJobsCreated,
             int totalJobsSubmitted,
             int draftJobCount,
+            int pendingVerificationCount,
             double averageResponseTime,
             double throughput,
             double transactionsPerSecond,
@@ -1599,21 +2702,76 @@ public class LoadTestingDashboardService {
             String jobStatus,
             String messageReference,
             String permitNumber,
+            String urn,
+            String createdBy,
+            String dateCreated,
+            String submissionDate,
             String declarationType,
             String selectedJson,
             String responseMessage,
             String errorMessage,
             String summary,
-            boolean declarationCreated,
+            boolean creationVerified,
             boolean submissionAttempted,
-            boolean draftStatus) {
+            int jsonRecordNumber,
+            int tabNumber,
+            int filledFieldCount,
+            int missingFieldCount,
+            boolean draftStatus,
+            boolean failureOccurred,
+            String creationStatus,
+            String submissionStatus,
+            String reportStatus,
+            String validationSummary,
+            String evidenceScreenshotUrl,
+            String diagnosticsArtifactUrl) {
+
+        boolean submissionVerified() {
+            return success;
+        }
+    }
+
+    private record EvidenceArtifacts(
+            ScreenshotEntry screenshotEntry,
+            String diagnosticsArtifactUrl) {
+    }
+
+    private record ValidationIssue(
+            String section,
+            String label,
+            String domId,
+            String formControlName,
+            String name,
+            String attemptedValue,
+            String validationMessage,
+            String placeholder,
+            String type,
+            String role,
+            String rawText) {
+    }
+
+    private record JobWorkItem(
+            int userIndex,
+            int recordNumber,
+            JsonNode payload) {
     }
 
     private record WorkerSession(
+            Page page) {
+        void close() {
+            try {
+                if (page != null) {
+                    page.close();
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private record SharedBrowserSession(
             Playwright playwright,
             Browser browser,
-            BrowserContext context,
-            Page page) {
+            BrowserContext context) {
         void close() {
             try {
                 if (context != null) {
@@ -1635,4 +2793,5 @@ public class LoadTestingDashboardService {
             }
         }
     }
+
 }

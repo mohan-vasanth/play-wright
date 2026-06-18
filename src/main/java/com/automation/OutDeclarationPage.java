@@ -1327,43 +1327,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
     private void fillCpcTextField(Locator field, String value, String label, int rowIndex) {
         dismissTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
-
-        try {
-            field.fill("");
-        } catch (PlaywrightException ignored) {
-            page.keyboard().press("Control+A");
-            page.keyboard().press("Backspace");
-        }
-
-        try {
-            field.fill(value);
-        } catch (PlaywrightException ignored) {
-            field.type(value, new Locator.TypeOptions().setDelay(60));
-        }
-
-        page.waitForTimeout(250);
-        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
-            try {
-                field.evaluate("""
-                        (element, newValue) => {
-                            element.value = newValue;
-                            element.dispatchEvent(new Event('input', { bubbles: true }));
-                            element.dispatchEvent(new Event('change', { bubbles: true }));
-                            element.dispatchEvent(new Event('blur', { bubbles: true }));
-                        }
-                        """, value);
-            } catch (PlaywrightException ignored) {
-            }
-        }
-        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
-            throw new IllegalStateException("CPC " + label + " value was not rendered for row " + (rowIndex + 1)
-                    + ". Expected: " + value + ", Actual: " + readRenderedFieldValue(field));
-        }
-
-        page.keyboard().press("Tab");
-        page.waitForTimeout(150);
+        fillVerifiedTextField(field, value, "CPC " + label + " row " + (rowIndex + 1));
     }
 
     private void ensureCpcSectionExpanded(String customsProcedureCode) {

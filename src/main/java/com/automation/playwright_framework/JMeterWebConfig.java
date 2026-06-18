@@ -17,5 +17,7 @@ public class JMeterWebConfig implements WebMvcConfigurer {
                 .addResourceLocations(reportDirectory.toUri().toString());
         registry.addResourceHandler("/dashboard-screenshots/**")
                 .addResourceLocations(ArtifactPaths.SCREENSHOTS_DIR.toUri().toString());
+        registry.addResourceHandler("/dashboard-reports/**")
+                .addResourceLocations(ArtifactPaths.REPORTS_DIR.toUri().toString());
     }
 }

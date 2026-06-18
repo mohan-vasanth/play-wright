@@ -26,22 +26,29 @@ public class LoginPage {
         this.page = page;
     }
 
+    public void open(String url) {
+        navigateAndWaitForDocument(url);
+    }
+
     public void navigate(String url) {
         navigateAndWait(url);
     }
 
     private void navigateAndWait(String url) {
+        navigateAndWaitForDocument(url);
+        page.locator(USERNAME).waitFor();
+    }
+
+    private void navigateAndWaitForDocument(String url) {
         try {
             page.navigate(url, new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
             page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-            page.locator(USERNAME).waitFor();
             return;
         } catch (PlaywrightException ignored) {
         }
 
         page.navigate(extractOrigin(url), new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-        page.locator(USERNAME).waitFor();
     }
 
     private String extractOrigin(String url) {
@@ -76,36 +83,99 @@ public class LoginPage {
         page.locator(LOGIN_BUTTON).click();
     }
 
+    public boolean isLoginFormVisible() {
+        try {
+            return page.locator(USERNAME).first().isVisible();
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    public boolean isAuthenticated() {
+        try {
+            Object result = page.evaluate(
+                    """
+                    () => {
+                        const path = window.location.pathname || '';
+                        if (path.includes('/auth/login')) {
+                            return false;
+                        }
+
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const usernameInput = document.querySelector("input[formcontrolname='username']");
+                        if (usernameInput && isVisible(usernameInput)) {
+                            return false;
+                        }
+
+                        return Array.from(document.querySelectorAll('a, button, [role="button"], nav'))
+                                .some(element => {
+                                    if (!isVisible(element)) {
+                                        return false;
+                                    }
+                                    const text = (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                                    return text.includes('DECLARATIONS')
+                                            || text.includes('DASHBOARD')
+                                            || text.includes('NEW DECLARATION')
+                                            || text.includes('LOGOUT');
+                                });
+                    }
+                    """);
+            return Boolean.TRUE.equals(result);
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
     public void waitForAuthenticatedState() {
-        page.waitForFunction(
-                """
-                selector => {
-                    const path = window.location.pathname || '';
-                    if (path.includes('/auth/login')) {
-                        return false;
-                    }
+        waitForAuthenticatedState(USER_DETAILS_TIMEOUT_MS);
+    }
 
-                    const input = document.querySelector(selector);
-                    const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
-                    if (input && isVisible(input)) {
-                        return false;
-                    }
+    public boolean waitForAuthenticatedState(double timeoutMs) {
+        try {
+            page.waitForFunction(
+                    """
+                    selector => {
+                        const path = window.location.pathname || '';
+                        if (path.includes('/auth/login')) {
+                            return false;
+                        }
 
-                    return Array.from(document.querySelectorAll('a, button, [role="button"], nav'))
-                        .some(element => {
-                            if (!isVisible(element)) {
-                                return false;
-                            }
-                            const text = (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().toUpperCase();
-                            return text.includes('DECLARATIONS')
-                                    || text.includes('DASHBOARD')
-                                    || text.includes('NEW DECLARATION')
-                                    || text.includes('LOGOUT');
-                        });
-                }
-                """,
-                USERNAME);
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+                        const input = document.querySelector(selector);
+                        const isVisible = element => !!element && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        if (input && isVisible(input)) {
+                            return false;
+                        }
+
+                        return Array.from(document.querySelectorAll('a, button, [role="button"], nav'))
+                            .some(element => {
+                                if (!isVisible(element)) {
+                                    return false;
+                                }
+                                const text = (element.innerText || element.textContent || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                                return text.includes('DECLARATIONS')
+                                        || text.includes('DASHBOARD')
+                                        || text.includes('NEW DECLARATION')
+                                        || text.includes('LOGOUT');
+                            });
+                    }
+                    """,
+                    USERNAME,
+                    new Page.WaitForFunctionOptions().setTimeout(timeoutMs));
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            return true;
+        } catch (PlaywrightException ignored) {
+            return isAuthenticated();
+        }
+    }
+
+    public boolean waitForLoginFormVisible(double timeoutMs) {
+        try {
+            page.locator(USERNAME).first().waitFor(
+                    new com.microsoft.playwright.Locator.WaitForOptions().setTimeout(timeoutMs));
+            return page.locator(USERNAME).first().isVisible();
+        } catch (PlaywrightException ignored) {
+            return isLoginFormVisible();
+        }
     }
 
     private void selectUserOption(String selector, String requestedLabel, String fieldName) {
