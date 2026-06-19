@@ -2039,6 +2039,10 @@
     function reportPrefixForType(type) {
         return type === 'ipt'
             ? 'ipt-batch-submit'
+            : type === 'inp'
+                ? 'inp-batch-submit'
+                : type === 'tnp'
+                    ? 'tnp-batch-submit'
             : type === 'out'
                 ? 'out-batch-submit'
                 : type === 'coo'

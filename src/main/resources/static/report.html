@@ -1044,6 +1044,7 @@
 
     function resolveResultsTitle(report) {
         const suite = String(report?.suiteName || '').toUpperCase();
+        const reportPrefix = String(requestedReportPrefix || '').toUpperCase();
         const batchList = Array.isArray(report?.batchCases) ? report.batchCases : [];
         const declarationTypeDisplays = batchList
             .map(batchCase => String(batchCase?.declarationTypeDisplay || batchCase?.declarationTypeCode || '').toUpperCase())
@@ -1052,18 +1053,33 @@
             .map(batchCase => String(batchCase?.diagnosticsText || batchCase?.responseSummary || '').toUpperCase())
             .filter(Boolean);
 
+        if (reportPrefix.includes('INP')
+            || declarationTypeDisplays.some(value => value.includes('IN-NON-PAYMENT') || value === 'INP')
+            || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: INP'))) {
+            return 'INP Declaration Results';
+        }
+
+        if (reportPrefix.includes('TNP')
+            || declarationTypeDisplays.some(value => value.includes('TRANSHIPMENT') || value === 'TNP')
+            || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: TNP'))) {
+            return 'TNP Declaration Results';
+        }
+
         if (suite.includes('IPTDECLARATIONTESTCASE1TEST')
+            || reportPrefix.includes('IPT')
             || declarationTypeDisplays.some(value => value.includes('DNG') || value.includes('IN-PAYMENT') || value === 'IPT')) {
             return 'IPT Declaration Results';
         }
 
         if (suite.includes('COODECLARATIONTESTCASE1TEST')
+            || reportPrefix.includes('COO')
             || declarationTypeDisplays.some(value => value.includes('COO') || value.includes('CERTIFICATE OF ORIGIN'))
             || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: COO') || value.includes('CERTIFICATE OF ORIGIN'))) {
             return 'COO Declaration Results';
         }
 
         if (suite.includes('OUTDECLARATIONTESTCASE1TEST')
+            || reportPrefix.includes('OUT')
             || diagnosticsTexts.some(value => value.includes('DECLARATION TYPE: 20') || value.includes('DECLARATION TYPE: OUT'))
             || declarationTypeDisplays.some(value => value === '20' || value.includes('OUTWARD') || value === 'OUT')) {
             return 'OUT Declaration Results';
@@ -1169,6 +1185,12 @@
         const errorMessage = batchCase.errorMessage || 'N/A';
         const declarationType = batchCase.declarationTypeDisplay || batchCase.declarationTypeCode || '-';
         const pmtNumber = batchCase.pmtNumber || 'N/A';
+        const pmtStatus = batchCase.jobStatus || '-';
+        const executionStatus = batchCase.executionStatus || batchCase.status || '-';
+        const executionResult = batchCase.result || (batchCase.status === 'SUCCESS' ? 'Pass' : 'Fail');
+        const startTime = batchCase.startTime || '-';
+        const endTime = batchCase.endTime || batchCase.updatedAt || '-';
+        const duration = batchCase.duration || '-';
         const pmtNumberRow = shouldDisplayPmtNumber(batchCase.jobStatus, batchCase.pmtNumber, batchCase.declarationNumber)
             ? `<div class="info-row"><span>PMT Number</span><span>${escapeHtml(pmtNumber)}</span></div>`
             : '';
@@ -1198,14 +1220,18 @@
                                 <div class="info-row"><span>Job ID</span><span>${escapeHtml(batchCase.jobId || '-')}</span></div>
                                 <div class="info-row"><span>Message Reference</span><span>${escapeHtml(batchCase.declarationNumber || '-')}</span></div>
                                 <div class="info-row"><span>Created By</span><span>${escapeHtml(batchCase.jobCreatedBy || '-')}</span></div>
-                                <div class="info-row"><span>Updated</span><span>${escapeHtml(batchCase.updatedAt || '-')}</span></div>
+                                <div class="info-row"><span>Start Time</span><span>${escapeHtml(startTime)}</span></div>
+                                <div class="info-row"><span>End Time</span><span>${escapeHtml(endTime)}</span></div>
+                                <div class="info-row"><span>Duration</span><span>${escapeHtml(duration)}</span></div>
                             </div>
                         </section>
 
                         <section class="info-card">
                             <div class="info-title">Status Details</div>
                             <div class="info-list">
-                                <div class="info-row"><span>Final Job Status</span><span>${escapeHtml(batchCase.jobStatus || '-')}</span></div>
+                                <div class="info-row"><span>PMT Status</span><span>${escapeHtml(pmtStatus)}</span></div>
+                                <div class="info-row"><span>Execution Status</span><span>${escapeHtml(executionStatus)}</span></div>
+                                <div class="info-row"><span>Result</span><span>${escapeHtml(executionResult)}</span></div>
                                 ${pmtNumberRow}
                                 <div class="info-row"><span>Report Status</span><span>${escapeHtml(batchCase.status || '-')}</span></div>
                                 <div class="info-row"><span>Invalid Fields</span><span>${escapeHtml(batchCase.invalidCount ?? 0)}</span></div>

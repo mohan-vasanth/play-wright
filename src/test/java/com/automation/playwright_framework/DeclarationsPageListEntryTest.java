@@ -87,4 +87,49 @@ class DeclarationsPageListEntryTest extends BaseTest {
         assertEquals("mohan", entry.jobCreatedBy());
         assertEquals("OD6F274299A", entry.permitNumber());
     }
+
+    @Test
+    void readsPermitNumberWhenHeaderIncludesSortGlyphs() {
+        page.setContent("""
+                <html>
+                <body>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Job ID</th>
+                        <th>Message Ref</th>
+                        <th>Declaration Type</th>
+                        <th>Created By</th>
+                        <th>Status</th>
+                        <th>Permit No. ▲</th>
+                        <th>URN Date</th>
+                        <th>Declarant ID</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>5840</td>
+                        <td>TDX2606190005</td>
+                        <td>GST</td>
+                        <td>mohan</td>
+                        <td>PMT</td>
+                        <td>IG6F505500H</td>
+                        <td>19-06-2026</td>
+                        <td>S8562791J</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </body>
+                </html>
+                """);
+
+        DeclarationsPage.DeclarationListEntry entry = new DeclarationsPage(page)
+                .readDeclarationListEntry("TDX2606190005");
+
+        assertEquals("5840", entry.jobId());
+        assertEquals("PMT", entry.jobStatus());
+        assertEquals("TDX2606190005", entry.declarationNumber());
+        assertEquals("mohan", entry.jobCreatedBy());
+        assertEquals("IG6F505500H", entry.permitNumber());
+    }
 }

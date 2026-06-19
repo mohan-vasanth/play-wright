@@ -62,12 +62,21 @@ class TestLauncherControllerTest {
     }
 
     @Test
-    void pmtWithoutNumberRemainsInProgressUntilPermitNumberExists() throws Exception {
+    void inpAndTnpLaunchersAreExecutable() {
+        Map<?, ?> inpBody = jsonOptionsBody("inp");
+        Map<?, ?> tnpBody = jsonOptionsBody("tnp");
+
+        assertEquals(Boolean.TRUE, inpBody.get("executable"));
+        assertEquals(Boolean.TRUE, tnpBody.get("executable"));
+    }
+
+    @Test
+    void pmtStatusStopsPollingEvenBeforePermitNumberIsCaptured() throws Exception {
         Method mapJobState = TestLauncherController.class.getDeclaredMethod("mapJobState", String.class, String.class);
         mapJobState.setAccessible(true);
 
-        assertEquals("IN_PROGRESS", mapJobState.invoke(controller, "PMT", null));
-        assertEquals("IN_PROGRESS", mapJobState.invoke(controller, "PMT", "N/A"));
+        assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", null));
+        assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", "N/A"));
         assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", "OD6F274299A"));
     }
 

@@ -2222,8 +2222,61 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         focusAndType(nameField, partyName, true, partyName, partyId);
         Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
-        if (idField != null && partyId != null && !partyId.isBlank() && !waitForAnyRenderedFieldValue(idField, 500, partyId)) {
+        if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
+            return;
+        }
+
+        if (partyId != null && !partyId.isBlank()) {
+            focusAndType(nameField, partyId, true, partyName, partyId);
+            if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
+                return;
+            }
+        }
+
+        if (idField != null && partyId != null && !partyId.isBlank() && !waitForAnyRenderedFieldValue(idField, 1000, partyId)) {
             focusAndType(idField, partyId, false);
+        }
+    }
+
+    private boolean lookupPartyRowResolved(
+            Locator row,
+            Locator nameField,
+            Locator idField,
+            String partyName,
+            String partyId,
+            int timeoutMs) {
+        long deadline = System.currentTimeMillis() + Math.max(timeoutMs, 500);
+        String normalizedPartyName = normalize(partyName);
+        String normalizedPartyId = normalize(partyId);
+        while (System.currentTimeMillis() <= deadline) {
+            boolean nameMatches = waitForAnyRenderedFieldValue(nameField, 200, partyName, partyId);
+            boolean idMatches = normalizedPartyId.isBlank()
+                    || (idField != null && waitForAnyRenderedFieldValue(idField, 200, partyId));
+            String rowText = normalize(readRowText(row));
+            boolean rowNameMatches = normalizedPartyName.isBlank()
+                    || rowText.equalsIgnoreCase(normalizedPartyName)
+                    || rowText.contains(normalizedPartyName)
+                    || normalizedPartyName.contains(rowText);
+            boolean rowIdMatches = normalizedPartyId.isBlank()
+                    || rowText.equalsIgnoreCase(normalizedPartyId)
+                    || rowText.contains(normalizedPartyId)
+                    || normalizedPartyId.contains(rowText);
+            if ((nameMatches || rowNameMatches) && (idMatches || rowIdMatches)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private String readRowText(Locator row) {
+        if (row == null) {
+            return "";
+        }
+        try {
+            return row.innerText();
+        } catch (Exception ignored) {
+            return "";
         }
     }
 

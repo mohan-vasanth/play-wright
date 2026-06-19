@@ -3256,10 +3256,7 @@ public class IptDeclarationPage {
         try {
             String currentValue = normalize(inputValueOrEmpty(field));
             String normalizedExpected = normalize(expectedValue);
-            if (!currentValue.isBlank()
-                    && (currentValue.equalsIgnoreCase(normalizedExpected)
-                    || currentValue.contains(normalizedExpected)
-                    || normalizedExpected.contains(currentValue))) {
+            if (!currentValue.isBlank() && renderedFieldValueMatches(currentValue, normalizedExpected)) {
                 return;
             }
 
@@ -3354,10 +3351,7 @@ public class IptDeclarationPage {
             String currentValue = normalize(readRenderedFieldValue(field));
             if (!currentValue.isBlank()) {
                 for (String candidate : candidates) {
-                    String normalizedExpected = normalize(candidate);
-                    if (currentValue.equalsIgnoreCase(normalizedExpected)
-                            || currentValue.contains(normalizedExpected)
-                            || normalizedExpected.contains(currentValue)) {
+                    if (renderedFieldValueMatches(currentValue, candidate)) {
                         return true;
                     }
                 }
@@ -3365,6 +3359,27 @@ public class IptDeclarationPage {
             page.waitForTimeout(100);
         }
         return false;
+    }
+
+    private boolean renderedFieldValueMatches(String actualValue, String expectedValue) {
+        String normalizedActual = normalize(actualValue);
+        String normalizedExpected = normalize(expectedValue);
+        if (normalizedActual.isBlank() || normalizedExpected.isBlank()) {
+            return false;
+        }
+        if (normalizedActual.equalsIgnoreCase(normalizedExpected)
+                || normalizedActual.contains(normalizedExpected)
+                || normalizedExpected.contains(normalizedActual)) {
+            return true;
+        }
+
+        String commaInsensitiveActual = normalizeCommaInsensitive(normalizedActual);
+        String commaInsensitiveExpected = normalizeCommaInsensitive(normalizedExpected);
+        return !commaInsensitiveActual.isBlank()
+                && !commaInsensitiveExpected.isBlank()
+                && (commaInsensitiveActual.equalsIgnoreCase(commaInsensitiveExpected)
+                || commaInsensitiveActual.contains(commaInsensitiveExpected)
+                || commaInsensitiveExpected.contains(commaInsensitiveActual));
     }
 
     private boolean clickVisibleSuggestion(String... values) {
@@ -6254,6 +6269,10 @@ public class IptDeclarationPage {
 
     protected String normalize(String value) {
         return value == null ? "" : value.replaceAll("\\s+", " ").trim();
+    }
+
+    private String normalizeCommaInsensitive(String value) {
+        return normalize(value == null ? "" : value.replace(',', ' '));
     }
 
     private String escapeForSelector(String value) {

@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class TestReportControllerParsingTest {
@@ -122,6 +123,38 @@ class TestReportControllerParsingTest {
 
             Method pmtNumber = diagnostics.getClass().getDeclaredMethod("pmtNumber");
             assertNull(pmtNumber.invoke(diagnostics));
+        } finally {
+            Files.deleteIfExists(diagnosticsFile);
+        }
+    }
+
+    @Test
+    void readDiagnosticsCapturesExecutionTimingFields() throws Exception {
+        Path diagnosticsFile = Files.createTempFile("out-batch-submit-validation-", ".json");
+        Files.writeString(diagnosticsFile, """
+                {
+                  "jobStatus": "PMT",
+                  "startTime": "2026-06-19T03:00:00Z",
+                  "endTime": "2026-06-19T03:01:05Z",
+                  "durationMs": 65000
+                }
+                """);
+
+        try {
+            TestReportController controller = new TestReportController();
+            Method method = TestReportController.class.getDeclaredMethod("readDiagnostics", Path.class);
+            method.setAccessible(true);
+            Object diagnostics = method.invoke(controller, diagnosticsFile);
+
+            Method startTime = diagnostics.getClass().getDeclaredMethod("startTime");
+            Method endTime = diagnostics.getClass().getDeclaredMethod("endTime");
+            Method duration = diagnostics.getClass().getDeclaredMethod("duration");
+            Method durationMillis = diagnostics.getClass().getDeclaredMethod("durationMillis");
+
+            assertEquals("2026-06-19T03:00:00Z", startTime.invoke(diagnostics));
+            assertEquals("2026-06-19T03:01:05Z", endTime.invoke(diagnostics));
+            assertNotNull(duration.invoke(diagnostics));
+            assertEquals(65000L, durationMillis.invoke(diagnostics));
         } finally {
             Files.deleteIfExists(diagnosticsFile);
         }

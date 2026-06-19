@@ -241,6 +241,14 @@ public class TestReportController {
                 || normalizedSuite.contains("iptdeclaration")) {
             return "ipt-batch-submit";
         }
+        if (normalizedPath.contains("/inp-") || normalizedPath.contains("\\inp-") || normalizedPath.contains("inp-declaration")
+                || normalizedSuite.contains("inpdeclaration")) {
+            return "inp-batch-submit";
+        }
+        if (normalizedPath.contains("/tnp-") || normalizedPath.contains("\\tnp-") || normalizedPath.contains("tnp-declaration")
+                || normalizedSuite.contains("tnpdeclaration")) {
+            return "tnp-batch-submit";
+        }
         return null;
     }
 
@@ -252,6 +260,8 @@ public class TestReportController {
             case "out-batch-submit" -> "OUT/out-declaration-batch-test-case.json";
             case "coo-batch-submit" -> "COO/coo-declaration-batch-test-case.json";
             case "ipt-batch-submit" -> "IPT/ipt-declaration-test-case-1.json";
+            case "inp-batch-submit" -> "INP/inp-declaration-test-case-1.json";
+            case "tnp-batch-submit" -> "TNP/tnp-declaration-test-case-1.json";
             default -> null;
         };
     }
@@ -463,6 +473,10 @@ public class TestReportController {
             case "90" -> "90 - BKT";
             case "20" -> "20 - OUT";
             case "40" -> "40 - DRT";
+            case "INP" -> "In-Non-Payment (INP)";
+            case "TNP" -> "Transhipment (TNP)";
+            case "IPT" -> "In-Payment (IPT)";
+            case "OUT" -> "Out Payment (OUT)";
             case "COO", "COODEC" -> "Certificate of Origin (COO)";
             default -> code;
         };
@@ -508,6 +522,10 @@ public class TestReportController {
         String errorMsg     = firstNonBlank(valDiag.errorMessage(), failDiag.errorMessage());
         String summary      = firstNonBlank(valDiag.responseSummary(), failDiag.responseSummary());
         String toastText    = firstNonBlank(valDiag.toastText(), failDiag.toastText());
+        String startTime    = firstNonBlank(valDiag.startTime(), failDiag.startTime());
+        String endTime      = firstNonBlank(valDiag.endTime(), failDiag.endTime());
+        Long durationMillis = firstNonNull(valDiag.durationMillis(), failDiag.durationMillis());
+        String duration     = firstNonBlank(valDiag.duration(), failDiag.duration(), formatDuration(durationMillis));
         int    invalidCount = valDiag.invalidCount() > 0 ? valDiag.invalidCount() : failDiag.invalidCount();
         String rawJson      = firstNonBlank(valDiag.rawJson(), failDiag.rawJson());
 
@@ -551,6 +569,8 @@ public class TestReportController {
         long updatedAtMillis = Math.max(
                 Math.max(lastModifiedMillis(diagnosticsPath), lastModifiedMillis(screenshotPath)),
                 lastModifiedMillis(accumulator.statusScreenshot));
+        String updatedAt = updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null;
+        String resolvedEndTime = firstNonBlank(endTime, updatedAt);
 
         return new BatchCaseResult(
                 index, status, message,
@@ -560,7 +580,12 @@ public class TestReportController {
                 responseMsg, errorMsg, summary, toastText, invalidCount, rawJson,
                 fileName(diagnosticsPath), fileName(screenshotPath),
                 fileName(accumulator.statusScreenshot),
-                updatedAtMillis > Long.MIN_VALUE ? Instant.ofEpochMilli(updatedAtMillis).toString() : null,
+                startTime,
+                resolvedEndTime,
+                duration,
+                status,
+                "SUCCESS".equals(status) ? "Pass" : "Fail",
+                updatedAt,
                 updatedAtMillis);
     }
 
@@ -616,6 +641,12 @@ public class TestReportController {
                     parseResponseField(rawResponseData, "reason"),
                     parseResponseField(rawResponseData, "remarks"),
                     responseMessage);
+            String startTime = readTextField(root, "startTime", "executionStartTime");
+            String endTime = readTextField(root, "endTime", "executionEndTime", "capturedAt");
+            Long durationMillis = readLongField(root, "durationMs", "executionDurationMs", "executionTimeMs");
+            String duration = firstNonBlank(
+                    readTextField(root, "duration", "durationText", "executionDuration"),
+                    formatDuration(durationMillis));
             JsonNode invalidElementsNode = root.path("invalidElements");
             int invalidCount = invalidElementsNode.isArray() ? invalidElementsNode.size() : 0;
             return new BatchDiagnostics(
@@ -629,14 +660,97 @@ public class TestReportController {
                     responseMessage,
                     errorMessage,
                     responseSummary,
+                    startTime,
+                    endTime,
+                    duration,
+                    durationMillis,
                     invalidCount,
                     rawJson);
         } catch (Exception exception) {
             // File is not valid JSON (e.g. a plain-text Playwright error); surface the raw content
             String rawContent = null;
             try { rawContent = Files.readString(diagnosticsPath); } catch (Exception ignored) {}
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, rawContent, null, 0, rawContent);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, rawContent, null, null, null, null, null, 0, rawContent);
         }
+    }
+
+    private String readTextField(JsonNode root, String... fieldNames) {
+        if (root == null || fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            if (fieldName == null || fieldName.isBlank()) {
+                continue;
+            }
+            String value = blankToNull(root.path(fieldName).asText(null));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private Long readLongField(JsonNode root, String... fieldNames) {
+        if (root == null || fieldNames == null) {
+            return null;
+        }
+        for (String fieldName : fieldNames) {
+            if (fieldName == null || fieldName.isBlank()) {
+                continue;
+            }
+            JsonNode node = root.path(fieldName);
+            if (node == null || node.isMissingNode() || node.isNull()) {
+                continue;
+            }
+            if (node.isNumber()) {
+                return node.asLong();
+            }
+            String text = blankToNull(node.asText(null));
+            if (text == null) {
+                continue;
+            }
+            try {
+                return Long.parseLong(text);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
+    }
+
+    private String formatDuration(Long durationMillis) {
+        if (durationMillis == null || durationMillis < 0L) {
+            return null;
+        }
+        if (durationMillis < 1000L) {
+            return durationMillis + " ms";
+        }
+        long totalSeconds = durationMillis / 1000L;
+        long hours = totalSeconds / 3600L;
+        long minutes = (totalSeconds % 3600L) / 60L;
+        long seconds = totalSeconds % 60L;
+        if (hours > 0L) {
+            return String.format("%dh %02dm %02ds", hours, minutes, seconds);
+        }
+        if (minutes > 0L) {
+            return String.format("%dm %02ds", minutes, seconds);
+        }
+        if (durationMillis % 1000L == 0L) {
+            return totalSeconds + " s";
+        }
+        return String.format("%.2f s", durationMillis / 1000.0d);
+    }
+
+    @SafeVarargs
+    private final <T> T firstNonNull(T... values) {
+        if (values == null) {
+            return null;
+        }
+        for (T value : values) {
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String parseSummaryField(String responseSummary, String label) {
@@ -924,11 +1038,15 @@ public class TestReportController {
             String responseMessage,
             String errorMessage,
             String responseSummary,
+            String startTime,
+            String endTime,
+            String duration,
+            Long durationMillis,
             int invalidCount,
             String rawJson) {
 
         private static BatchDiagnostics empty() {
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, null, null, 0, null);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, null);
         }
     }
 
@@ -979,6 +1097,11 @@ public class TestReportController {
             String diagnosticsFile,
             String screenshotFile,
             String statusScreenshotFile,
+            String startTime,
+            String endTime,
+            String duration,
+            String executionStatus,
+            String result,
             String updatedAt,
             long updatedAtMillis) {
     }

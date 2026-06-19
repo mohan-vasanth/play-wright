@@ -24,7 +24,6 @@ public class DeclarationsPage {
     private final Page page;
     private static final String DECLARATIONS_MENU = "text=Declarations";
     private static final String NEW_DECLARATION_BUTTON = "button:has-text('NEW DECLARATION')";
-    private static final String IPT_MENU_ITEM = "a:has-text('In-Payment (IPT)')";
 
     public DeclarationsPage(Page page) {
         this.page = page;
@@ -53,7 +52,7 @@ public class DeclarationsPage {
     }
 
     public void openDeclarationList(String menuLabel, String route) {
-        openDeclarationsMenuIfNeeded();
+        openDeclarationsMenuIfNeeded(menuLabel);
         clickDeclarationMenuItem(menuLabel, route);
         page.waitForURL("**" + route);
         waitForNewDeclarationButton();
@@ -139,6 +138,13 @@ public class DeclarationsPage {
                         const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
                         const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
                         const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isPermitLikeValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || text === '--' || isDateValue(text) || isJobIdValue(text) || isMessageRefValue(text) || isStatusValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z]{1,4}\\d[A-Z0-9-]{5,}$/i.test(text);
+                        };
                         const isCreatedByValue = value => {
                             const text = normalize(value);
                             if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
@@ -146,24 +152,25 @@ public class DeclarationsPage {
                             }
                             return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
                         };
+                        const matchesHeader = (text, labels) => labels.some(label => text === label || text.startsWith(label));
 
                         const headerCandidates = Array.from(document.querySelectorAll(headerSelector))
                             .filter(isVisible);
                         const headerTexts = headerCandidates.map(textOf).map(upper);
                         const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
                         const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
-                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageReferenceIndex = headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REFERENCE']));
                         const messageRefIndex = messageReferenceIndex >= 0
                             ? messageReferenceIndex
-                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
-                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
-                        const permitNumberIndex = headerTexts.findIndex(text =>
-                            text === 'PERMIT NUMBER'
-                            || text === 'PERMIT NO.'
-                            || text === 'PERMIT NO'
-                            || text === 'PMT NUMBER'
-                            || text === 'PMT NO.'
-                            || text === 'PMT NO');
+                            : headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REF']));
+                        const createdByIndex = headerTexts.findIndex(text => matchesHeader(text, ['CREATED BY']));
+                        const permitNumberIndex = headerTexts.findIndex(text => matchesHeader(text, [
+                            'PERMIT NUMBER',
+                            'PERMIT NO.',
+                            'PERMIT NO',
+                            'PMT NUMBER',
+                            'PMT NO.',
+                            'PMT NO']));
 
                         const rowCandidates = Array.from(document.querySelectorAll(rowSelector))
                             .filter(row => isVisible(row) && !row.querySelector(headerSelector));
@@ -205,7 +212,16 @@ public class DeclarationsPage {
                                 ? rowTexts[permitNumberIndex]
                                 : null;
                             if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
-                                permitNumber = null;
+                                const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(resolvedStatus));
+                                if (statusCellIndex >= 0 && statusCellIndex + 1 < rowTexts.length) {
+                                    const adjacentValue = rowTexts[statusCellIndex + 1];
+                                    permitNumber = isPermitLikeValue(adjacentValue) ? adjacentValue : null;
+                                } else {
+                                    permitNumber = null;
+                                }
+                            }
+                            if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                                permitNumber = rowTexts.find(isPermitLikeValue) || null;
                             }
 
                             return {
@@ -287,6 +303,13 @@ public class DeclarationsPage {
                         const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
                         const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
                         const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isPermitLikeValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || text === '--' || isDateValue(text) || isJobIdValue(text) || isMessageRefValue(text) || isStatusValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z]{1,4}\\d[A-Z0-9-]{5,}$/i.test(text);
+                        };
                         const isCreatedByValue = value => {
                             const text = normalize(value);
                             if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
@@ -294,23 +317,24 @@ public class DeclarationsPage {
                             }
                             return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
                         };
+                        const matchesHeader = (text, labels) => labels.some(label => text === label || text.startsWith(label));
 
                         const headerCandidates = Array.from(document.querySelectorAll(headerSelector)).filter(isVisible);
                         const headerTexts = headerCandidates.map(textOf).map(upper);
                         const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
                         const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
-                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageReferenceIndex = headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REFERENCE']));
                         const messageRefIndex = messageReferenceIndex >= 0
                             ? messageReferenceIndex
-                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
-                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
-                        const permitNumberIndex = headerTexts.findIndex(text =>
-                            text === 'PERMIT NUMBER'
-                            || text === 'PERMIT NO.'
-                            || text === 'PERMIT NO'
-                            || text === 'PMT NUMBER'
-                            || text === 'PMT NO.'
-                            || text === 'PMT NO');
+                            : headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REF']));
+                        const createdByIndex = headerTexts.findIndex(text => matchesHeader(text, ['CREATED BY']));
+                        const permitNumberIndex = headerTexts.findIndex(text => matchesHeader(text, [
+                            'PERMIT NUMBER',
+                            'PERMIT NO.',
+                            'PERMIT NO',
+                            'PMT NUMBER',
+                            'PMT NO.',
+                            'PMT NO']));
 
                         const extractStatus = cells => {
                             if (statusIndex >= 0 && statusIndex < cells.length) {
@@ -363,7 +387,16 @@ public class DeclarationsPage {
                                 ? rowTexts[permitNumberIndex]
                                 : null;
                             if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
-                                permitNumber = null;
+                                const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(resolvedStatus));
+                                if (statusCellIndex >= 0 && statusCellIndex + 1 < rowTexts.length) {
+                                    const adjacentValue = rowTexts[statusCellIndex + 1];
+                                    permitNumber = isPermitLikeValue(adjacentValue) ? adjacentValue : null;
+                                } else {
+                                    permitNumber = null;
+                                }
+                            }
+                            if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                                permitNumber = rowTexts.find(isPermitLikeValue) || null;
                             }
 
                             return {
@@ -413,6 +446,13 @@ public class DeclarationsPage {
                         const isMessageRefValue = value => /^TDX\\d+/i.test(normalize(value));
                         const isDateValue = value => /^\\d{2}-\\d{2}-\\d{4}$/.test(normalize(value));
                         const isJobIdValue = value => /^\\d{3,}$/.test(normalize(value));
+                        const isPermitLikeValue = value => {
+                            const text = normalize(value);
+                            if (!text || text === '-' || text === '--' || isDateValue(text) || isJobIdValue(text) || isMessageRefValue(text) || isStatusValue(text)) {
+                                return false;
+                            }
+                            return /^[A-Z]{1,4}\\d[A-Z0-9-]{5,}$/i.test(text);
+                        };
                         const isCreatedByValue = value => {
                             const text = normalize(value);
                             if (!text || text === '-' || isStatusValue(text) || isMessageRefValue(text) || isDateValue(text) || isJobIdValue(text)) {
@@ -420,24 +460,25 @@ public class DeclarationsPage {
                             }
                             return /^[A-Z][A-Z0-9._ -]*$/i.test(text);
                         };
+                        const matchesHeader = (text, labels) => labels.some(label => text === label || text.startsWith(label));
 
                         const headerCandidates = Array.from(document.querySelectorAll(headerSelector))
                             .filter(isVisible);
                         const headerTexts = headerCandidates.map(textOf).map(upper);
                         const jobIdIndex = headerTexts.findIndex(text => text === 'JOB ID');
                         const statusIndex = headerTexts.findIndex(text => text === 'STATUS');
-                        const messageReferenceIndex = headerTexts.findIndex(text => text === 'MESSAGE REFERENCE');
+                        const messageReferenceIndex = headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REFERENCE']));
                         const messageRefIndex = messageReferenceIndex >= 0
                             ? messageReferenceIndex
-                            : headerTexts.findIndex(text => text === 'MESSAGE REF');
-                        const createdByIndex = headerTexts.findIndex(text => text === 'CREATED BY');
-                        const permitNumberIndex = headerTexts.findIndex(text =>
-                            text === 'PERMIT NUMBER'
-                            || text === 'PERMIT NO.'
-                            || text === 'PERMIT NO'
-                            || text === 'PMT NUMBER'
-                            || text === 'PMT NO.'
-                            || text === 'PMT NO');
+                            : headerTexts.findIndex(text => matchesHeader(text, ['MESSAGE REF']));
+                        const createdByIndex = headerTexts.findIndex(text => matchesHeader(text, ['CREATED BY']));
+                        const permitNumberIndex = headerTexts.findIndex(text => matchesHeader(text, [
+                            'PERMIT NUMBER',
+                            'PERMIT NO.',
+                            'PERMIT NO',
+                            'PMT NUMBER',
+                            'PMT NO.',
+                            'PMT NO']));
 
                         const row = Array.from(document.querySelectorAll(rowSelector))
                             .find(candidate => isVisible(candidate)
@@ -486,7 +527,16 @@ public class DeclarationsPage {
                             ? rowTexts[permitNumberIndex]
                             : null;
                         if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
-                            permitNumber = null;
+                            const statusCellIndex = rowTexts.findIndex(value => upper(value) === upper(jobStatus));
+                            if (statusCellIndex >= 0 && statusCellIndex + 1 < rowTexts.length) {
+                                const adjacentValue = rowTexts[statusCellIndex + 1];
+                                permitNumber = isPermitLikeValue(adjacentValue) ? adjacentValue : null;
+                            } else {
+                                permitNumber = null;
+                            }
+                        }
+                        if (!permitNumber || permitNumber === '-' || permitNumber === '--') {
+                            permitNumber = rowTexts.find(isPermitLikeValue) || null;
                         }
 
                         return {
@@ -958,7 +1008,7 @@ public class DeclarationsPage {
 
         while (System.currentTimeMillis() <= deadline) {
             try {
-                DeclarationListEntry currentEntry = readDeclarationListEntry(messageReference);
+                DeclarationListEntry currentEntry = resolveTrackedDeclarationEntry(messageReference, expectedJobId);
                 if (matchesTrackedDeclaration(currentEntry, messageReference, expectedJobId)) {
                     latestMatchingEntry = currentEntry;
                     if (isTerminalJobStatus(currentEntry.jobStatus())) {
@@ -976,7 +1026,10 @@ public class DeclarationsPage {
             }
         }
 
-        return latestMatchingEntry != null ? latestMatchingEntry : readDeclarationListEntry(messageReference);
+        if (latestMatchingEntry != null) {
+            return latestMatchingEntry;
+        }
+        return resolveTrackedDeclarationEntry(messageReference, expectedJobId);
     }
 
     public void refreshDeclarationList() {
@@ -1094,6 +1147,32 @@ public class DeclarationsPage {
                 || normalizedExpectedMessageReference.equals(normalizedActualMessageReference);
     }
 
+    private DeclarationListEntry resolveTrackedDeclarationEntry(
+            String messageReference,
+            String expectedJobId) {
+        if (expectedJobId != null && !expectedJobId.isBlank()) {
+            DeclarationListEntry byJobId = readDeclarationListEntryByJobId(expectedJobId);
+            if (matchesTrackedDeclaration(byJobId, messageReference, expectedJobId)) {
+                return byJobId;
+            }
+        }
+
+        if (messageReference != null && !messageReference.isBlank()) {
+            DeclarationListEntry byMessageReference = readDeclarationListEntry(messageReference);
+            if (matchesTrackedDeclaration(byMessageReference, messageReference, expectedJobId)) {
+                return byMessageReference;
+            }
+        }
+
+        if (expectedJobId != null && !expectedJobId.isBlank()) {
+            return readDeclarationListEntryByJobId(expectedJobId);
+        }
+
+        return messageReference != null && !messageReference.isBlank()
+                ? readDeclarationListEntry(messageReference)
+                : null;
+    }
+
     private String normalizeValue(String value) {
         if (value == null) {
             return null;
@@ -1111,11 +1190,16 @@ public class DeclarationsPage {
         page.waitForTimeout(1000);
     }
 
-    private void openDeclarationsMenuIfNeeded() {
-        if (!page.locator(IPT_MENU_ITEM).first().isVisible()) {
-            page.locator(DECLARATIONS_MENU).first().click();
-            page.waitForTimeout(500);
+    private void openDeclarationsMenuIfNeeded(String menuLabel) {
+        // Check if the specific declaration type's menu item is already visible.
+        // Using the exact type link (e.g. "Certificate of Origin (COO)") is reliable for
+        // every declaration type; the old hardcoded IPT check failed for non-IPT runs.
+        Locator specificItem = page.locator("a:has-text('" + menuLabel + "')").first();
+        if (specificItem.count() > 0 && specificItem.isVisible()) {
+            return;
         }
+        page.locator(DECLARATIONS_MENU).first().click();
+        page.waitForTimeout(500);
     }
 
     private void clickDeclarationMenuItem(String menuLabel, String route) {

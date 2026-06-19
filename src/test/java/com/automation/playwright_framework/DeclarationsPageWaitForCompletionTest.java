@@ -12,6 +12,11 @@ class DeclarationsPageWaitForCompletionTest {
     void returnsImmediatelyWhenTerminalStatusIsReachedBeforePermitNumberIsResolved() {
         DeclarationsPage declarationsPage = new DeclarationsPage(null) {
             @Override
+            public DeclarationListEntry readDeclarationListEntryByJobId(String jobId) {
+                return new DeclarationListEntry("5371", "PMT", "TDX2606150060", "mohan", null);
+            }
+
+            @Override
             public DeclarationListEntry readDeclarationListEntry(String messageReference) {
                 return new DeclarationListEntry("5371", "PMT", "TDX2606150060", "mohan", null);
             }
@@ -30,6 +35,37 @@ class DeclarationsPageWaitForCompletionTest {
         assertEquals("5371", entry.jobId());
         assertEquals("PMT", entry.jobStatus());
         assertEquals("TDX2606150060", entry.declarationNumber());
+        assertEquals("mohan", entry.jobCreatedBy());
+        assertNull(entry.permitNumber());
+    }
+
+    @Test
+    void prefersTrackedJobIdWhenJsonMessageReferenceIsStale() {
+        DeclarationsPage declarationsPage = new DeclarationsPage(null) {
+            @Override
+            public DeclarationListEntry readDeclarationListEntryByJobId(String jobId) {
+                return new DeclarationListEntry("5840", "PMT", "TDX2606190005", "mohan", null);
+            }
+
+            @Override
+            public DeclarationListEntry readDeclarationListEntry(String messageReference) {
+                throw new AssertionError("stale message reference should not be polled before the real job id");
+            }
+
+            @Override
+            public void refreshDeclarationList() {
+                throw new AssertionError("refreshDeclarationList should not be called after PMT is observed");
+            }
+        };
+
+        DeclarationsPage.DeclarationListEntry entry = declarationsPage.waitForDeclarationCompletion(
+                "TDX2606120133",
+                "5840",
+                0);
+
+        assertEquals("5840", entry.jobId());
+        assertEquals("PMT", entry.jobStatus());
+        assertEquals("TDX2606190005", entry.declarationNumber());
         assertEquals("mohan", entry.jobCreatedBy());
         assertNull(entry.permitNumber());
     }

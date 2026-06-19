@@ -60,23 +60,31 @@ public class TestLauncherController {
             Map.entry("inp", new LauncherTypeConfig(
                     "inp",
                     "In Non-Payment (INP)",
-                    null,
+                    "inp-batch-submit",
                     "INP",
-                    null,
-                    null,
-                    List.of(),
+                    "IptDeclarationTestCase1Test",
+                    "tradenix.ipt.test.data",
+                    List.of(
+                            "-Dtradenix.declaration.type=INP",
+                            "-Dtradenix.declaration.route=/declarations/inp",
+                            "-Dtradenix.declaration.menu.label=In-Non-Payment (INP)",
+                            "-Dtradenix.report.artifact.prefix=inp-batch-submit"),
                     false,
-                    false)),
+                    true)),
             Map.entry("tnp", new LauncherTypeConfig(
                     "tnp",
                     "Transhipment (TNP)",
-                    null,
+                    "tnp-batch-submit",
                     "TNP",
-                    null,
-                    null,
-                    List.of(),
+                    "IptDeclarationTestCase1Test",
+                    "tradenix.ipt.test.data",
+                    List.of(
+                            "-Dtradenix.declaration.type=TNP",
+                            "-Dtradenix.declaration.route=/declarations/tnp",
+                            "-Dtradenix.declaration.menu.label=Transhipment (TNP)",
+                            "-Dtradenix.report.artifact.prefix=tnp-batch-submit"),
                     false,
-                    false)),
+                    true)),
             Map.entry("out", new LauncherTypeConfig(
                     "out",
                     "Out Declaration (OUT)",
@@ -378,7 +386,7 @@ public class TestLauncherController {
         return switch (normalizedJobStatus) {
             case "SUB" -> "PENDING";
             case "SNT" -> "IN_PROGRESS";
-            case "PMT" -> hasPmtNumber(pmtNumber) ? "SUCCESS" : "IN_PROGRESS";
+            case "PMT" -> "SUCCESS";
             case "DRF", "REG", "FLD", "REJ" -> "FAILED";
             default -> null;
         };

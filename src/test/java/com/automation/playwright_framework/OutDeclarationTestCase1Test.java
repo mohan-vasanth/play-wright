@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 
 public class OutDeclarationTestCase1Test extends BaseTest {
 
@@ -25,12 +26,15 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "12345678");
     private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
-    private static final String OUT_ROUTE = "/declarations/out";
-    private static final String OUT_MENU_LABEL = "Out Payment (OUT)";
+    private static final String OUT_ROUTE = System.getProperty("tradenix.declaration.route", "/declarations/out");
+    private static final String OUT_MENU_LABEL = System.getProperty("tradenix.declaration.menu.label", "Out Payment (OUT)");
     private static final String TEST_DATA_RESOURCE = System.getProperty(
             "tradenix.out.test.data",
             "OUT/out-declaration-batch-test-case.json");
-    private static final String REPORT_ARTIFACT_PREFIX = "out-batch-submit";
+    private static final String REPORT_ARTIFACT_PREFIX = System.getProperty(
+            "tradenix.report.artifact.prefix",
+            "out-batch-submit");
+    private static final String DEFAULT_DECLARATION_TYPE = System.getProperty("tradenix.declaration.type", "OUT");
 
     @Test
     void submitOutDeclarationTestCase1UsingJsonData() {
@@ -58,7 +62,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         }
 
         boolean shouldSubmitDeclaration = shouldSubmitDeclaration(testData);
+        Instant executionStartedAt = Instant.now();
         declarationsPage.createNewDeclarationDraft(OUT_ROUTE);
+        String initialJobId = declarationsPage.readCurrentJobIdFromUrl();
         String messageReference = firstNonBlank(
                 outDeclarationPage.readCurrentMessageReference(),
                 testData.path("header").path("messageReference").asText(null));
@@ -73,13 +79,16 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     outDeclarationPage);
             DeclarationsPage.DeclarationListEntry submittedEntry = readSubmittedDeclarationEntry(
                     declarationsPage,
-                    messageReference);
+                    messageReference,
+                    initialJobId);
             DeclarationsPage.DeclarationListEntry finalEntry = finalizeSubmittedDeclaration(
                     loginPage,
                     declarationsPage,
                     testData,
+                    initialJobId,
                     messageReference,
                     submittedEntry,
+                    executionStartedAt,
                     diagnosticsPath,
                     Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-1.png"));
             openGeneratedReport(finalEntry, 1);
@@ -93,7 +102,10 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         writeDraftOutcomeToDiagnostics(
                 diagnosticsPath,
                 testData,
-                firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)));
+                initialJobId,
+                firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)),
+                executionStartedAt,
+                Instant.now());
         StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         openGeneratedReport(null, 1);
     }
@@ -111,7 +123,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         for (int index = 0; index < declarationBatch.size(); index++) {
             JsonNode declaration = declarationBatch.get(index);
             openDeclarationListWithRelogin(loginPage, declarationsPage);
+            Instant executionStartedAt = Instant.now();
             declarationsPage.createNewDeclarationDraft(OUT_ROUTE);
+            String initialJobId = declarationsPage.readCurrentJobIdFromUrl();
             String messageReference = firstNonBlank(
                     outDeclarationPage.readCurrentMessageReference(),
                     declaration.path("header").path("messageReference").asText(null));
@@ -126,13 +140,16 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                         outDeclarationPage);
                 DeclarationsPage.DeclarationListEntry submittedEntry = readSubmittedDeclarationEntry(
                         declarationsPage,
-                        messageReference);
+                        messageReference,
+                        initialJobId);
                 lastCompletedEntry = finalizeSubmittedDeclaration(
                         loginPage,
                         declarationsPage,
                         declaration,
+                        initialJobId,
                         messageReference,
                         submittedEntry,
+                        executionStartedAt,
                         diagnosticsPath,
                         Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
             } catch (Exception exception) {
@@ -143,14 +160,17 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                         outDeclarationPage);
                 DeclarationsPage.DeclarationListEntry submittedEntry = readSubmittedDeclarationEntry(
                         declarationsPage,
-                        messageReference);
+                        messageReference,
+                        initialJobId);
                 try {
                     lastCompletedEntry = finalizeSubmittedDeclaration(
                             loginPage,
                             declarationsPage,
                             declaration,
+                            initialJobId,
                             messageReference,
                             submittedEntry,
+                            executionStartedAt,
                             diagnosticsPath,
                             Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
                 } catch (Exception ignored) {
@@ -230,14 +250,19 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             Path diagnosticsPath,
             JsonNode declaration,
             DeclarationsPage.DeclarationListEntry declarationListEntry,
+            String initialJobId,
             String fallbackMessageReference,
-            DeclarationsPage.DeclarationResponseDetails responseDetails) {
+            DeclarationsPage.DeclarationResponseDetails responseDetails,
+            Instant executionStartedAt,
+            Instant executionFinishedAt) {
         try {
             JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
             com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
                     ? (com.fasterxml.jackson.databind.node.ObjectNode) current
                     : OBJECT_MAPPER.createObjectNode();
-            String jobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
+            String jobId = firstNonBlank(
+                    declarationListEntry != null ? declarationListEntry.jobId() : null,
+                    initialJobId);
             String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
             String declarationNumber = firstNonBlank(
                     declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
@@ -249,7 +274,10 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     declarationListEntry != null ? declarationListEntry.jobCreatedBy() : null,
                     USER_USERNAME);
             String declarationType = resolveDeclarationType(declaration);
-            String resolvedJobStatus = firstNonBlank(jobStatus, inferStatusFromDiagnostics(root));
+            String resolvedJobStatus = firstNonBlank(
+                    responseDetails != null ? responseDetails.status() : null,
+                    jobStatus,
+                    inferStatusFromDiagnostics(root));
             String toastText = firstNonBlank(root.path("toastText").asText(null));
             String capturedResponseMessage = firstNonBlank(root.path("responseMessage").asText(null));
             String capturedErrorMessage = firstNonBlank(root.path("errorMessage").asText(null));
@@ -300,6 +328,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             }
             root.put("responseMessage", firstNonBlank(responseMessage, "N/A"));
             root.put("errorMessage", firstNonBlank(errorMessage, "N/A"));
+            applyExecutionTiming(root, executionStartedAt, executionFinishedAt);
             root.put("responseSummary", formatResponseSummary(
                     jobId,
                     declarationNumber,
@@ -319,7 +348,8 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                 declaration.path("header").path("declarationType").asText(null),
                 declaration.path("header").path("applicationType").asText(null),
                 declaration.path("header").path("commonAccessReference").asText(null),
-                declaration.path("type").asText(null));
+                declaration.path("type").asText(null),
+                DEFAULT_DECLARATION_TYPE);
     }
 
     private String inferStatusFromDiagnostics(JsonNode root) {
@@ -393,7 +423,10 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     private void writeDraftOutcomeToDiagnostics(
             Path diagnosticsPath,
             JsonNode declaration,
-            String fallbackMessageReference) {
+            String initialJobId,
+            String fallbackMessageReference,
+            Instant executionStartedAt,
+            Instant executionFinishedAt) {
         try {
             JsonNode current = OBJECT_MAPPER.readTree(Files.readString(diagnosticsPath));
             com.fasterxml.jackson.databind.node.ObjectNode root = current != null && current.isObject()
@@ -405,6 +438,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     declaration.path("header").path("messageReference").asText(null));
             String jobCreatedBy = firstNonBlank(USER_USERNAME);
             root.put("jobStatus", "DRF");
+            if (initialJobId != null && !initialJobId.isBlank()) {
+                root.put("jobId", initialJobId);
+            }
             if (declarationType != null && !declarationType.isBlank()) {
                 root.put("declarationType", declarationType);
             }
@@ -416,8 +452,9 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             }
             root.put("responseMessage", "Declaration draft prepared successfully.");
             root.put("errorMessage", "N/A");
+            applyExecutionTiming(root, executionStartedAt, executionFinishedAt);
             root.put("responseSummary", formatResponseSummary(
-                    null,
+                    initialJobId,
                     declarationNumber,
                     declarationType,
                     "DRF",
@@ -434,25 +471,30 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             LoginPage loginPage,
             DeclarationsPage declarationsPage,
             JsonNode declaration,
+            String initialJobId,
             String messageReference,
             DeclarationsPage.DeclarationListEntry submittedEntry,
+            Instant executionStartedAt,
             Path diagnosticsPath,
             Path statusScreenshotPath) {
         DeclarationsPage.DeclarationListEntry declarationListEntry = submittedEntry;
         try {
-            openDeclarationListWithRelogin(loginPage, declarationsPage);
-            declarationListEntry = refreshTrackedDeclarationEntry(
-                    declarationsPage,
-                    declarationListEntry,
-                    messageReference);
+                    openDeclarationListWithRelogin(loginPage, declarationsPage);
+                    declarationListEntry = refreshTrackedDeclarationEntry(
+                            declarationsPage,
+                            declarationListEntry,
+                            messageReference,
+                            initialJobId);
             if (!isTerminalJobStatus(declarationsPage, declarationListEntry)
                     && !hasTerminalDiagnosticStatus(diagnosticsPath)) {
-                declarationListEntry = declarationsPage.waitForDeclarationCompletion(
-                        firstNonBlank(
-                                declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
-                                messageReference),
-                        declarationListEntry != null ? declarationListEntry.jobId() : null,
-                        Long.getLong("tradenix.job.completion.timeout.ms", 180000L));
+                    declarationListEntry = declarationsPage.waitForDeclarationCompletion(
+                            firstNonBlank(
+                                    declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
+                                    messageReference),
+                            firstNonBlank(
+                                    declarationListEntry != null ? declarationListEntry.jobId() : null,
+                                    initialJobId),
+                            Long.getLong("tradenix.job.completion.timeout.ms", 600000L));
             }
             if (declarationListEntry == null) {
                 declarationListEntry = submittedEntry;
@@ -472,8 +514,11 @@ public class OutDeclarationTestCase1Test extends BaseTest {
                     diagnosticsPath,
                     declaration,
                     declarationListEntry,
+                    initialJobId,
                     messageReference,
-                    responseDetails);
+                    responseDetails,
+                    executionStartedAt,
+                    Instant.now());
             return declarationListEntry;
         } finally {
             StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
@@ -483,12 +528,16 @@ public class OutDeclarationTestCase1Test extends BaseTest {
     private DeclarationsPage.DeclarationListEntry refreshTrackedDeclarationEntry(
             DeclarationsPage declarationsPage,
             DeclarationsPage.DeclarationListEntry currentEntry,
-            String fallbackMessageReference) {
+            String fallbackMessageReference,
+            String fallbackJobId) {
         DeclarationsPage.DeclarationListEntry refreshedByReference = readSubmittedDeclarationEntry(
                 declarationsPage,
                 firstNonBlank(
                         currentEntry != null ? currentEntry.declarationNumber() : null,
-                        fallbackMessageReference));
+                        fallbackMessageReference),
+                firstNonBlank(
+                        currentEntry != null ? currentEntry.jobId() : null,
+                        fallbackJobId));
         if (hasTrackingDetails(refreshedByReference)) {
             return refreshedByReference;
         }
@@ -512,12 +561,24 @@ public class OutDeclarationTestCase1Test extends BaseTest {
 
     private DeclarationsPage.DeclarationListEntry readSubmittedDeclarationEntry(
             DeclarationsPage declarationsPage,
-            String messageReference) {
+            String messageReference,
+            String jobId) {
         try {
-            return declarationsPage.readDeclarationListEntry(messageReference);
+            if (jobId != null && !jobId.isBlank()) {
+                DeclarationsPage.DeclarationListEntry byJobId = declarationsPage.readDeclarationListEntryByJobId(jobId);
+                if (hasTrackingDetails(byJobId)) {
+                    return byJobId;
+                }
+            }
         } catch (Exception ignored) {
-            return null;
         }
+        try {
+            if (messageReference != null && !messageReference.isBlank()) {
+                return declarationsPage.readDeclarationListEntry(messageReference);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private DeclarationsPage.DeclarationListEntry resolveDeclarationWithPermitNumber(
@@ -544,8 +605,6 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             }
 
             page.waitForTimeout(1500);
-            openDeclarationListWithRelogin(loginPage, declarationsPage);
-            currentEntry = refreshTrackedDeclarationEntry(declarationsPage, currentEntry, fallbackMessageReference);
         }
         return currentEntry;
     }
@@ -571,8 +630,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             DeclarationsPage declarationsPage,
             DeclarationsPage.DeclarationListEntry declarationListEntry) {
         return declarationListEntry != null
-                && declarationsPage.hasTerminalJobStatus(declarationListEntry.jobStatus())
-                && !isPermitNumberPending(declarationListEntry);
+                && declarationsPage.hasTerminalJobStatus(declarationListEntry.jobStatus());
     }
 
     private boolean isPermitNumberPending(DeclarationsPage.DeclarationListEntry declarationListEntry) {
@@ -596,27 +654,40 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             DeclarationsPage declarationsPage,
             DeclarationsPage.DeclarationListEntry declarationListEntry,
             String fallbackMessageReference) {
-        String jobStatus = declarationListEntry != null ? declarationListEntry.jobStatus() : null;
-        if (jobStatus == null || (!"FLD".equalsIgnoreCase(jobStatus)
-                && !"REG".equalsIgnoreCase(jobStatus)
-                && !"REJ".equalsIgnoreCase(jobStatus)
-                && !"PMT".equalsIgnoreCase(jobStatus))) {
-            return null;
-        }
-
         String messageReference = firstNonBlank(
                 declarationListEntry != null ? declarationListEntry.declarationNumber() : null,
                 fallbackMessageReference);
-        if (messageReference == null) {
-            return null;
+        try {
+            if (messageReference != null) {
+                openDeclarationListWithRelogin(loginPage, declarationsPage);
+                return declarationsPage.readDeclarationResponseDetails(messageReference);
+            }
+        } catch (Exception ignored) {
         }
 
         try {
+            String trackedJobId = declarationListEntry != null ? declarationListEntry.jobId() : null;
+            if (trackedJobId == null) {
+                return null;
+            }
             openDeclarationListWithRelogin(loginPage, declarationsPage);
-            return declarationsPage.readDeclarationResponseDetails(messageReference);
+            declarationsPage.openDeclarationViewByJobId(trackedJobId);
+            return declarationsPage.readCurrentResponseDetails();
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private void applyExecutionTiming(
+            com.fasterxml.jackson.databind.node.ObjectNode root,
+            Instant executionStartedAt,
+            Instant executionFinishedAt) {
+        if (root == null || executionStartedAt == null || executionFinishedAt == null) {
+            return;
+        }
+        root.put("startTime", executionStartedAt.toString());
+        root.put("endTime", executionFinishedAt.toString());
+        root.put("durationMs", Math.max(0L, executionFinishedAt.toEpochMilli() - executionStartedAt.toEpochMilli()));
     }
 
     private void openGeneratedReport(
