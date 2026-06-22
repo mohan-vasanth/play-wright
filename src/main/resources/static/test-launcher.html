@@ -1448,8 +1448,8 @@
             currentConfigMeta = {
                 type: normalizedType,
                 moduleLabel: moduleLabelForType(normalizedType),
-                resourceFolder: normalizedType.toUpperCase(),
-                configuredFolder: 'src/test/resources/' + normalizedType.toUpperCase(),
+                resourceFolder: 'declaration-json/' + normalizedType.toUpperCase(),
+                configuredFolder: 'src/main/resources/declaration-json/' + normalizedType.toUpperCase(),
                 resolvedFolderPath: '',
                 folderFound: false,
                 executable: defaultExecutableForType(normalizedType),
@@ -1470,7 +1470,7 @@
         const executable = Boolean(data.executable);
         const resourceFolder = String(data.resourceFolder || '').trim();
         const configuredFolder = String(data.configuredFolder || '').trim()
-            || (resourceFolder ? 'src/test/resources/' + resourceFolder : '');
+            || (resourceFolder ? 'src/main/resources/' + resourceFolder : '');
         const resolvedFolderPath = String(data.resolvedFolderPath || '').trim();
         const folderFound = Boolean(data.folderFound);
         const files = Array.isArray(data.files) ? data.files : [];
@@ -1480,7 +1480,7 @@
         document.getElementById('configSubtext').textContent = loadError
             ? launcherApiConnectionMessage()
             : executable
-            ? 'Select a JSON from ' + (configuredFolder || ('src/test/resources/' + resourceFolder)) + ' or upload one manually before running the declaration.'
+            ? 'Select a JSON from ' + (configuredFolder || ('src/main/resources/' + resourceFolder)) + ' or upload one manually before running the declaration.'
             : 'Repository JSON selection is available, but an automation runner is not implemented for this declaration type yet.';
         document.getElementById('configFolderHint').textContent = configuredFolder
             ? 'Folder source: ' + configuredFolder + (resolvedFolderPath ? ' | Resolved path: ' + resolvedFolderPath : '')
@@ -1848,7 +1848,7 @@
         const normalizedStatus = String(jobStatus || '').trim().toUpperCase();
         const normalizedPmtNumber = String(pmtNumber || '').trim().toUpperCase();
         const normalizedMessageRef = String(messageRef || '').trim().toUpperCase();
-        return normalizedStatus === 'PMT'
+        return ['PMT', 'SUB'].includes(normalizedStatus)
             && normalizedPmtNumber
             && normalizedPmtNumber !== 'N/A'
             && normalizedPmtNumber !== normalizedMessageRef
@@ -1961,7 +1961,7 @@
         const pmtNumber = String(data.pmtNumber || '').trim();
         const showPmtNumber = shouldDisplayPmtNumber(jobStatus, pmtNumber, messageRef);
 
-        const finalStatusBadgeKeys = ['PMT', 'FLD', 'REG', 'REJ', 'DRF'];
+        const finalStatusBadgeKeys = ['PMT', 'SUB', 'FLD', 'REG', 'REJ', 'DRF'];
         const badgeKey = finalStatusBadgeKeys.includes(jobStatus) ? jobStatus : normalizedState;
         statusPanel.dataset.state = normalizedState;
         badge.className = 'status-badge status-' + badgeKey;

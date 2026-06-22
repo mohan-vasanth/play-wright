@@ -30,7 +30,7 @@ class LoadTestingDeclarationCatalog {
                     "In-Payment (IPT)",
                     "In-Payment (IPT)",
                     "/declarations/ipt",
-                    "IPT",
+                    "declaration-json/IPT",
                     WorkflowKind.IPT_STYLE,
                     List.of("Edit Declaration", "Job Info")),
             "inp", new DeclarationDefinition(
@@ -38,7 +38,7 @@ class LoadTestingDeclarationCatalog {
                     "In-Non-Payment (INP)",
                     "In-Non-Payment (INP)",
                     "/declarations/inp",
-                    "INP",
+                    "declaration-json/INP",
                     WorkflowKind.IPT_STYLE,
                     List.of("Edit Declaration", "Job Info")),
             "tnp", new DeclarationDefinition(
@@ -46,7 +46,7 @@ class LoadTestingDeclarationCatalog {
                     "Transhipment (TNP)",
                     "Transhipment (TNP)",
                     "/declarations/tnp",
-                    "TNP",
+                    "declaration-json/TNP",
                     WorkflowKind.IPT_STYLE,
                     List.of("Edit Declaration", "Job Info")),
             "out", new DeclarationDefinition(
@@ -54,7 +54,7 @@ class LoadTestingDeclarationCatalog {
                     "Out Payment (OUT)",
                     "Out Payment (OUT)",
                     "/declarations/out",
-                    "OUT",
+                    "declaration-json/OUT",
                     WorkflowKind.OUT,
                     List.of("Edit Declaration", "Job Info")),
             "coo", new DeclarationDefinition(
@@ -62,7 +62,7 @@ class LoadTestingDeclarationCatalog {
                     "Certificate of Origin (COO)",
                     "Certificate of Origin (COO)",
                     "/declarations/coo",
-                    "COO",
+                    "declaration-json/COO",
                     WorkflowKind.COO,
                     List.of("Edit Declaration", "Job Info", "Header & Certificate")));
 
@@ -208,14 +208,22 @@ class LoadTestingDeclarationCatalog {
 
     private List<Path> resourceFolderCandidates(DeclarationDefinition definition) {
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        candidates.add(Paths.get("src", "main", "resources", definition.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("src", "test", "resources", definition.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "test-classes", definition.resourceFolder()).toAbsolutePath().normalize());
+        candidates.add(Paths.get("target", "classes", definition.resourceFolder()).toAbsolutePath().normalize());
 
         locateProjectRoot().ifPresent(projectRoot -> {
+            candidates.add(projectRoot.resolve(Paths.get("src", "main", "resources", definition.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
             candidates.add(projectRoot.resolve(Paths.get("src", "test", "resources", definition.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
             candidates.add(projectRoot.resolve(Paths.get("target", "test-classes", definition.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
+            candidates.add(projectRoot.resolve(Paths.get("target", "classes", definition.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
         });

@@ -51,7 +51,7 @@ public class TestLauncherController {
                     "ipt",
                     "In Payment (IPT)",
                     "ipt-batch-submit",
-                    "IPT",
+                    "declaration-json/IPT",
                     "IptDeclarationTestCase1Test",
                     "tradenix.ipt.test.data",
                     List.of(),
@@ -61,7 +61,7 @@ public class TestLauncherController {
                     "inp",
                     "In Non-Payment (INP)",
                     "inp-batch-submit",
-                    "INP",
+                    "declaration-json/INP",
                     "IptDeclarationTestCase1Test",
                     "tradenix.ipt.test.data",
                     List.of(
@@ -75,7 +75,7 @@ public class TestLauncherController {
                     "tnp",
                     "Transhipment (TNP)",
                     "tnp-batch-submit",
-                    "TNP",
+                    "declaration-json/TNP",
                     "IptDeclarationTestCase1Test",
                     "tradenix.ipt.test.data",
                     List.of(
@@ -89,7 +89,7 @@ public class TestLauncherController {
                     "out",
                     "Out Declaration (OUT)",
                     "out-batch-submit",
-                    "OUT",
+                    "declaration-json/OUT",
                     "OutDeclarationTestCase1Test",
                     "tradenix.out.test.data",
                     List.of(),
@@ -99,7 +99,7 @@ public class TestLauncherController {
                     "coo",
                     "COO Declaration",
                     "coo-batch-submit",
-                    "COO",
+                    "declaration-json/COO",
                     "CooDeclarationTestCase1Test",
                     "tradenix.coo.test.data",
                     List.of("-Dplaywright.headless=false", "-Dplaywright.slowmo.ms=250"),
@@ -384,7 +384,7 @@ public class TestLauncherController {
             return null;
         }
         return switch (normalizedJobStatus) {
-            case "SUB" -> "PENDING";
+            case "SUB" -> "SUCCESS";
             case "SNT" -> "IN_PROGRESS";
             case "PMT" -> "SUCCESS";
             case "DRF", "REG", "FLD", "REJ" -> "FAILED";
@@ -637,14 +637,22 @@ public class TestLauncherController {
 
     private List<Path> resourceFolderCandidates(LauncherTypeConfig config) {
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        candidates.add(Paths.get("src", "main", "resources", config.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("src", "test", "resources", config.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "test-classes", config.resourceFolder()).toAbsolutePath().normalize());
+        candidates.add(Paths.get("target", "classes", config.resourceFolder()).toAbsolutePath().normalize());
 
         locateProjectRoot().ifPresent(projectRoot -> {
+            candidates.add(projectRoot.resolve(Paths.get("src", "main", "resources", config.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
             candidates.add(projectRoot.resolve(Paths.get("src", "test", "resources", config.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
             candidates.add(projectRoot.resolve(Paths.get("target", "test-classes", config.resourceFolder()))
+                    .toAbsolutePath()
+                    .normalize());
+            candidates.add(projectRoot.resolve(Paths.get("target", "classes", config.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
         });
@@ -689,7 +697,7 @@ public class TestLauncherController {
     }
 
     private String configuredResourceFolder(LauncherTypeConfig config) {
-        return Paths.get("src", "test", "resources", config.resourceFolder()).toString().replace('\\', '/');
+        return Paths.get("src", "main", "resources", config.resourceFolder()).toString().replace('\\', '/');
     }
 
     private boolean isTerminalDisplayState(String value) {

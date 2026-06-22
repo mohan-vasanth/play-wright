@@ -105,6 +105,29 @@ class TestReportControllerParsingTest {
     }
 
     @Test
+    void readDiagnosticsRetainsPmtNumberForSubmittedStatus() throws Exception {
+        Path diagnosticsFile = Files.createTempFile("out-batch-submit-validation-", ".json");
+        Files.writeString(diagnosticsFile, """
+                {
+                  "jobStatus": "SUB",
+                  "responseSummary": "Job ID: 5341\\r\\n\\r\\nMessage Ref: TDX2606150030\\r\\n\\r\\nDeclaration Type: COO\\r\\n\\r\\nStatus: SUB\\r\\n\\r\\nPMT Number: OD6F274299A\\r\\n\\r\\nJob Created By: mohan"
+                }
+                """);
+
+        try {
+            TestReportController controller = new TestReportController();
+            Method method = TestReportController.class.getDeclaredMethod("readDiagnostics", Path.class);
+            method.setAccessible(true);
+            Object diagnostics = method.invoke(controller, diagnosticsFile);
+
+            Method pmtNumber = diagnostics.getClass().getDeclaredMethod("pmtNumber");
+            assertEquals("OD6F274299A", pmtNumber.invoke(diagnostics));
+        } finally {
+            Files.deleteIfExists(diagnosticsFile);
+        }
+    }
+
+    @Test
     void readDiagnosticsRejectsMessageReferenceAsPmtNumberEvenForPmtStatus() throws Exception {
         Path diagnosticsFile = Files.createTempFile("out-batch-submit-validation-", ".json");
         Files.writeString(diagnosticsFile, """

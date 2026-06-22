@@ -304,15 +304,15 @@ public class TestReportController {
                     batchMetaByIndex.get(entry.getKey()));
             batchCases.add(batchCase);
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
-            String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
-            if ("PMT".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+            String displayStatus = summarizeDisplayStatus(batchCase.status(), batchCase.jobStatus());
+            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
             } else if ("DRF".equals(displayStatus)) {
                 draftCount++;
             } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
                 failureCount++;
             } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)
-                    || "SUB".equals(displayStatus) || "REG".equals(displayStatus)) {
+                    || "REG".equals(displayStatus)) {
                 issueCount++;
             }
         }
@@ -343,15 +343,15 @@ public class TestReportController {
         long updatedAtMillis = Long.MIN_VALUE;
         for (BatchCaseResult batchCase : matchingCases) {
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
-            String displayStatus = firstNonBlank(batchCase.jobStatus(), batchCase.status(), "NO_REPORT");
-            if ("PMT".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
+            String displayStatus = summarizeDisplayStatus(batchCase.status(), batchCase.jobStatus());
+            if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
             } else if ("DRF".equals(displayStatus)) {
                 draftCount++;
             } else if ("FLD".equals(displayStatus) || "REJ".equals(displayStatus) || "FAILURE".equals(displayStatus)) {
                 failureCount++;
             } else if ("ISSUE".equals(displayStatus) || "SNT".equals(displayStatus)
-                    || "SUB".equals(displayStatus) || "REG".equals(displayStatus)) {
+                    || "REG".equals(displayStatus)) {
                 issueCount++;
             }
         }
@@ -821,7 +821,10 @@ public class TestReportController {
     private String sanitizePmtNumber(String pmtNumber, String declarationNumber, String jobStatus) {
         String normalizedJobStatus = normalizeJobStatus(jobStatus);
         String normalizedPmtNumber = normalizePlaceholder(pmtNumber);
-        if (!"PMT".equals(normalizedJobStatus) || normalizedPmtNumber == null) {
+        if (normalizedPmtNumber == null) {
+            return null;
+        }
+        if (!"PMT".equals(normalizedJobStatus) && !"SUB".equals(normalizedJobStatus)) {
             return null;
         }
 
@@ -833,6 +836,14 @@ public class TestReportController {
             return null;
         }
         return normalizedPmtNumber;
+    }
+
+    private String summarizeDisplayStatus(String caseStatus, String jobStatus) {
+        String normalizedCaseStatus = firstNonBlank(caseStatus);
+        if ("SUCCESS".equalsIgnoreCase(normalizedCaseStatus)) {
+            return "SUCCESS";
+        }
+        return firstNonBlank(jobStatus, caseStatus, "NO_REPORT");
     }
 
     private TestCaseResult parseTestCase(Element testCase) {

@@ -1,0 +1,151 @@
+[
+  {
+    "type": "COODEC",
+    
+        "header": {
+            "messageReference": "TDX2606110009",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260611",
+                "sequenceNumeric": "1008"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "COODEC",
+            "applicationType": "COO",
+            "declarationIndicator": true,
+            "previousPermitNumber": "OD6E774234I"
+        },
+        "certificate": {
+            "applicationProductType": "NH",
+            "preferenceContentPercent": 23,
+            "currencyCode": "USD",
+            "additionalCertificateDetails": [
+                "AA",
+                "BB",
+                "CC",
+                "DD",
+                "EE"
+            ],
+            "transportDetails": [
+                "FF",
+                "FF",
+                "FF",
+                "FF",
+                "FF"
+            ],
+            "certificateDetail": [
+                {
+                    "sequenceNumeric": 1,
+                    "certificateType": "3",
+                    "copiesNumeric": 11
+                },
+                {
+                    "sequenceNumeric": 2,
+                    "certificateType": "5",
+                    "copiesNumeric": 55
+                }
+            ]
+        },
+        "supportingDocumentReference": [
+            {
+                "documentID": "001",
+                "filename": "s3://tradnixxmlfiles/declaration/ADAT.ADAT001/202535359H202606111008/attachments/TRADENETRESPONSE.COODCI_WORD.DOCX",
+                "downloadLink": "s3://tradnixxmlfiles/declaration/ADAT.ADAT001/202535359H202606111008/attachments/TRADENETRESPONSE.COODCI_WORD.DOCX"
+            }
+        ],
+        "transport": {
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "KKKK",
+                        "transportIdentifier": "FFSFF"
+                    }
+                },
+                "departureDate": "20260619",
+                "dischargePort": "AEAJM",
+                "finalDestinationCountry": "IN"
+            }
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "01012900",
+                "harmonizedSystemQuantity": {
+                    "value": "100",
+                    "unitCode": "NMB"
+                },
+                "originCountry": "CM",
+                "itemCIFFOBValue": "135.53",
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "LK222",
+                            "LK444"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "summary": {
+            "numberOfItems": "1",
+            "totalGrossWeight": {
+                "unitCode": "KGM"
+            },
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "PKG"
+            }
+        },
+        "formMetaData": {
+            "unitPriceCurrencies": [
+                "USD"
+            ],
+            "itemValues": [
+                "100"
+            ],
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ]
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "type": "COO"
+    }
+
+
+]

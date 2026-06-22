@@ -1,0 +1,322 @@
+{
+    "type": "IPTDEC",
+    
+        "header": {
+            "messageReference": "TDX2606150098",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260615",
+                "sequenceNumeric": "1089"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "10",
+            "declarationIndicator": true,
+            "bankerGuaranteeCode": "D",
+            "previousPermitNumber": "IM6D164000E",
+            "additionalRecipientIdIsActive": true,
+            "additionalRecipientId": [
+                "DDDDD"
+            ],
+            "remarks": {
+                "freeText": "ADATA TESTING"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "11",
+                            "processingCodeTwo": "11",
+                            "processingCodeThree": "11"
+                        }
+                    ]
+                }
+            ]
+        },
+        "licence": [
+            {
+                "referenceID": "KL9999"
+            }
+        ],
+        "cargo": {
+            "cargoPackingType": "9",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "supplyIndicator": "true",
+            "blanketStartDate": "20260616",
+            "transportEquipmentIsActive": true,
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "TRIU6719798",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "1",
+                    "transportEquipmentSeal": {
+                        "sealID": "KSC547522"
+                    }
+                }
+            ]
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "2513S",
+                        "transportIdentifier": "KMTC SHIMIZU"
+                    },
+                    "mawboucroblNumber": "KMTCPUSJ548945"
+                },
+                "arrivalDate": "20260626",
+                "loadingPort": "THBKK"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198402847H"
+                },
+                "partyName": {
+                    "name": "BAYSWATER"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "-",
+                "invoiceDate": "20260424",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "1000.00",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "1000",
+                    "gstAmountSgd": "90"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "1000",
+            "sumOfItemAmount": "1000",
+            "totalInvoiceCifValue": "1000",
+            "totalCifFobValue": "1000",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BUN"
+            },
+            "totalGrossWeight": {
+                "value": "100",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "102920.59",
+                "totalExciseDutyAmount": "1143462.1",
+                "totalAmountPayable": "102920.59"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": true,
+            "licenceIsActive": true,
+            "supportingDocumentIsActive": true,
+            "transportEquipmentIsActive": true,
+            "aeoIsActive": true,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ],
+            "itemPackingIsActive": [
+                true
+            ],
+            "tariffLotIdentificationIsActive": [
+                true
+            ],
+            "otherAmountFieldsIsActive": [
+                true
+            ],
+            "otherQuantityFieldIsActive": [
+                true
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "27101211",
+                "goodsDescription": "MOTOR SPIRIT OF RON 97 & ABOVE LEADED (TNE)",
+                "originCountry": "ID",
+                "brandName": "UNBRANDED",
+                "modelDescription": "BMW",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "INH123456",
+                "itemInvoiceNumber": "-",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "100",
+                        "unitCode": "TNE"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "161051",
+                        "unitCode": "DAL"
+                    },
+                    "dutiableQuantity": {
+                        "value": "11",
+                        "unitCode": "DAL"
+                    },
+                    "hsQuantity": {
+                        "value": "1230",
+                        "unitCode": "TNE"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "1000",
+                    "lastSellingPriceValue": "100",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "1000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "1000",
+                    "itemCifFobValueSgd": "1000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "102920.59"
+                    },
+                    "exciseDuty": {
+                        "dutyRate": "7.1",
+                        "dutyRateUnit": "DAL",
+                        "dutyAmount": "1143462.1"
+                    },
+                    "preferentialCode": "PRF"
+                },
+                "packingDescription": {
+                    "outerPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAG"
+                    },
+                    "inPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAG"
+                    },
+                    "innerPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAG"
+                    },
+                    "inmostPackQuantity": {
+                        "value": "11",
+                        "unitCode": "BAG"
+                    }
+                },
+                "lotIdentification": {
+                    "currentLotNumber": "11",
+                    "previousLotNumber": "111111",
+                    "marking": "HW"
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "OPALMINDS"
+                        ]
+                    }
+                ],
+                "cascProduct": [
+                    {
+                        "cascProductCode": "MISC",
+                        "cascProductQuantity": {
+                            "value": "100",
+                            "unitCode": "TNE"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "AU8888",
+                                "cascCodeTwo": "111",
+                                "cascCodeThree": "111"
+                            },
+                            {
+                                "cascCodeOne": "ASSS",
+                                "cascCodeTwo": "SSS",
+                                "cascCodeThree": "SSS"
+                            }
+                        ]
+                    },
+                    {
+                        "cascProductCode": "SCDFMLAMISC",
+                        "cascProductQuantity": {
+                            "value": "100",
+                            "unitCode": "TNE"
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "WE444",
+                                "cascCodeTwo": "44",
+                                "cascCodeThree": "44"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "IPT"
+    }
+
+    

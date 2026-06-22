@@ -921,7 +921,7 @@
         const normalizedStatus = String(jobStatus || '').trim().toUpperCase();
         const normalizedPmtNumber = String(pmtNumber || '').trim().toUpperCase();
         const normalizedDeclarationNumber = String(declarationNumber || '').trim().toUpperCase();
-        return normalizedStatus === 'PMT'
+        return ['PMT', 'SUB'].includes(normalizedStatus)
             && normalizedPmtNumber
             && normalizedPmtNumber !== 'N/A'
             && normalizedPmtNumber !== normalizedDeclarationNumber
@@ -962,14 +962,18 @@
         };
 
         for (const batchCase of batchCases) {
-            const displayStatus = String(batchCase?.jobStatus || batchCase?.status || '').toUpperCase();
-            if (['PMT', 'SUCCESS'].includes(displayStatus)) {
+            const caseStatus = String(batchCase?.status || '').toUpperCase();
+            const jobStatus = String(batchCase?.jobStatus || '').toUpperCase();
+            const displayStatus = caseStatus === 'SUCCESS'
+                ? 'SUCCESS'
+                : (jobStatus || caseStatus);
+            if (['PMT', 'SUB', 'SUCCESS'].includes(displayStatus)) {
                 summary.successes += 1;
             } else if (displayStatus === 'DRF') {
                 summary.drafts += 1;
             } else if (['FLD', 'REJ', 'FAILURE'].includes(displayStatus)) {
                 summary.failures += 1;
-            } else if (['ISSUE', 'SNT', 'SUB', 'REG'].includes(displayStatus)) {
+            } else if (['ISSUE', 'SNT', 'REG'].includes(displayStatus)) {
                 summary.issues += 1;
             }
         }

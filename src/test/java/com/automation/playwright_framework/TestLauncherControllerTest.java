@@ -31,7 +31,7 @@ class TestLauncherControllerTest {
 
         assertEquals("ipt", body.get("type"));
         assertEquals(Boolean.TRUE, body.get("folderFound"));
-        assertTrue(String.valueOf(body.get("configuredFolder")).endsWith("src/test/resources/IPT"));
+        assertTrue(String.valueOf(body.get("configuredFolder")).endsWith("src/main/resources/declaration-json/IPT"));
 
         List<?> files = (List<?>) body.get("files");
         assertFalse(files.isEmpty());
@@ -78,6 +78,16 @@ class TestLauncherControllerTest {
         assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", null));
         assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", "N/A"));
         assertEquals("SUCCESS", mapJobState.invoke(controller, "PMT", "OD6F274299A"));
+    }
+
+    @Test
+    void submittedStatusIsTreatedAsSuccessfulTerminalState() throws Exception {
+        Method mapJobState = TestLauncherController.class.getDeclaredMethod("mapJobState", String.class, String.class);
+        mapJobState.setAccessible(true);
+
+        assertEquals("SUCCESS", mapJobState.invoke(controller, "SUB", null));
+        assertEquals("SUCCESS", mapJobState.invoke(controller, "SUB", "N/A"));
+        assertEquals("SUCCESS", mapJobState.invoke(controller, "SUB", "OD6F274299A"));
     }
 
     @Test

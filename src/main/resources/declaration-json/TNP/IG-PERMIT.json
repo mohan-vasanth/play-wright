@@ -1,0 +1,221 @@
+{
+    "type": "IPTDEC",
+    
+        "header": {
+            "messageReference": "TDX2606120133",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260612",
+                "sequenceNumeric": "1134"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "IPTDEC",
+            "declarationType": "10",
+            "declarationIndicator": true,
+            "remarks": {
+                "freeText": "ADATA SET1"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "KR",
+                            "processingCodeTwo": "TESTAEO2002"
+                        }
+                    ]
+                }
+            ]
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "7896YTU",
+                        "transportIdentifier": "8756KJHVB"
+                    },
+                    "mawboucroblNumber": "7865"
+                },
+                "arrivalDate": "20260418",
+                "loadingPort": "HKHKG"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHGI "
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "SET1",
+                "invoiceDate": "20260410",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "854",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "854",
+                    "gstAmountSgd": "76.86"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "854",
+            "sumOfItemAmount": "854",
+            "totalInvoiceCifValue": "854",
+            "totalCifFobValue": "854",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BOX"
+            },
+            "totalGrossWeight": {
+                "value": "29",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "76.86",
+                "totalAmountPayable": "76.86"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": true,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "42050010",
+                "goodsDescription": "BOOT LACES & MATS OF LEATHER OR COMPOSITION LEATHER (TEN)",
+                "originCountry": "HK",
+                "brandName": "UNBRANDED",
+                "modelDescription": "1996",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "HAWB1234",
+                "itemInvoiceNumber": "SET1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "100",
+                        "unitCode": "TEN"
+                    },
+                    "hsQuantity": {
+                        "value": "100",
+                        "unitCode": "TEN"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "854",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "854",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "854",
+                    "itemCifFobValueSgd": "854"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "76.86"
+                    }
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "TEST"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "IPT"
+    }

@@ -81,11 +81,18 @@
         Button,
         Card,
         CardContent,
+        Checkbox,
         Chip,
         CircularProgress,
         CssBaseline,
         Divider,
+        Dialog,
+        DialogActions,
+        DialogContent,
+        DialogTitle,
+        Drawer,
         FormControl,
+        FormControlLabel,
         FormHelperText,
         Grid,
         InputLabel,
@@ -136,6 +143,24 @@
         { label: 'Reports', href: '#reports' },
         { label: 'Analytics', href: '#analytics' },
         { label: 'Settings', href: '#settings' }
+    ];
+
+    const DEFAULT_GRID_COLUMN_KEYS = [
+        'jobId',
+        'messageReference',
+        'declarationType',
+        'createdBy',
+        'status',
+        'permitNumber',
+        'urnDate',
+        'declarantId',
+        'failureReason',
+        'startTime',
+        'endTime',
+        'executionTime',
+        'evidence',
+        'selectedJson',
+        'jsonRecordNumber'
     ];
 
     const statusColors = {
@@ -585,6 +610,9 @@
         const [jsonOptions, setJsonOptions] = useState([]);
         const [jsonOptionsMeta, setJsonOptionsMeta] = useState(null);
         const [jsonOptionsLoading, setJsonOptionsLoading] = useState(false);
+        const [textPreview, setTextPreview] = useState({ open: false, title: '', value: '' });
+        const [columnDrawerOpen, setColumnDrawerOpen] = useState(false);
+        const [visibleGridColumns, setVisibleGridColumns] = useState(DEFAULT_GRID_COLUMN_KEYS);
 
         const theme = useMemo(() => buildTheme(), []);
         const jmeterStatus = status.jmeterStatus || {};
@@ -725,6 +753,296 @@
         function showToast(severity, message) {
             setToast({ open: true, severity, message });
         }
+
+        function summarizeCellText(value, words = 2) {
+            const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+            if (!normalized || normalized.toUpperCase() === 'N/A') {
+                return 'N/A';
+            }
+            const parts = normalized.split(' ');
+            if (parts.length <= words) {
+                return normalized;
+            }
+            return `${parts.slice(0, words).join(' ')}...`;
+        }
+
+        function openTextPreview(title, value) {
+            const normalized = String(value || '').trim();
+            if (!normalized || normalized.toUpperCase() === 'N/A') {
+                return;
+            }
+            setTextPreview({
+                open: true,
+                title,
+                value: normalized
+            });
+        }
+
+        function closeTextPreview() {
+            setTextPreview({ open: false, title: '', value: '' });
+        }
+
+        function openColumnDrawer() {
+            setColumnDrawerOpen(true);
+        }
+
+        function closeColumnDrawer() {
+            setColumnDrawerOpen(false);
+        }
+
+        function showAllGridColumns() {
+            setVisibleGridColumns(gridColumns.map(column => column.key));
+        }
+
+        function resetGridColumns() {
+            setVisibleGridColumns(DEFAULT_GRID_COLUMN_KEYS);
+        }
+
+        function toggleGridColumn(columnKey) {
+            setVisibleGridColumns(current => {
+                if (current.includes(columnKey)) {
+                    const next = current.filter(key => key !== columnKey);
+                    return next.length ? next : current;
+                }
+                const next = [...current, columnKey];
+                return gridColumns
+                    .map(column => column.key)
+                    .filter(key => next.includes(key));
+            });
+        }
+
+        const gridColumns = [
+            {
+                key: 'executionOrder',
+                label: 'Execution Order',
+                render: item => item.executionOrder || 'N/A'
+            },
+            {
+                key: 'tabNumber',
+                label: 'Tab Number',
+                render: item => item.tabNumber || 'N/A'
+            },
+            {
+                key: 'workerSlotNumber',
+                label: 'Worker Slot',
+                render: item => item.workerSlotNumber || item.tabNumber || 'N/A'
+            },
+            {
+                key: 'jobNumber',
+                label: 'Job Number',
+                render: item => item.jobNumber || item.executionOrder || 'N/A'
+            },
+            {
+                key: 'jobId',
+                label: 'Job ID',
+                render: item => item.jobId || 'N/A'
+            },
+            {
+                key: 'status',
+                label: 'Status',
+                render: item => {
+                    const rowStatus = String(item.status || (item.success ? 'SUCCESS' : 'PENDING')).toUpperCase();
+                    return <StatusBadge label={rowStatus} />;
+                }
+            },
+            {
+                key: 'creationStatus',
+                label: 'Creation Status',
+                render: item => <StatusBadge label={item.creationStatus || 'FAILED'} />
+            },
+            {
+                key: 'submissionStatus',
+                label: 'Submission Status',
+                render: item => <StatusBadge label={item.submissionStatus || 'FAILED'} />
+            },
+            {
+                key: 'applicationStatus',
+                label: 'App Status',
+                render: item => <StatusBadge label={item.applicationStatus || 'N/A'} />
+            },
+            {
+                key: 'failureReason',
+                label: 'Failure Reason',
+                render: item => {
+                    const failureReasonText = item.failureReason || item.errorMessage || 'N/A';
+                    return (
+                        <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => openTextPreview('Failure Reason', failureReasonText)}
+                            disabled={failureReasonText === 'N/A'}
+                            sx={{
+                                px: 0,
+                                minWidth: 0,
+                                justifyContent: 'flex-start',
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                lineHeight: 1.5
+                            }}
+                        >
+                            {summarizeCellText(failureReasonText)}
+                        </Button>
+                    );
+                },
+                cellSx: { maxWidth: 220 }
+            },
+            {
+                key: 'failureFieldName',
+                label: 'Failure Field',
+                render: item => item.failureFieldName || 'N/A'
+            },
+            {
+                key: 'failureJsonKey',
+                label: 'Failure JSON Key',
+                render: item => item.failureJsonKey || 'N/A'
+            },
+            {
+                key: 'failureJsonValue',
+                label: 'Failure JSON Value',
+                render: item => item.failureJsonValue || 'N/A'
+            },
+            {
+                key: 'failedStep',
+                label: 'Failed Step',
+                render: item => item.failedStep || 'N/A'
+            },
+            {
+                key: 'failureTimestamp',
+                label: 'Failure Timestamp',
+                render: item => formatDateTime(item.failureTimestamp)
+            },
+            {
+                key: 'failedFieldDetails',
+                label: 'Failed Field Details',
+                render: item => {
+                    const failedFieldDetailsText = item.failedFieldDetails || 'N/A';
+                    return (
+                        <Button
+                            size="small"
+                            variant="text"
+                            onClick={() => openTextPreview('Failed Field Details', failedFieldDetailsText)}
+                            disabled={failedFieldDetailsText === 'N/A'}
+                            sx={{
+                                px: 0,
+                                minWidth: 0,
+                                justifyContent: 'flex-start',
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                lineHeight: 1.5
+                            }}
+                        >
+                            {summarizeCellText(failedFieldDetailsText)}
+                        </Button>
+                    );
+                },
+                cellSx: { maxWidth: 220 }
+            },
+            {
+                key: 'startTime',
+                label: 'Start Time',
+                render: item => formatDateTime(item.startTime)
+            },
+            {
+                key: 'endTime',
+                label: 'End Time',
+                render: item => formatDateTime(item.endTime)
+            },
+            {
+                key: 'executionTime',
+                label: 'Execution Time',
+                render: item => item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'
+            },
+            {
+                key: 'evidence',
+                label: 'Evidence',
+                render: item => (
+                    <Stack spacing={1}>
+                        {item.screenshotUrl ? (
+                            <Button
+                                component="a"
+                                href={resolveArtifactUrl(item.screenshotUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                                size="small"
+                                variant="outlined"
+                                sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
+                            >
+                                Screenshot
+                            </Button>
+                        ) : (
+                            <Typography variant="body2" color="text.secondary">No screenshot</Typography>
+                        )}
+                        {item.diagnosticsArtifactUrl ? (
+                            <Button
+                                component="a"
+                                href={resolveArtifactUrl(item.diagnosticsArtifactUrl)}
+                                target="_blank"
+                                rel="noreferrer"
+                                size="small"
+                                variant="outlined"
+                                color="info"
+                                sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
+                            >
+                                Diagnostics
+                            </Button>
+                        ) : null}
+                    </Stack>
+                ),
+                cellSx: { minWidth: 160 }
+            },
+            {
+                key: 'declarationType',
+                label: 'Declaration Type',
+                render: item => item.permitType || status.declarationTypeLabel || 'N/A'
+            },
+            {
+                key: 'selectedJson',
+                label: 'Selected JSON',
+                render: item => (
+                    <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                        {item.selectedJson || status.selectedJson || 'N/A'}
+                    </Typography>
+                ),
+                cellSx: { maxWidth: 240 }
+            },
+            {
+                key: 'jsonRecordNumber',
+                label: 'JSON Record',
+                render: item => item.jsonRecordNumber || 'N/A'
+            },
+            {
+                key: 'createdBy',
+                label: 'Created By',
+                render: item => item.createdBy || 'N/A'
+            },
+            {
+                key: 'messageReference',
+                label: 'Message Ref',
+                render: item => item.messageReference || 'N/A'
+            },
+            {
+                key: 'permitNumber',
+                label: 'Permit No',
+                render: item => item.permitNumber || 'N/A'
+            },
+            {
+                key: 'urn',
+                label: 'URN',
+                render: item => item.urn || 'N/A'
+            },
+            {
+                key: 'urnDate',
+                label: 'URN Date',
+                render: item => formatDateTime(item.urnDate)
+            },
+            {
+                key: 'declarantId',
+                label: 'Declarant ID',
+                render: item => item.declarantId || 'N/A'
+            }
+        ];
+
+        const visibleGridColumnDefinitions = gridColumns.filter(column => visibleGridColumns.includes(column.key));
 
         function handleFieldChange(event) {
             const { name, value } = event.target;
@@ -1412,103 +1730,52 @@
                                             eyebrow="Job Execution Table"
                                             title="Per-User Execution Grid"
                                             description="Each completed worker records declaration metadata, operator context, timing, status, and the resulting artifact or failure output."
+                                            action={(
+                                                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.2}>
+                                                    <Button
+                                                        variant="outlined"
+                                                        onClick={showAllGridColumns}
+                                                        sx={{ borderRadius: 999, fontWeight: 800 }}
+                                                    >
+                                                        Show All Columns
+                                                    </Button>
+                                                    <Button
+                                                        variant="contained"
+                                                        onClick={openColumnDrawer}
+                                                        sx={{ borderRadius: 999, fontWeight: 800 }}
+                                                    >
+                                                        Custom Columns
+                                                    </Button>
+                                                </Stack>
+                                            )}
                                         />
                                         {(status.userJobResults || []).length ? (
                                             <TableContainer sx={{ borderRadius: 4, border: '1px solid rgba(148, 163, 184, 0.12)' }}>
-                                                <Table sx={{ minWidth: 1800 }}>
+                                                <Table sx={{ minWidth: Math.max(visibleGridColumnDefinitions.length * 140, 1600) }}>
                                                     <TableHead>
                                                         <TableRow sx={{ backgroundColor: 'rgba(37, 99, 235, 0.12)' }}>
-                                                            {['Execution Order', 'Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Final Status', 'Creation Status', 'Submission Status', 'App Status', 'Failure Reason', 'Failure Field', 'Failure JSON Key', 'Failed Step', 'Failed Field Details', 'Start Time', 'End Time', 'Execution Time', 'Evidence', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Ref', 'Permit Number'].map(header => (
-                                                                <TableCell key={header} sx={{ color: '#e2e8f0', fontWeight: 800, borderColor: 'rgba(148, 163, 184, 0.12)' }}>
-                                                                    {header}
+                                                            {visibleGridColumnDefinitions.map(column => (
+                                                                <TableCell key={column.key} sx={{ color: '#e2e8f0', fontWeight: 800, borderColor: 'rgba(148, 163, 184, 0.12)' }}>
+                                                                    {column.label}
                                                                 </TableCell>
                                                             ))}
                                                         </TableRow>
                                                     </TableHead>
                                                     <TableBody>
                                                         {(status.userJobResults || []).map(item => {
-                                                            const rowStatus = String(item.status || (item.success ? 'SUCCESS' : 'PENDING')).toUpperCase();
-                                                            const errorMessage = item.errorMessage || item.failureReason || 'N/A';
                                                             return (
                                                                 <TableRow key={`${item.executionOrder}-${item.jobId || item.startTime}`} hover>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.executionOrder || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.tabNumber || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.workerSlotNumber || item.tabNumber || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobNumber || item.executionOrder || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobId || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        <StatusBadge label={rowStatus} />
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        <StatusBadge label={item.creationStatus || 'FAILED'} />
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        <StatusBadge label={item.submissionStatus || 'FAILED'} />
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        <StatusBadge label={item.applicationStatus || 'N/A'} />
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 320 }}>
-                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                                                                            {item.failureReason || errorMessage}
-                                                                        </Typography>
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failureFieldName || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failureJsonKey || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failedStep || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 360 }}>
-                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                                                                            {item.failedFieldDetails || 'N/A'}
-                                                                        </Typography>
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{formatDateTime(item.startTime)}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{formatDateTime(item.endTime)}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        {item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'}
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', minWidth: 160 }}>
-                                                                        <Stack spacing={1}>
-                                                                            {item.screenshotUrl ? (
-                                                                                <Button
-                                                                                    component="a"
-                                                                                    href={resolveArtifactUrl(item.screenshotUrl)}
-                                                                                    target="_blank"
-                                                                                    rel="noreferrer"
-                                                                                    size="small"
-                                                                                    variant="outlined"
-                                                                                    sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
-                                                                                >
-                                                                                    Screenshot
-                                                                                </Button>
-                                                                            ) : (
-                                                                                <Typography variant="body2" color="text.secondary">No screenshot</Typography>
-                                                                            )}
-                                                                            {item.diagnosticsArtifactUrl ? (
-                                                                                <Button
-                                                                                    component="a"
-                                                                                    href={resolveArtifactUrl(item.diagnosticsArtifactUrl)}
-                                                                                    target="_blank"
-                                                                                    rel="noreferrer"
-                                                                                    size="small"
-                                                                                    variant="outlined"
-                                                                                    color="info"
-                                                                                    sx={{ borderRadius: 999, alignSelf: 'flex-start' }}
-                                                                                >
-                                                                                    Diagnostics
-                                                                                </Button>
-                                                                            ) : null}
-                                                                        </Stack>
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.permitType || status.declarationTypeLabel || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 240 }}>
-                                                                        <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                                                                            {item.selectedJson || status.selectedJson || 'N/A'}
-                                                                        </Typography>
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jsonRecordNumber || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.createdBy || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.messageReference || 'N/A'}</TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.permitNumber || 'N/A'}</TableCell>
+                                                                    {visibleGridColumnDefinitions.map(column => (
+                                                                        <TableCell
+                                                                            key={column.key}
+                                                                            sx={{
+                                                                                borderColor: 'rgba(148, 163, 184, 0.08)',
+                                                                                ...(column.cellSx || {})
+                                                                            }}
+                                                                        >
+                                                                            {column.render(item)}
+                                                                        </TableCell>
+                                                                    ))}
                                                                 </TableRow>
                                                             );
                                                         })}
@@ -1795,6 +2062,96 @@
                             {toast.message}
                         </Alert>
                     </Snackbar>
+                    <Dialog
+                        open={textPreview.open}
+                        onClose={closeTextPreview}
+                        fullWidth
+                        maxWidth="md"
+                    >
+                        <DialogTitle sx={{ fontWeight: 800 }}>
+                            {textPreview.title || 'Details'}
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Typography
+                                variant="body1"
+                                sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.8 }}
+                            >
+                                {textPreview.value || 'N/A'}
+                            </Typography>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={closeTextPreview} variant="contained">
+                                Close
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
+                    <Drawer
+                        anchor="right"
+                        open={columnDrawerOpen}
+                        onClose={closeColumnDrawer}
+                    >
+                        <Box
+                            sx={{
+                                width: { xs: '100vw', sm: 380 },
+                                p: 2.4,
+                                height: '100%',
+                                background: '#111c35'
+                            }}
+                        >
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                <Box>
+                                    <Typography variant="h6" sx={{ fontWeight: 800 }}>
+                                        Custom Columns
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.8 }}>
+                                        Choose which columns are visible in the Per-User Execution Grid.
+                                    </Typography>
+                                </Box>
+                                <Button onClick={closeColumnDrawer} sx={{ minWidth: 0, px: 1.2 }}>
+                                    Close
+                                </Button>
+                            </Stack>
+                            <Stack direction="row" spacing={1.2} sx={{ mt: 2.4, mb: 2 }}>
+                                <Button variant="contained" onClick={showAllGridColumns} sx={{ borderRadius: 999, fontWeight: 800 }}>
+                                    Select All
+                                </Button>
+                                <Button variant="outlined" onClick={resetGridColumns} sx={{ borderRadius: 999, fontWeight: 800 }}>
+                                    Reset
+                                </Button>
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary">
+                                At least one column remains visible.
+                            </Typography>
+                            <Stack spacing={0.4} sx={{ mt: 2.2 }}>
+                                {gridColumns.map(column => {
+                                    const checked = visibleGridColumns.includes(column.key);
+                                    const onlyOneVisible = visibleGridColumns.length === 1 && checked;
+                                    return (
+                                        <FormControlLabel
+                                            key={column.key}
+                                            control={(
+                                                <Checkbox
+                                                    checked={checked}
+                                                    onChange={() => toggleGridColumn(column.key)}
+                                                    disabled={onlyOneVisible}
+                                                />
+                                            )}
+                                            label={column.label}
+                                            sx={{
+                                                mx: 0,
+                                                px: 1,
+                                                py: 0.2,
+                                                borderRadius: 2,
+                                                '&:hover': {
+                                                    backgroundColor: 'rgba(148, 163, 184, 0.08)'
+                                                }
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </Stack>
+                        </Box>
+                    </Drawer>
                 </Box>
             </ThemeProvider>
         );

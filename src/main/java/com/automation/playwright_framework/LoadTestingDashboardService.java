@@ -501,6 +501,7 @@ public class LoadTestingDashboardService {
             userJobResults.add(buildUserJobResult(
                     userIndex,
                     tabNumber,
+                    job.payload(),
                     result,
                     screenshotEntry,
                     startedAtInstant,
@@ -3051,6 +3052,7 @@ public class LoadTestingDashboardService {
     private UserJobResult buildUserJobResult(
             int userIndex,
             Integer tabNumber,
+            JsonNode payload,
             WorkflowResult result,
             ScreenshotEntry screenshotEntry,
             Instant startedAt,
@@ -3085,6 +3087,8 @@ public class LoadTestingDashboardService {
                 applicationStatus,
                 result != null ? result.permitNumber() : null,
                 result != null ? result.urn() : null,
+                firstNonBlank(result != null ? result.submissionDate() : null, result != null ? result.dateCreated() : null),
+                firstNonBlank(text(payload, "declarantId"), text(payload.path("header"), "declarantId")),
                 successful,
                 result != null ? result.errorMessage() : null,
                 result != null ? result.selectedJson() : null,
@@ -3177,6 +3181,8 @@ public class LoadTestingDashboardService {
             String applicationStatus,
             String permitNumber,
             String urn,
+            String urnDate,
+            String declarantId,
             boolean success,
             String errorMessage,
             String selectedJson,

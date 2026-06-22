@@ -1,0 +1,10 @@
+/target/
+/temp/
+/reports/
+/screenshots/
+/html-report/
+/results.jtl
+/jmeter/results.jtl
+/jmeter/aggregate.jtl
+/jmeter.log
+/startup.log
