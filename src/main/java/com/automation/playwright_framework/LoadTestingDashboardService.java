@@ -19,22 +19,36 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
+import java.net.ServerSocket;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
 public class LoadTestingDashboardService {
@@ -52,6 +66,10 @@ public class LoadTestingDashboardService {
     private static final DateTimeFormatter MESSAGE_REFERENCE_DATE = DateTimeFormatter.ofPattern("yyMMdd");
     private static final DateTimeFormatter ARTIFACT_TIMESTAMP_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
+    private static final DateTimeFormatter AUDIT_UI_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd-MM-uuuu").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter AUDIT_UI_SLASH_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
 
     private final JMeterExecutionService jMeterExecutionService;
     private final LoadTestingDeclarationCatalog declarationCatalog;
@@ -141,7 +159,7 @@ public class LoadTestingDashboardService {
         this.running = true;
         this.stopRequested = false;
         this.status = "RUNNING";
-        this.message = "Starting browser workflow workers. Optional JMeter HTTP load signal will run in parallel when available.";
+        this.message = "Starting " + normalizedRequest.browserTabs() + " concurrent browser worker(s) for " + normalizedRequest.totalUsers() + " job(s). Optional JMeter HTTP load signal will run in parallel.";
         this.runningUsers = 0;
         this.openTabsCount = 0;
         this.totalTabsOpened = 0;
@@ -162,6 +180,7 @@ public class LoadTestingDashboardService {
         appendLog("Declaration JSON selected: " + normalizedRequest.selectedJson() + ".");
         appendLog("Loaded " + preparedPayloads.size() + " declaration payload(s) for cyclic execution.");
         appendLog("Browser execution is forced to headed mode so UI actions remain visible.");
+        appendLog("All worker tabs attach to one shared browser window while each worker keeps its own Playwright connection.");
 
         Path jmxPath = runReportsDirectory.resolve("dynamic-load-test.jmx");
         boolean jmeterPlanReady = false;
@@ -281,69 +300,63 @@ public class LoadTestingDashboardService {
             RunRequest request,
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
             List<JsonNode> preparedPayloads) {
-        SharedBrowserSession sharedBrowserSession = null;
-        // Declared outside try so the finally block can close any tabs that were opened.
-        List<Page> workerPages = new ArrayList<>();
         boolean coordinatorFailed = false;
         String coordinatorFailureMessage = null;
+        ExecutorService workerPool = null;
+        SharedBrowserSession sharedBrowserSession = null;
         try {
-            sharedBrowserSession = createSharedBrowserSession(request);
-            appendLog("Launched a single browser instance for this run.");
+            int concurrency = Math.max(1, Math.min(request.browserTabs(), request.totalUsers()));
+            appendLog("Preparing " + request.totalUsers() + " job(s) across "
+                    + concurrency + " concurrent tab(s) inside ONE browser window.");
+
+            // ---------------------------------------------------------------
+            // Phase 1: Launch ONE persistent browser context with remote
+            // debugging enabled so every worker can attach to the same visible
+            // window and the same browser context.
+            // ---------------------------------------------------------------
+            int cdpPort = findFreePort();
+            sharedBrowserSession = createSharedBrowserSession(request, cdpPort);
+            final String cdpEndpoint = "http://localhost:" + cdpPort;
+            appendLog("Shared browser started on CDP port " + cdpPort + ". Workers will connect to: " + cdpEndpoint);
+            prepareSharedWorkerTabs(sharedBrowserSession, concurrency);
             primeAuthenticatedSession(sharedBrowserSession, request);
 
-            int workerCount = Math.max(1, Math.min(request.browserTabs(), request.totalUsers()));
-            appendLog("Session authenticated. Opening " + workerCount + " tab(s) for "
-                    + request.totalUsers() + " job(s).");
-
             // ---------------------------------------------------------------
-            // Phase 1: Create and navigate ALL tabs on the coordinator thread.
-            //
-            // Playwright Java is NOT thread-safe.  Every BrowserContext and Page
-            // method must be called from the thread that created the Playwright
-            // instance.  Submitting page operations to a worker-thread pool causes
-            // races: some tabs are created but navigation never fires, leaving them
-            // blank.  The fix is simple: do all Playwright work on one thread.
+            // Phase 2: Build the shared job queue.
             // ---------------------------------------------------------------
-            for (int i = 0; i < workerCount && !stopRequested; i++) {
-                int tabNumber = i + 1;
-                try {
-                    Page tab = sharedBrowserSession.sharedContext().newPage();
-                    configurePage(tab);
-                    openWorkerPage(new LoginPage(tab), request, 0);
-                    markWorkerTabOpened(tabNumber);
-                    workerPages.add(tab);
-                    appendLog("Tab " + tabNumber + " ready.");
-                } catch (Exception tabException) {
-                    appendLog("Tab " + tabNumber + " failed to open: " + rootMessage(tabException));
-                }
-            }
-
-            if (workerPages.isEmpty()) {
-                throw new IllegalStateException("No worker tabs could be initialized.");
-            }
-            appendLog(workerPages.size() + " tab(s) open. Executing " + request.totalUsers() + " job(s) sequentially.");
-
-            // ---------------------------------------------------------------
-            // Phase 2: Prepare job list.
-            // ---------------------------------------------------------------
-            List<JobWorkItem> allJobs = new ArrayList<>();
+            BlockingQueue<JobWorkItem> jobQueue = new LinkedBlockingQueue<>();
             for (int userIndex = 1; userIndex <= request.totalUsers() && !stopRequested; userIndex++) {
-                allJobs.add(prepareJobWorkItem(userIndex, preparedPayloads));
+                jobQueue.add(prepareJobWorkItem(userIndex, preparedPayloads));
             }
+            appendLog("Job queue ready: " + jobQueue.size() + " job(s).");
 
             // ---------------------------------------------------------------
-            // Phase 3: Execute every job on the coordinator thread, rotating
-            // round-robin through the open tabs.  Sequential execution on a
-            // single thread eliminates all Playwright concurrency issues while
-            // keeping all tabs visible throughout the run.
+            // Phase 3: Spawn one worker thread per tab slot.
+            //
+            // Each worker creates its own Playwright.create() (thread-safe),
+            // then calls connectOverCDP(cdpEndpoint) to join the shared browser
+            // and attach to its assigned pre-created tab in the shared context.
             // ---------------------------------------------------------------
-            for (int jobIdx = 0; jobIdx < allJobs.size() && !stopRequested; jobIdx++) {
-                JobWorkItem job = allJobs.get(jobIdx);
-                int tabNumber = (jobIdx % workerPages.size()) + 1;
-                Page page = workerPages.get(tabNumber - 1);
-                // Bring the active tab to front so the user can see the work happening.
-                try { page.bringToFront(); } catch (Exception ignored) {}
-                executeSingleQueuedJob(request, definition, job, tabNumber, page);
+            AtomicInteger slotCounter = new AtomicInteger(0);
+            workerPool = Executors.newFixedThreadPool(concurrency, r -> {
+                Thread t = new Thread(r, "load-dashboard-worker-" + slotCounter.incrementAndGet());
+                t.setDaemon(true);
+                return t;
+            });
+
+            List<Future<?>> futures = new ArrayList<>();
+            for (int slot = 1; slot <= concurrency; slot++) {
+                final int tabNumber = slot;
+                futures.add(workerPool.submit(
+                        () -> runWorkerLoop(request, definition, tabNumber, jobQueue, cdpEndpoint)));
+            }
+
+            workerPool.shutdown();
+            try {
+                workerPool.awaitTermination(24L * 60 * 60, TimeUnit.SECONDS);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                stopRequested = true;
             }
 
         } catch (Exception exception) {
@@ -351,16 +364,15 @@ public class LoadTestingDashboardService {
             coordinatorFailureMessage = rootMessage(exception);
             appendLog("Run failed: " + coordinatorFailureMessage);
         } finally {
-            // Close every tab that was opened during this run.
-            for (int i = workerPages.size() - 1; i >= 0; i--) {
-                markWorkerTabClosed(i + 1);
-                closeQuietly(workerPages.get(i));
+            if (workerPool != null && !workerPool.isTerminated()) {
+                workerPool.shutdownNow();
             }
             closeQuietly(sharedBrowserSession);
             synchronized (this) {
                 openTabsCount = 0;
                 running = false;
                 finishedAt = Instant.now();
+                List<String> finalValidationIssues = validateCompletedRun(request.totalUsers());
                 int unresolvedCount = Math.max(0, completedUsers - successCount - failureCount);
                 if (stopRequested) {
                     status = "STOPPED";
@@ -368,6 +380,9 @@ public class LoadTestingDashboardService {
                 } else if (coordinatorFailed) {
                     status = "FAILED";
                     message = "Execution failed: " + coordinatorFailureMessage;
+                } else if (!finalValidationIssues.isEmpty()) {
+                    status = "FAILED";
+                    message = "Execution failed final validation: " + String.join(" | ", finalValidationIssues);
                 } else if (failureCount > 0) {
                     status = "COMPLETED";
                     message = "Declaration workflow completed with " + failureCount + " failed users.";
@@ -381,6 +396,51 @@ public class LoadTestingDashboardService {
             }
             appendLog(message);
             flushPlaywrightLog();
+        }
+    }
+
+    private void runWorkerLoop(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            int tabNumber,
+            BlockingQueue<JobWorkItem> jobQueue,
+            String cdpEndpoint) {
+        // Each worker owns its own Playwright instance (thread-safe) but
+        // attaches to the same shared browser context via CDP.
+        Playwright playwright = null;
+        Browser browser = null;
+        BrowserContext workerContext = null;
+        Page page = null;
+        try {
+            playwright = Playwright.create();
+            browser = playwright.chromium().connectOverCDP(cdpEndpoint);
+            workerContext = resolveSharedWorkerContext(browser, tabNumber);
+            page = resolveSharedWorkerPage(workerContext, tabNumber);
+
+            configurePage(page);
+            markWorkerTabOpened(tabNumber);
+            appendLog("Worker tab " + tabNumber + " attached to the shared browser window.");
+
+            openWorkerPage(new LoginPage(page), request, 0);
+            appendLog("Worker tab " + tabNumber + " authenticated in the shared session.");
+
+            // Process jobs from the shared queue until it is empty or a stop is requested.
+            JobWorkItem job;
+            while ((job = jobQueue.poll()) != null && !stopRequested) {
+                try {
+                    page.bringToFront();
+                } catch (Exception ignored) {
+                }
+                executeSingleQueuedJob(request, definition, job, tabNumber, page);
+            }
+
+        } catch (Exception workerException) {
+            appendLog("Worker tab " + tabNumber + " failed: " + rootMessage(workerException));
+        } finally {
+            markWorkerTabClosed(tabNumber);
+            closeQuietly(page);
+            closeQuietly(browser);
+            closeQuietly(playwright);
         }
     }
 
@@ -472,6 +532,7 @@ public class LoadTestingDashboardService {
         int filledFieldCount = 0;
         boolean submissionAttempted = false;
         EvidenceArtifacts evidenceArtifacts = null;
+        FormAuditResult formAuditResult = FormAuditResult.empty();
 
         try {
             appendUserLog(userIndex, "Tab Number - " + tabNumber);
@@ -504,6 +565,53 @@ public class LoadTestingDashboardService {
             declarationPage.populateDraftFrom(payload);
             filledFieldCount = declarationPage.validatedFieldEntryCount();
             appendUserLog(userIndex, "Form Filled - " + filledFieldCount + " fields validated");
+            formAuditResult = auditJsonAgainstRenderedForm(payload, declarationPage);
+            if (formAuditResult.hasFailures()) {
+                appendUserLog(userIndex, "JSON Audit Warning - " + formAuditResult.failureCount()
+                        + " value(s) were not rendered in the UI snapshot");
+                for (FailureDetail failureDetail : formAuditResult.failureDetails()) {
+                    appendUserLog(userIndex, "JSON Audit Detail - " + formatFailureDetail(failureDetail));
+                }
+                if (isStrictJsonAuditEnabled()) {
+                    String auditSummary = summarizeFailureDetails(formAuditResult.failureDetails(), 5);
+                    WorkflowResult auditFailureResult = buildWorkflowFailureResult(
+                            request,
+                            definition,
+                            initialJobId,
+                            messageReference,
+                            jsonRecordNumber,
+                            userIndex,
+                            tabNumber,
+                            filledFieldCount,
+                            formAuditResult.failureCount(),
+                            false,
+                            "JSON-to-UI validation failed: " + auditSummary,
+                            List.of(),
+                            formAuditResult.failureDetails());
+                    return buildWorkflowFailureResult(
+                            request,
+                            definition,
+                            initialJobId,
+                            messageReference,
+                            jsonRecordNumber,
+                            userIndex,
+                            tabNumber,
+                            filledFieldCount,
+                            formAuditResult.failureCount(),
+                            false,
+                            "JSON-to-UI validation failed: " + auditSummary,
+                            List.of(),
+                            formAuditResult.failureDetails(),
+                            captureFailureEvidence(
+                                    page,
+                                    userIndex,
+                                    auditFailureResult,
+                                    formAuditResult.snapshot(),
+                                    List.of(),
+                                    formAuditResult.failureDetails()));
+                }
+                appendUserLog(userIndex, "JSON Audit Override - continuing to Save Draft and Submit because server-side validation is authoritative");
+            }
 
             // Pre-submission validation: check for invalid fields before submitting
             String preDiagnostics = safeDiagnostics(declarationPage);
@@ -536,6 +644,7 @@ public class LoadTestingDashboardService {
                             false,
                             "Pre-submit validation failed: " + validationSummary,
                             preValidationIssues,
+                            buildFailureDetails(preValidationIssues, "Pre-Submit Validation", Instant.now().toString()),
                             captureFailureEvidence(
                                     page,
                                     userIndex,
@@ -551,17 +660,20 @@ public class LoadTestingDashboardService {
                                             preValidationIssues.size(),
                                             false,
                                             "Pre-submit validation failed: " + validationSummary,
-                                            preValidationIssues),
+                                            preValidationIssues,
+                                            buildFailureDetails(preValidationIssues, "Pre-Submit Validation", Instant.now().toString())),
                                     preDiagnostics,
-                                    preValidationIssues));
+                                    preValidationIssues,
+                                    buildFailureDetails(preValidationIssues, "Pre-Submit Validation", Instant.now().toString())));
                 }
             } else {
                 appendUserLog(userIndex, "Pre-Submit Check: all fields valid");
             }
 
+            appendUserLog(userIndex, "Starting Save Draft and Submit Declaration workflow");
             declarationPage.submitDeclaration();
             submissionAttempted = true;
-            appendUserLog(userIndex, "Submission Attempted");
+            appendUserLog(userIndex, "Submit Declaration clicked - waiting for final declaration status");
 
             String diagnostics = safeDiagnostics(declarationPage);
             List<ValidationIssue> validationIssues = extractValidationIssues(diagnostics);
@@ -574,6 +686,8 @@ public class LoadTestingDashboardService {
                     extractErrorMessage(diagnostics),
                     !validationIssues.isEmpty() ? "Validation Error - " + summarizeValidationIssues(validationIssues, 5) : null);
             if (immediateFailureMessage != null) {
+                List<FailureDetail> validationFailureDetails =
+                        buildFailureDetails(validationIssues, "Submission Validation", Instant.now().toString());
                 evidenceArtifacts = captureFailureEvidence(
                         page,
                         userIndex,
@@ -589,9 +703,11 @@ public class LoadTestingDashboardService {
                                 missingFieldCount,
                                 true,
                                 immediateFailureMessage,
-                                validationIssues),
+                                validationIssues,
+                                validationFailureDetails),
                         diagnostics,
-                        validationIssues);
+                        validationIssues,
+                        validationFailureDetails);
             }
             DeclarationsPage.DeclarationListEntry submittedEntry =
                     safeReadSubmittedDeclarationEntry(declarationsPage, messageReference, initialJobId);
@@ -646,13 +762,15 @@ public class LoadTestingDashboardService {
                     validationIssues.size(),
                     submissionAttempted,
                     rootMessage(exception),
-                    validationIssues);
+                    validationIssues,
+                    buildFailureDetails(validationIssues, "Workflow Execution", Instant.now().toString(), rootMessage(exception)));
             EvidenceArtifacts capturedEvidence = captureFailureEvidence(
                     page,
                     userIndex,
                     failureResult,
                     diagnostics,
-                    validationIssues);
+                    validationIssues,
+                    failureResult.failureDetails());
             return buildWorkflowFailureResult(
                     request,
                     definition,
@@ -666,6 +784,7 @@ public class LoadTestingDashboardService {
                     submissionAttempted,
                     rootMessage(exception),
                     validationIssues,
+                    failureResult.failureDetails(),
                     capturedEvidence);
         }
     }
@@ -696,6 +815,7 @@ public class LoadTestingDashboardService {
                 submissionAttempted,
                 errorMessage,
                 validationIssues,
+                buildFailureDetails(validationIssues, "Workflow Failure", Instant.now().toString(), errorMessage),
                 null);
     }
 
@@ -712,6 +832,38 @@ public class LoadTestingDashboardService {
             boolean submissionAttempted,
             String errorMessage,
             List<ValidationIssue> validationIssues,
+            List<FailureDetail> failureDetails) {
+        return buildWorkflowFailureResult(
+                request,
+                definition,
+                jobId,
+                messageReference,
+                jsonRecordNumber,
+                userIndex,
+                tabNumber,
+                filledFieldCount,
+                missingFieldCount,
+                submissionAttempted,
+                errorMessage,
+                validationIssues,
+                failureDetails,
+                null);
+    }
+
+    private WorkflowResult buildWorkflowFailureResult(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            String jobId,
+            String messageReference,
+            int jsonRecordNumber,
+            int userIndex,
+            int tabNumber,
+            int filledFieldCount,
+            int missingFieldCount,
+            boolean submissionAttempted,
+            String errorMessage,
+            List<ValidationIssue> validationIssues,
+            List<FailureDetail> failureDetails,
             EvidenceArtifacts evidenceArtifacts) {
         boolean creationVerified = jobId != null && !jobId.isBlank();
         boolean draftStatus = false;
@@ -763,6 +915,7 @@ public class LoadTestingDashboardService {
                 submissionStatus,
                 reportStatus,
                 validationSummary,
+                failureDetails == null ? List.of() : List.copyOf(failureDetails),
                 evidenceArtifacts != null && evidenceArtifacts.screenshotEntry() != null ? evidenceArtifacts.screenshotEntry().imageUrl() : null,
                 evidenceArtifacts != null ? evidenceArtifacts.diagnosticsArtifactUrl() : null);
     }
@@ -849,6 +1002,9 @@ public class LoadTestingDashboardService {
                 && validationIssues.isEmpty();
         boolean draftStatus = isDraftJobStatus(jobStatus);
         boolean failureOccurred = hasActualFailure(jobStatus, errorMessage, creationVerified, submissionVerified, draftStatus, validationIssues);
+        List<FailureDetail> failureDetails = failureOccurred
+                ? buildFailureDetails(validationIssues, "Submission Verification", Instant.now().toString(), errorMessage)
+                : List.of();
         String creationStatus = resolveCreationStatus(creationVerified);
         String submissionStatus = resolveSubmissionStatus(submissionVerified, failureOccurred, true, draftStatus);
         String reportStatus = resolveReportStatus(submissionVerified, failureOccurred, creationVerified, true);
@@ -898,6 +1054,7 @@ public class LoadTestingDashboardService {
                 submissionStatus,
                 reportStatus,
                 validationSummary,
+                failureDetails,
                 evidenceArtifacts != null && evidenceArtifacts.screenshotEntry() != null ? evidenceArtifacts.screenshotEntry().imageUrl() : null,
                 evidenceArtifacts != null ? evidenceArtifacts.diagnosticsArtifactUrl() : null);
     }
@@ -1767,16 +1924,13 @@ public class LoadTestingDashboardService {
             boolean creationVerified,
             boolean submissionAttempted) {
         if (submissionVerified) {
-            return "SUBMITTED";
+            return "SUCCESS";
         }
         if (failureOccurred) {
             return "FAILED";
         }
         if (submissionAttempted) {
             return "PENDING";
-        }
-        if (creationVerified) {
-            return "CREATED";
         }
         return "PENDING";
     }
@@ -1914,6 +2068,266 @@ public class LoadTestingDashboardService {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    private FormAuditResult auditJsonAgainstRenderedForm(JsonNode payload, IptDeclarationPage declarationPage) {
+        List<JsonValueEntry> entries = flattenJsonValues(payload);
+        if (entries.isEmpty()) {
+            return FormAuditResult.empty();
+        }
+
+        String snapshot = declarationPage.captureRenderedFormAuditSnapshot();
+        Set<String> normalizedUiValues = parseAuditSnapshot(snapshot);
+        List<FailureDetail> failures = new ArrayList<>();
+        String capturedAt = Instant.now().toString();
+        for (JsonValueEntry entry : entries) {
+            if (isJsonValueRepresentedInUi(entry.value(), normalizedUiValues)) {
+                continue;
+            }
+            failures.add(new FailureDetail(
+                    humanizeJsonPath(entry.jsonPath()),
+                    entry.jsonPath(),
+                    entry.value(),
+                    "Rendered UI does not contain the JSON value after form population.",
+                    "JSON Audit",
+                    capturedAt));
+        }
+
+        return new FormAuditResult(
+                entries.size() - failures.size(),
+                failures.size(),
+                List.copyOf(failures),
+                snapshot);
+    }
+
+    private List<JsonValueEntry> flattenJsonValues(JsonNode node) {
+        List<JsonValueEntry> entries = new ArrayList<>();
+        collectJsonValues(node, "", entries);
+        return List.copyOf(entries);
+    }
+
+    private void collectJsonValues(JsonNode node, String path, List<JsonValueEntry> entries) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return;
+        }
+        if (shouldSkipJsonAuditPath(path)) {
+            return;
+        }
+        if (node.isObject()) {
+            node.fields().forEachRemaining(field -> {
+                String childPath = path.isBlank() ? field.getKey() : path + "." + field.getKey();
+                collectJsonValues(field.getValue(), childPath, entries);
+            });
+            return;
+        }
+        if (node.isArray()) {
+            for (int index = 0; index < node.size(); index++) {
+                collectJsonValues(node.get(index), path + "[" + index + "]", entries);
+            }
+            return;
+        }
+
+        if (node.isBoolean()) {
+            return;
+        }
+
+        String value = blankToNull(textValue(node));
+        if (value == null) {
+            return;
+        }
+        entries.add(new JsonValueEntry(path, value));
+    }
+
+    private boolean shouldSkipJsonAuditPath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String normalized = path.toLowerCase(Locale.ROOT);
+        return normalized.startsWith("formmetadata.")
+                || normalized.contains(".filename")
+                || normalized.endsWith(".submit")
+                || normalized.endsWith(".headless");
+    }
+
+    private Set<String> parseAuditSnapshot(String snapshot) {
+        if (snapshot == null || snapshot.isBlank()) {
+            return Set.of();
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(snapshot);
+            Set<String> values = new LinkedHashSet<>();
+            collectNormalizedAuditValues(root.path("texts"), values);
+            collectNormalizedAuditValues(root.path("values"), values);
+            return Set.copyOf(values);
+        } catch (Exception ignored) {
+            return Set.of(normalizeAuditValue(snapshot));
+        }
+    }
+
+    private void collectNormalizedAuditValues(JsonNode node, Set<String> values) {
+        if (node == null || node.isNull() || node.isMissingNode()) {
+            return;
+        }
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                collectNormalizedAuditValues(child, values);
+            }
+            return;
+        }
+        String value = blankToNull(node.asText(null));
+        if (value == null) {
+            return;
+        }
+        values.add(normalizeAuditValue(value));
+    }
+
+    private boolean isJsonValueRepresentedInUi(String value, Set<String> normalizedUiValues) {
+        Set<String> candidates = auditCandidates(value);
+        if (candidates.isEmpty()) {
+            return true;
+        }
+        for (String candidate : candidates) {
+            if (candidate.isBlank()) {
+                continue;
+            }
+            for (String uiValue : normalizedUiValues) {
+                if (uiValue.equals(candidate)
+                        || uiValue.contains(candidate)
+                        || candidate.contains(uiValue)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private Set<String> auditCandidates(String value) {
+        String normalized = blankToNull(value);
+        if (normalized == null) {
+            return Set.of();
+        }
+
+        Set<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalizeAuditValue(normalized));
+
+        try {
+            candidates.add(normalizeAuditValue(new BigDecimal(normalized).stripTrailingZeros().toPlainString()));
+        } catch (NumberFormatException ignored) {
+        }
+
+        LocalDate parsedDate = parseAuditDate(normalized);
+        if (parsedDate != null) {
+            candidates.add(normalizeAuditValue(parsedDate.format(AUDIT_UI_DATE_FORMAT)));
+            candidates.add(normalizeAuditValue(parsedDate.format(AUDIT_UI_SLASH_DATE_FORMAT)));
+            candidates.add(normalizeAuditValue(parsedDate.toString()));
+            candidates.add(normalizeAuditValue(parsedDate.format(DateTimeFormatter.BASIC_ISO_DATE)));
+        }
+
+        return Set.copyOf(candidates);
+    }
+
+    private LocalDate parseAuditDate(String value) {
+        String normalized = value == null ? "" : value.trim();
+        if (normalized.isBlank()) {
+            return null;
+        }
+        String digitsOnly = normalized.replaceAll("\\D", "");
+        if (digitsOnly.length() == 8) {
+            try {
+                if (digitsOnly.matches("(19|20)\\d{6}")) {
+                    return LocalDate.parse(digitsOnly, DateTimeFormatter.BASIC_ISO_DATE);
+                }
+            } catch (DateTimeParseException ignored) {
+            }
+            try {
+                return LocalDate.parse(digitsOnly, DateTimeFormatter.ofPattern("ddMMuuuu").withResolverStyle(ResolverStyle.STRICT));
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        try {
+            return LocalDate.parse(normalized.replace('/', '-').replace('.', '-'), DateTimeFormatter.ISO_LOCAL_DATE);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String normalizeAuditValue(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").trim().toUpperCase(Locale.ROOT);
+    }
+
+    private String humanizeJsonPath(String jsonPath) {
+        if (jsonPath == null || jsonPath.isBlank()) {
+            return "Unknown Field";
+        }
+        String normalized = jsonPath.replaceAll("\\[[0-9]+\\]", "")
+                .replace('.', ' ')
+                .replaceAll("([a-z])([A-Z])", "$1 $2")
+                .replaceAll("\\s+", " ")
+                .trim();
+        return normalized.isBlank() ? jsonPath : normalized;
+    }
+
+    private List<FailureDetail> buildFailureDetails(
+            List<ValidationIssue> validationIssues,
+            String step,
+            String timestamp) {
+        return buildFailureDetails(validationIssues, step, timestamp, null);
+    }
+
+    private List<FailureDetail> buildFailureDetails(
+            List<ValidationIssue> validationIssues,
+            String step,
+            String timestamp,
+            String fallbackErrorMessage) {
+        List<FailureDetail> failureDetails = new ArrayList<>();
+        if (validationIssues != null) {
+            for (ValidationIssue validationIssue : validationIssues) {
+                failureDetails.add(new FailureDetail(
+                        validationIssueLabel(validationIssue),
+                        null,
+                        validationIssue.attemptedValue(),
+                        firstNonBlank(validationIssue.validationMessage(), validationIssue.rawText(), fallbackErrorMessage),
+                        step,
+                        timestamp));
+            }
+        }
+        if (failureDetails.isEmpty() && fallbackErrorMessage != null) {
+            failureDetails.add(new FailureDetail(
+                    null,
+                    null,
+                    null,
+                    fallbackErrorMessage,
+                    step,
+                    timestamp));
+        }
+        return List.copyOf(failureDetails);
+    }
+
+    private String summarizeFailureDetails(List<FailureDetail> failureDetails, int limit) {
+        if (failureDetails == null || failureDetails.isEmpty()) {
+            return null;
+        }
+        List<String> fragments = new ArrayList<>();
+        int capped = Math.max(1, limit);
+        for (int index = 0; index < failureDetails.size() && index < capped; index++) {
+            fragments.add(formatFailureDetail(failureDetails.get(index)));
+        }
+        if (failureDetails.size() > capped) {
+            fragments.add("+" + (failureDetails.size() - capped) + " more");
+        }
+        return String.join(" ; ", fragments);
+    }
+
+    private String formatFailureDetail(FailureDetail failureDetail) {
+        if (failureDetail == null) {
+            return "Unknown failure";
+        }
+        return String.join(" | ",
+                "Field=" + firstNonBlank(failureDetail.fieldName(), "Unknown"),
+                "JSON Key=" + firstNonBlank(failureDetail.jsonKey(), "N/A"),
+                "JSON Value=" + firstNonBlank(failureDetail.jsonValue(), "N/A"),
+                "Reason=" + firstNonBlank(failureDetail.errorMessage(), "N/A"),
+                "Step=" + firstNonBlank(failureDetail.failedStep(), "N/A"));
+    }
+
     private void acquirePermit(Semaphore semaphore, String purpose) {
         try {
             semaphore.acquire();
@@ -1921,6 +2335,10 @@ public class LoadTestingDashboardService {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting for " + purpose + " capacity.", exception);
         }
+    }
+
+    private boolean isStrictJsonAuditEnabled() {
+        return Boolean.getBoolean("tradenix.strict.json.audit");
     }
 
     private String extractDiagnosticsField(String diagnostics, String fieldName) {
@@ -1982,16 +2400,18 @@ public class LoadTestingDashboardService {
         page.setDefaultNavigationTimeout(Long.getLong("playwright.navigation.timeout.ms", 60000L));
     }
 
-    private SharedBrowserSession createSharedBrowserSession(RunRequest request) {
+    private SharedBrowserSession createSharedBrowserSession(RunRequest request, int cdpPort) {
         acquirePermit(browserLaunchSemaphore, "browser launch");
         Playwright playwright = null;
         Browser browser = null;
         BrowserContext sharedContext = null;
         try {
             playwright = Playwright.create();
-            browser = launchBrowser(playwright, request);
-            // One shared context means all worker pages appear as tabs in the same window.
-            sharedContext = browser.newContext();
+            sharedContext = launchPersistentContextWithCdp(playwright, request, cdpPort);
+            browser = sharedContext.browser();
+            if (browser == null) {
+                throw new IllegalStateException("Shared browser could not be resolved from the persistent context.");
+            }
             return new SharedBrowserSession(playwright, browser, sharedContext);
         } catch (Exception exception) {
             closeQuietly(sharedContext);
@@ -2004,16 +2424,123 @@ public class LoadTestingDashboardService {
     }
 
     private void primeAuthenticatedSession(SharedBrowserSession sharedBrowserSession, RunRequest request) {
-        // Login once inside the shared context. All worker pages opened from the same
-        // context inherit the resulting cookies/session — no per-worker login needed.
-        Page bootstrapPage = null;
+        List<Page> sharedPages = sharedBrowserSession.sharedContext().pages();
+        if (sharedPages.isEmpty()) {
+            throw new IllegalStateException("Shared browser context did not expose any tabs to authenticate.");
+        }
+        Page bootstrapPage = sharedPages.get(0);
+        configurePage(bootstrapPage);
+        appendLog("Priming authenticated session in the first shared tab before worker execution.");
+        performLogin(new LoginPage(bootstrapPage), request, 0);
+    }
+
+    private void prepareSharedWorkerTabs(SharedBrowserSession sharedBrowserSession, int tabCount) {
+        BrowserContext sharedContext = sharedBrowserSession.sharedContext();
+        List<Page> sharedPages = new ArrayList<>(sharedContext.pages());
+        if (sharedPages.isEmpty()) {
+            sharedPages.add(sharedContext.newPage());
+        }
+        while (sharedPages.size() < tabCount) {
+            sharedPages.add(sharedContext.newPage());
+        }
+        while (sharedPages.size() > tabCount) {
+            Page extraPage = sharedPages.remove(sharedPages.size() - 1);
+            closeQuietly(extraPage);
+        }
+        appendLog("Prepared exactly " + sharedPages.size() + " shared browser tab(s) in the single window.");
+    }
+
+    private BrowserContext resolveSharedWorkerContext(Browser browser, int tabNumber) {
+        List<BrowserContext> contexts = browser.contexts();
+        if (contexts.isEmpty()) {
+            throw new IllegalStateException("Shared browser context was not available for worker tab " + tabNumber + ".");
+        }
+        return contexts.get(0);
+    }
+
+    private Page resolveSharedWorkerPage(BrowserContext sharedContext, int tabNumber) {
+        for (int attempt = 0; attempt < 20; attempt++) {
+            List<Page> sharedPages = sharedContext.pages();
+            if (sharedPages.size() >= tabNumber) {
+                return sharedPages.get(tabNumber - 1);
+            }
+            sleepQuietly(250L);
+        }
+        throw new IllegalStateException("Shared browser tab " + tabNumber + " was not available for worker attachment.");
+    }
+
+    private BrowserContext launchPersistentContextWithCdp(Playwright playwright, RunRequest request, int cdpPort) {
+        String channel = System.getProperty("playwright.channel", "chrome");
+        double slowMo = Double.parseDouble(System.getProperty("playwright.slowmo.ms", "0"));
+        Path userDataDir = resolveSharedBrowserProfileDir();
+        BrowserType.LaunchPersistentContextOptions options = new BrowserType.LaunchPersistentContextOptions()
+                .setHeadless(false)
+                .setSlowMo(slowMo)
+                .setArgs(List.of(
+                        "--remote-debugging-port=" + cdpPort,
+                        "--remote-allow-origins=*"
+                ));
+        if (channel != null && !channel.isBlank()) {
+            options.setChannel(channel.trim());
+        }
         try {
-            bootstrapPage = sharedBrowserSession.sharedContext().newPage();
-            configurePage(bootstrapPage);
-            appendLog("Priming authenticated session in shared browser context before opening worker tabs.");
-            performLogin(new LoginPage(bootstrapPage), request, 0);
-        } finally {
-            closeQuietly(bootstrapPage);
+            return playwright.chromium().launchPersistentContext(userDataDir, options);
+        } catch (Exception primary) {
+            if (channel == null || channel.isBlank()) {
+                throw primary;
+            }
+            return playwright.chromium().launchPersistentContext(
+                    userDataDir,
+                    new BrowserType.LaunchPersistentContextOptions()
+                            .setHeadless(false)
+                            .setSlowMo(slowMo)
+                            .setArgs(List.of("--remote-debugging-port=" + cdpPort, "--remote-allow-origins=*")));
+        }
+    }
+
+    private Path resolveSharedBrowserProfileDir() {
+        try {
+            Path profileDir = (runReportsDirectory != null
+                    ? runReportsDirectory.resolve("browser-profile")
+                    : Files.createTempDirectory("load-dashboard-browser-profile"));
+            Files.createDirectories(profileDir);
+            return profileDir;
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to prepare shared browser profile directory.", exception);
+        }
+    }
+
+    private Browser launchBrowserWithCdp(Playwright playwright, RunRequest request, int cdpPort) {
+        String channel = System.getProperty("playwright.channel", "chrome");
+        double slowMo = Double.parseDouble(System.getProperty("playwright.slowmo.ms", "0"));
+        BrowserType.LaunchOptions options = new BrowserType.LaunchOptions()
+                .setHeadless(false)
+                .setSlowMo(slowMo)
+                .setArgs(List.of(
+                        "--remote-debugging-port=" + cdpPort,
+                        "--remote-allow-origins=*"
+                ));
+        if (channel != null && !channel.isBlank()) {
+            options.setChannel(channel.trim());
+        }
+        try {
+            return playwright.chromium().launch(options);
+        } catch (Exception primary) {
+            if (channel == null || channel.isBlank()) {
+                throw primary;
+            }
+            return playwright.chromium().launch(new BrowserType.LaunchOptions()
+                    .setHeadless(false)
+                    .setSlowMo(slowMo)
+                    .setArgs(List.of("--remote-debugging-port=" + cdpPort, "--remote-allow-origins=*")));
+        }
+    }
+
+    private int findFreePort() {
+        try (ServerSocket s = new ServerSocket(0)) {
+            return s.getLocalPort();
+        } catch (IOException e) {
+            return 9222;
         }
     }
 
@@ -2119,6 +2646,30 @@ public class LoadTestingDashboardService {
         }
     }
 
+    private List<String> validateCompletedRun(int requestedJobs) {
+        List<String> issues = new ArrayList<>();
+        if (completedUsers != requestedJobs) {
+            issues.add("Processed jobs mismatch: expected " + requestedJobs + ", completed " + completedUsers);
+        }
+        if (executedUsers != requestedJobs) {
+            issues.add("Executed jobs mismatch: expected " + requestedJobs + ", executed " + executedUsers);
+        }
+        if (userJobResults.size() != requestedJobs) {
+            issues.add("Report rows mismatch: expected " + requestedJobs + ", actual " + userJobResults.size());
+        }
+        long missingScreenshots = userJobResults.stream()
+                .filter(result -> result.screenshotUrl() == null || result.screenshotUrl().isBlank())
+                .count();
+        if (missingScreenshots > 0) {
+            issues.add("Missing screenshots for " + missingScreenshots + " job(s)");
+        }
+        if ((successCount + failureCount) != requestedJobs) {
+            issues.add("Final status count mismatch: success+failure=" + (successCount + failureCount)
+                    + ", requested=" + requestedJobs);
+        }
+        return List.copyOf(issues);
+    }
+
     private ScreenshotEntry resolveCompletionScreenshot(Page page, int userIndex, WorkflowResult result) {
         if (result != null && result.evidenceScreenshotUrl() != null && !result.evidenceScreenshotUrl().isBlank()) {
             return new ScreenshotEntry(
@@ -2156,12 +2707,13 @@ public class LoadTestingDashboardService {
             int userIndex,
             WorkflowResult result,
             String diagnostics,
-            List<ValidationIssue> validationIssues) {
+            List<ValidationIssue> validationIssues,
+            List<FailureDetail> failureDetails) {
         if (page == null || result == null) {
             return null;
         }
         try {
-            String diagnosticsArtifactUrl = writeDiagnosticsArtifact(userIndex, result, diagnostics, validationIssues);
+            String diagnosticsArtifactUrl = writeDiagnosticsArtifact(userIndex, result, diagnostics, validationIssues, failureDetails);
             ScreenshotEntry screenshotEntry = captureScreenshot(page, userIndex, "failure-initial", result);
             return new EvidenceArtifacts(screenshotEntry, diagnosticsArtifactUrl);
         } catch (Exception exception) {
@@ -2174,7 +2726,8 @@ public class LoadTestingDashboardService {
             int userIndex,
             WorkflowResult result,
             String diagnostics,
-            List<ValidationIssue> validationIssues) {
+            List<ValidationIssue> validationIssues,
+            List<FailureDetail> failureDetails) {
         if (runReportsDirectory == null) {
             return null;
         }
@@ -2196,6 +2749,12 @@ public class LoadTestingDashboardService {
             payloadMap.put("jsonRecordNumber", result.jsonRecordNumber());
             payloadMap.put("validationSummary", firstNonBlank(result.validationSummary(), summarizeValidationIssues(validationIssues, 10)));
             payloadMap.put("validationIssues", validationIssues == null ? List.of() : validationIssues);
+            payloadMap.put("failureDetails", failureDetails == null ? List.of() : failureDetails);
+            payloadMap.put("failedStep", failureDetails == null || failureDetails.isEmpty() ? null : failureDetails.get(0).failedStep());
+            payloadMap.put("failureFieldName", failureDetails == null || failureDetails.isEmpty() ? null : failureDetails.get(0).fieldName());
+            payloadMap.put("failureJsonKey", failureDetails == null || failureDetails.isEmpty() ? null : failureDetails.get(0).jsonKey());
+            payloadMap.put("failureJsonValue", failureDetails == null || failureDetails.isEmpty() ? null : failureDetails.get(0).jsonValue());
+            payloadMap.put("failureTimestamp", failureDetails == null || failureDetails.isEmpty() ? null : failureDetails.get(0).timestamp());
             payloadMap.put("rawDiagnostics", firstNonBlank(diagnostics, ""));
             String payload = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(payloadMap);
             Files.writeString(outputPath, payload, StandardCharsets.UTF_8);
@@ -2500,6 +3059,9 @@ public class LoadTestingDashboardService {
         String applicationStatus = result != null ? firstNonBlank(result.jobStatus()) : null;
         String reportStatus = result != null ? firstNonBlank(result.reportStatus()) : null;
         boolean successful = result != null && result.submissionVerified();
+        FailureDetail primaryFailureDetail = result != null && !result.failureDetails().isEmpty()
+                ? result.failureDetails().get(0)
+                : null;
         String failureReason = successful
                 ? null
                 : buildFailureReason(result, applicationStatus);
@@ -2529,7 +3091,14 @@ public class LoadTestingDashboardService {
                 result != null ? result.jsonRecordNumber() : userIndex,
                 result != null ? result.filledFieldCount() : 0,
                 result != null ? result.missingFieldCount() : 0,
-                result != null ? result.validationSummary() : null,
+                firstNonBlank(
+                        primaryFailureDetail != null ? formatFailureDetail(primaryFailureDetail) : null,
+                        result != null ? result.validationSummary() : null),
+                primaryFailureDetail != null ? primaryFailureDetail.fieldName() : null,
+                primaryFailureDetail != null ? primaryFailureDetail.jsonKey() : null,
+                primaryFailureDetail != null ? primaryFailureDetail.jsonValue() : null,
+                primaryFailureDetail != null ? primaryFailureDetail.failedStep() : null,
+                primaryFailureDetail != null ? primaryFailureDetail.timestamp() : null,
                 result != null ? result.diagnosticsArtifactUrl() : null,
                 Instant.now().toString());
     }
@@ -2539,6 +3108,9 @@ public class LoadTestingDashboardService {
             return "Workflow did not return a result.";
         }
         String detailedReason = firstNonBlank(
+                result.failureDetails() != null && !result.failureDetails().isEmpty()
+                        ? formatFailureDetail(result.failureDetails().get(0))
+                        : null,
                 result.errorMessage(),
                 result.validationSummary(),
                 result.responseMessage(),
@@ -2612,6 +3184,11 @@ public class LoadTestingDashboardService {
             int filledFieldCount,
             int missingFieldCount,
             String failedFieldDetails,
+            String failureFieldName,
+            String failureJsonKey,
+            String failureJsonValue,
+            String failedStep,
+            String failureTimestamp,
             String diagnosticsArtifactUrl,
             String capturedAt) {
     }
@@ -2713,6 +3290,7 @@ public class LoadTestingDashboardService {
             String submissionStatus,
             String reportStatus,
             String validationSummary,
+            List<FailureDetail> failureDetails,
             String evidenceScreenshotUrl,
             String diagnosticsArtifactUrl) {
 
@@ -2738,6 +3316,35 @@ public class LoadTestingDashboardService {
             String type,
             String role,
             String rawText) {
+    }
+
+    private record FailureDetail(
+            String fieldName,
+            String jsonKey,
+            String jsonValue,
+            String errorMessage,
+            String failedStep,
+            String timestamp) {
+    }
+
+    private record JsonValueEntry(
+            String jsonPath,
+            String value) {
+    }
+
+    private record FormAuditResult(
+            int matchedCount,
+            int failureCount,
+            List<FailureDetail> failureDetails,
+            String snapshot) {
+
+        private static FormAuditResult empty() {
+            return new FormAuditResult(0, 0, List.of(), null);
+        }
+
+        private boolean hasFailures() {
+            return failureCount > 0;
+        }
     }
 
     private record JobWorkItem(

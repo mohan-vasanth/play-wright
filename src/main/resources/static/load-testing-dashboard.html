@@ -122,18 +122,10 @@
         url: 'http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard',
         username: 'mohan',
         password: '12345678',
-        declarationType: 'ipt',
+        declarationType: '',
         selectedJson: '',
         headless: false
     };
-
-    const declarationTypes = [
-        { value: 'ipt', label: 'IPT' },
-        { value: 'inp', label: 'INP' },
-        { value: 'tnp', label: 'TNP' },
-        { value: 'out', label: 'OUT' },
-        { value: 'coo', label: 'COO' }
-    ];
 
     const sidebarItems = [
         { label: 'Dashboard', href: '#dashboard' },
@@ -589,6 +581,7 @@
         const [apiConnectionError, setApiConnectionError] = useState('');
         const [busy, setBusy] = useState(false);
         const [toast, setToast] = useState({ open: false, severity: 'success', message: '' });
+        const [declarationTypes, setDeclarationTypes] = useState([]);
         const [jsonOptions, setJsonOptions] = useState([]);
         const [jsonOptionsMeta, setJsonOptionsMeta] = useState(null);
         const [jsonOptionsLoading, setJsonOptionsLoading] = useState(false);
@@ -722,6 +715,10 @@
         }, [apiBaseUrl]);
 
         useEffect(() => {
+            loadDeclarationTypes();
+        }, [apiBaseUrl]);
+
+        useEffect(() => {
             loadJsonOptions(form.declarationType);
         }, [form.declarationType, apiBaseUrl]);
 
@@ -735,6 +732,26 @@
                 ...current,
                 [name]: value
             }));
+        }
+
+        async function loadDeclarationTypes() {
+            try {
+                const payload = await fetchFromApi('api/load-dashboard/declaration-types');
+                const types = Array.isArray(payload) ? payload : [];
+                setDeclarationTypes(types);
+                setForm(current => {
+                    const selectedType = types.some(option => option.value === current.declarationType)
+                        ? current.declarationType
+                        : (types[0]?.value || '');
+                    return {
+                        ...current,
+                        declarationType: selectedType
+                    };
+                });
+            } catch (error) {
+                setDeclarationTypes([]);
+                showToast('error', `Unable to load declaration types: ${error.message}`);
+            }
         }
 
         async function loadJsonOptions(type) {
@@ -830,19 +847,26 @@
         }
 
         function handleExportExcel() {
-            const headers = ['Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Creation Status', 'Submission Status', 'Final Status', 'Application Status', 'Error Message', 'Failed Field Details', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Reference', 'Permit Number', 'Screenshot URL', 'Diagnostics URL'];
+            const headers = ['Execution Order', 'Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Final Status', 'Creation Status', 'Submission Status', 'Application Status', 'Error Message', 'Failure Reason', 'Failure Field Name', 'Failure JSON Key', 'Failure JSON Value', 'Failed Step', 'Failure Timestamp', 'Failed Field Details', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Reference', 'Permit Number', 'Screenshot URL', 'Diagnostics URL'];
             const rows = (status.userJobResults || []).map(item => {
                 const errorMessage = item.errorMessage || item.failureReason || '';
                 return [
+                    item.executionOrder || '',
                     item.tabNumber || '',
                     item.workerSlotNumber || item.tabNumber || '',
                     item.jobNumber || item.executionOrder || '',
                     item.jobId || '',
+                    item.status || '',
                     item.creationStatus || '',
                     item.submissionStatus || item.applicationStatus || '',
-                    item.status || '',
                     item.applicationStatus || '',
                     String(errorMessage).replace(/"/g, '""'),
+                    item.failureReason || '',
+                    item.failureFieldName || '',
+                    item.failureJsonKey || '',
+                    item.failureJsonValue || '',
+                    item.failedStep || '',
+                    item.failureTimestamp || '',
                     item.failedFieldDetails || '',
                     item.executionTimeMs ? `${item.executionTimeMs} ms` : '',
                     item.permitType || status.declarationTypeLabel || '',
@@ -1394,7 +1418,7 @@
                                                 <Table sx={{ minWidth: 1800 }}>
                                                     <TableHead>
                                                         <TableRow sx={{ backgroundColor: 'rgba(37, 99, 235, 0.12)' }}>
-                                                            {['Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Creation Status', 'Submission Status', 'Final Status', 'App Status', 'Error Message', 'Failed Field Details', 'Evidence', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Ref', 'Permit Number'].map(header => (
+                                                            {['Execution Order', 'Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Final Status', 'Creation Status', 'Submission Status', 'App Status', 'Failure Reason', 'Failure Field', 'Failure JSON Key', 'Failed Step', 'Failed Field Details', 'Start Time', 'End Time', 'Execution Time', 'Evidence', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Ref', 'Permit Number'].map(header => (
                                                                 <TableCell key={header} sx={{ color: '#e2e8f0', fontWeight: 800, borderColor: 'rgba(148, 163, 184, 0.12)' }}>
                                                                     {header}
                                                                 </TableCell>
@@ -1407,10 +1431,14 @@
                                                             const errorMessage = item.errorMessage || item.failureReason || 'N/A';
                                                             return (
                                                                 <TableRow key={`${item.executionOrder}-${item.jobId || item.startTime}`} hover>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.executionOrder || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.tabNumber || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.workerSlotNumber || item.tabNumber || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobNumber || item.executionOrder || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.jobId || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        <StatusBadge label={rowStatus} />
+                                                                    </TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
                                                                         <StatusBadge label={item.creationStatus || 'FAILED'} />
                                                                     </TableCell>
@@ -1418,20 +1446,25 @@
                                                                         <StatusBadge label={item.submissionStatus || 'FAILED'} />
                                                                     </TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        <StatusBadge label={rowStatus} />
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
                                                                         <StatusBadge label={item.applicationStatus || 'N/A'} />
                                                                     </TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 320 }}>
                                                                         <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                                                                            {errorMessage}
+                                                                            {item.failureReason || errorMessage}
                                                                         </Typography>
                                                                     </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failureFieldName || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failureJsonKey || 'N/A'}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.failedStep || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 360 }}>
                                                                         <Typography variant="body2" sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                                                             {item.failedFieldDetails || 'N/A'}
                                                                         </Typography>
+                                                                    </TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{formatDateTime(item.startTime)}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{formatDateTime(item.endTime)}</TableCell>
+                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
+                                                                        {item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'}
                                                                     </TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', minWidth: 160 }}>
                                                                         <Stack spacing={1}>
@@ -1465,9 +1498,6 @@
                                                                                 </Button>
                                                                             ) : null}
                                                                         </Stack>
-                                                                    </TableCell>
-                                                                    <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>
-                                                                        {item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'}
                                                                     </TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)' }}>{item.permitType || status.declarationTypeLabel || 'N/A'}</TableCell>
                                                                     <TableCell sx={{ borderColor: 'rgba(148, 163, 184, 0.08)', maxWidth: 240 }}>

@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LoadTestingDashboardServiceTest {
@@ -43,6 +44,44 @@ class LoadTestingDashboardServiceTest {
 
         assertEquals(20, personalized.length());
         assertTrue(personalized.endsWith("U1000I1"));
+    }
+
+    @Test
+    void reportStatusUsesSuccessFailureSemantics() throws Exception {
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null);
+        Method method = LoadTestingDashboardService.class.getDeclaredMethod(
+                "resolveReportStatus",
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class);
+        method.setAccessible(true);
+
+        assertEquals("SUCCESS", method.invoke(service, true, false, true, true));
+        assertEquals("FAILED", method.invoke(service, false, true, true, true));
+        assertEquals("PENDING", method.invoke(service, false, false, true, true));
+    }
+
+    @Test
+    void jsonAuditIsNonBlockingByDefaultButCanBeEnabled() throws Exception {
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null);
+        Method method = LoadTestingDashboardService.class.getDeclaredMethod("isStrictJsonAuditEnabled");
+        method.setAccessible(true);
+
+        String originalValue = System.getProperty("tradenix.strict.json.audit");
+        try {
+            System.clearProperty("tradenix.strict.json.audit");
+            assertFalse((Boolean) method.invoke(service));
+
+            System.setProperty("tradenix.strict.json.audit", "true");
+            assertTrue((Boolean) method.invoke(service));
+        } finally {
+            if (originalValue == null) {
+                System.clearProperty("tradenix.strict.json.audit");
+            } else {
+                System.setProperty("tradenix.strict.json.audit", originalValue);
+            }
+        }
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

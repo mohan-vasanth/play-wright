@@ -50,4 +50,9 @@ public class LoadTestingDashboardController {
     public ResponseEntity<Map<String, Object>> jsonOptions(@RequestParam String type) {
         return ResponseEntity.ok(declarationCatalog.jsonOptionsPayload(type));
     }
+
+    @GetMapping("/declaration-types")
+    public ResponseEntity<?> declarationTypes() {
+        return ResponseEntity.ok(declarationCatalog.declarationTypesPayload());
+    }
 }

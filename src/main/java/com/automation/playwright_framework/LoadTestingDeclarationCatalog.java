@@ -189,6 +189,16 @@ class LoadTestingDeclarationCatalog {
                 "files", files);
     }
 
+    List<Map<String, String>> declarationTypesPayload() {
+        return DEFINITIONS.values().stream()
+                .map(definition -> Map.of(
+                        "value", definition.type(),
+                        "label", definition.moduleLabel()))
+                .sorted((left, right) -> String.valueOf(left.get("label"))
+                        .compareToIgnoreCase(String.valueOf(right.get("label"))))
+                .toList();
+    }
+
     private Path resolveResourceFolderPath(DeclarationDefinition definition) {
         return resourceFolderCandidates(definition).stream()
                 .filter(Files::isDirectory)

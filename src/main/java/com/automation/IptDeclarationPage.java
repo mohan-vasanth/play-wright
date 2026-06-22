@@ -350,6 +350,73 @@ public class IptDeclarationPage {
         }
     }
 
+    public String captureRenderedFormAuditSnapshot() {
+        try {
+            return String.valueOf(page.evaluate("""
+                    () => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim();
+                        const upper = value => normalize(value).toUpperCase();
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const uniqueValues = values => {
+                            const seen = new Set();
+                            return values.filter(value => {
+                                const key = upper(value);
+                                if (!key || seen.has(key)) {
+                                    return false;
+                                }
+                                seen.add(key);
+                                return true;
+                            });
+                        };
+
+                        const texts = uniqueValues(Array.from(document.querySelectorAll('body, body *'))
+                            .filter(isVisible)
+                            .map(element => normalize(element.innerText || element.textContent))
+                            .filter(value => value && value.length <= 500));
+
+                        const values = uniqueValues(Array.from(document.querySelectorAll(
+                                "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], [contenteditable='true']"))
+                            .filter(isVisible)
+                            .flatMap(element => {
+                                const renderedValues = [];
+                                const directValue = normalize(
+                                    element instanceof HTMLSelectElement
+                                        ? (element.selectedOptions?.[0]?.textContent || element.value)
+                                        : ('value' in element ? element.value : element.textContent));
+                                if (directValue) {
+                                    renderedValues.push(directValue);
+                                }
+                                const ariaValue = normalize(element.getAttribute('aria-label'));
+                                if (ariaValue) {
+                                    renderedValues.push(ariaValue);
+                                }
+                                const placeholder = normalize(element.getAttribute('placeholder'));
+                                if (placeholder) {
+                                    renderedValues.push(placeholder);
+                                }
+                                return renderedValues;
+                            }));
+
+                        return JSON.stringify({
+                            texts,
+                            values
+                        });
+                    }
+                    """));
+        } catch (PlaywrightException exception) {
+            return "{}";
+        }
+    }
+
     private void fillShipmentInfo(JsonNode data) {
         JsonNode header = data.path("header");
         JsonNode cargo = data.path("cargo");
