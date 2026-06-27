@@ -71,6 +71,29 @@ class TestLauncherControllerTest {
     }
 
     @Test
+    void inpAndTnpJsonOptionsPreferModuleSpecificTestResourceFolders() {
+        Map<?, ?> inpBody = jsonOptionsBody("inp");
+        Map<?, ?> tnpBody = jsonOptionsBody("tnp");
+
+        assertTrue(String.valueOf(inpBody.get("resolvedFolderPath")).endsWith("src\\test\\resources\\INP"));
+        assertTrue(String.valueOf(tnpBody.get("resolvedFolderPath")).endsWith("src\\test\\resources\\TNP"));
+
+        List<?> inpFiles = (List<?>) inpBody.get("files");
+        List<?> tnpFiles = (List<?>) tnpBody.get("files");
+
+        assertTrue(inpFiles.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(file -> String.valueOf(file.get("resourcePath")))
+                .anyMatch("IE PERMIT.JSON"::equals));
+        assertTrue(tnpFiles.stream()
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(file -> String.valueOf(file.get("resourcePath")))
+                .anyMatch("TT PERMIT.json"::equals));
+    }
+
+    @Test
     void pmtStatusStopsPollingEvenBeforePermitNumberIsCaptured() throws Exception {
         Method mapJobState = TestLauncherController.class.getDeclaredMethod("mapJobState", String.class, String.class);
         mapJobState.setAccessible(true);

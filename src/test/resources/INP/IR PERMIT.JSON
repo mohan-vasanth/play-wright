@@ -1,0 +1,265 @@
+{
+    "type": "INPDEC",
+    
+        "header": {
+            "messageReference": "TDX2606250013",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1012"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "24",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false,
+            "remarks": {
+                "freeText": "ADATA"
+            }
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "JZ",
+                "locationName": "JURONG FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "SZ",
+                "locationName": "SEMBAWANG FTZ"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "VOY222",
+                        "transportIdentifier": "MVABC"
+                    },
+                    "mawboucroblNumber": "BL123"
+                },
+                "arrivalDate": "20260616",
+                "loadingPort": "MYJHB"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "VOY789",
+                        "transportIdentifier": "MVXYZ"
+                    },
+                    "mawboucroblNumber": "BL789"
+                },
+                "additionalVesselInformation": {
+                    "vesselType": "CS",
+                    "netRegisterTonnage": "1",
+                    "loadingNextPort": "JPSKW"
+                },
+                "departureDate": "20260417",
+                "dischargePort": "JPSKW",
+                "finalDestinationCountry": "AE"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198402847H"
+                },
+                "partyName": {
+                    "name": "BAYSWATER SHIPPING FORWARDING PTE LTD"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE. LTD. "
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            },
+            "exporterParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198402847H"
+                    },
+                    "partyName": {
+                        "name": "BAYSWATER SHIPPING & FORWARDING PTE LTD"
+                    }
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "CRIMSONLOGIC PTE LTD ",
+                            "CRIMSONLOGIC PTE LTD "
+                        ]
+                    },
+                    "cityName": "CRIMSONLOGIC PTE LTD ",
+                    "postalZone": "198800784",
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "1",
+                "invoiceDate": "20260325",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "28999",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "28999",
+                    "gstAmountSgd": "2609.91"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "28999",
+            "sumOfItemAmount": "28999",
+            "totalInvoiceCifValue": "28999",
+            "totalCifFobValue": "28999",
+            "totalOuterPack": {
+                "value": "5",
+                "unitCode": "DRM"
+            },
+            "totalGrossWeight": {
+                "value": "100",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "2609.91",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "33030000",
+                "goodsDescription": "PERFUMES & TOILET WATERS (KGM)",
+                "originCountry": "US",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "TPE0616944",
+                "outHawbHucrHblNumber": "HAN26701642",
+                "itemInvoiceNumber": "1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "150",
+                        "unitCode": "KGM"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "150",
+                        "unitCode": "KGM"
+                    },
+                    "dutiableQuantity": {
+                        "value": "150",
+                        "unitCode": "KGM"
+                    },
+                    "hsQuantity": {
+                        "value": "150",
+                        "unitCode": "KGM"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "28999",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "28999",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "28999",
+                    "itemCifFobValueSgd": "28999"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "2609.91"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

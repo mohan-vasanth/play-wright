@@ -1,0 +1,238 @@
+{
+    "type": "INPDEC",
+
+        "header": {
+            "messageReference": "TDX2606270020",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260627",
+                "sequenceNumeric": "1018"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "25",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "PPZ",
+                "locationName": "PASIR PANJANG FTZ"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "SQ0001",
+                        "transportIdentifier": "001"
+                    },
+                    "mawboucroblNumber": "123456789"
+                },
+                "arrivalDate": "20260612",
+                "loadingPort": "DEFRA"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "SQ0001"
+                    },
+                    "mawboucroblNumber": "123456789"
+                },
+                "departureDate": "20260513",
+                "dischargePort": "IDJKT",
+                "finalDestinationCountry": "ID"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "20110715GST"
+                },
+                "partyName": {
+                    "name": "GST DUMMY COMPANY GSTDUMMYCOMPANY"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE LTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197201770G"
+                },
+                "partyName": {
+                    "name": "SINGAPORE AIRPORT TERMINAL SERVICES"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "CRIMSONLOGIC PTE LTD",
+                            "CRIMSONLOGIC PTE LTD"
+                        ]
+                    },
+                    "cityName": "CRIMSONLOGIC PTE LTD",
+                    "postalZone": "198800784",
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "123",
+                "invoiceDate": "20260505",
+                "supplierManufacturerParty": {
+                    "name": "-"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "1000",
+                        "currencyID": "USD"
+                    },
+                    "exchangeRate": "1.3553"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "1355.3",
+                    "gstAmountSgd": "121.98"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "1000",
+            "sumOfItemAmount": "1000",
+            "totalInvoiceCifValue": "1355.3",
+            "totalCifFobValue": "1355.3",
+            "totalOuterPack": {
+                "value": "12",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "100",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "121.98",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "90269000",
+                "goodsDescription": "PARTS & ACCESSORIES OF INSTRUMENTS AND APPARATUS FOR MEASURING OR CHECKING OTHER VARIABLES OF LIQUIDS OR GASES (EXCL ITEMS UNDER HEADINGS 9014 9015 9028 OR 9032) (KGM)",
+                "originCountry": "NZ",
+                "brandName": "NA",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "90AB265",
+                "outHawbHucrHblNumber": "90AB265",
+                "itemInvoiceNumber": "123",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "85",
+                        "unitCode": "KGM"
+                    },
+                    "hsQuantity": {
+                        "value": "85",
+                        "unitCode": "KGM"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "1355.3",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "1000",
+                            "currencyID": "USD"
+                        },
+                        "exchangeRate": "1.3553"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "1355.3",
+                    "itemCifFobValueSgd": "1355.3"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "121.98"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

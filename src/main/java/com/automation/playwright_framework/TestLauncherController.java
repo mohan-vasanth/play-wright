@@ -63,7 +63,7 @@ public class TestLauncherController {
                     "inp-batch-submit",
                     "declaration-json/INP",
                     "IptDeclarationTestCase1Test",
-                    "tradenix.ipt.test.data",
+                    "tradenix.inp.test.data",
                     List.of(
                             "-Dtradenix.declaration.type=INP",
                             "-Dtradenix.declaration.route=/declarations/inp",
@@ -77,7 +77,7 @@ public class TestLauncherController {
                     "tnp-batch-submit",
                     "declaration-json/TNP",
                     "IptDeclarationTestCase1Test",
-                    "tradenix.ipt.test.data",
+                    "tradenix.tnp.test.data",
                     List.of(
                             "-Dtradenix.declaration.type=TNP",
                             "-Dtradenix.declaration.route=/declarations/tnp",
@@ -637,12 +637,14 @@ public class TestLauncherController {
 
     private List<Path> resourceFolderCandidates(LauncherTypeConfig config) {
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        addPreferredModuleTestResourceCandidates(candidates, config.type());
         candidates.add(Paths.get("src", "main", "resources", config.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("src", "test", "resources", config.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "test-classes", config.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "classes", config.resourceFolder()).toAbsolutePath().normalize());
 
         locateProjectRoot().ifPresent(projectRoot -> {
+            addPreferredModuleTestResourceCandidates(candidates, projectRoot, config.type());
             candidates.add(projectRoot.resolve(Paths.get("src", "main", "resources", config.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
@@ -658,6 +660,22 @@ public class TestLauncherController {
         });
 
         return List.copyOf(candidates);
+    }
+
+    private void addPreferredModuleTestResourceCandidates(LinkedHashSet<Path> candidates, String type) {
+        if (!"inp".equalsIgnoreCase(type) && !"tnp".equalsIgnoreCase(type)) {
+            return;
+        }
+        candidates.add(Paths.get("src", "test", "resources", type.toUpperCase()).toAbsolutePath().normalize());
+    }
+
+    private void addPreferredModuleTestResourceCandidates(LinkedHashSet<Path> candidates, Path projectRoot, String type) {
+        if (!"inp".equalsIgnoreCase(type) && !"tnp".equalsIgnoreCase(type)) {
+            return;
+        }
+        candidates.add(projectRoot.resolve(Paths.get("src", "test", "resources", type.toUpperCase()))
+                .toAbsolutePath()
+                .normalize());
     }
 
     private Optional<Path> locateProjectRoot() {

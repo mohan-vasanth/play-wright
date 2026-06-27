@@ -1,0 +1,213 @@
+{
+    "type": "INPDEC",
+    
+        "header": {
+            "messageReference": "TDX2606250015",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1014"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "21",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false,
+            "remarks": {
+                "freeText": "TESTCASE 3 INP"
+            }
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "THQ",
+                "locationName": "TUAS HQ"
+            },
+            "receiptLocation": {
+                "locationCode": "RECYCL",
+                "locationName": "GST RELIEF ON REUSABLE GOODS"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3",
+                        "transportIdentifier": "T08LL1234A"
+                    }
+                },
+                "arrivalDate": "20260630",
+                "loadingPort": "MYKUL"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD "
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA "
+                }
+            },
+            "claimantParty": {
+                "partyDetail": {
+                    "partyIdentification": {
+                        "id": "198800784N"
+                    },
+                    "partyName": {
+                        "name": "CRIMSONLOGIC PTE LTD"
+                    }
+                },
+                "claimantInformation": {
+                    "codeValue": "S1234567T",
+                    "name": "DA LAO BAN"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "001",
+                "invoiceDate": "20260528",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "99000",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "99000",
+                    "gstAmountSgd": "8910"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "99000",
+            "sumOfItemAmount": "99000",
+            "totalInvoiceCifValue": "99000",
+            "totalCifFobValue": "99000",
+            "totalOuterPack": {
+                "value": "200",
+                "unitCode": "BOX"
+            },
+            "totalGrossWeight": {
+                "value": "100",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "8910",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "73110099",
+                "goodsDescription": "OTHER CONTAINERS FOR COMPRESSED OR LIQUEFIED GAS OF CAPACITY OF 10L OR MORE OF IRON OR STEEL (TNE)",
+                "originCountry": "MY",
+                "brandName": "SUNNY",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "HAWB1234",
+                "outHawbHucrHblNumber": "FD64434",
+                "itemInvoiceNumber": "001",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "20",
+                        "unitCode": "TNE"
+                    },
+                    "dutiableQuantity": {
+                        "value": "20",
+                        "unitCode": "TNE"
+                    },
+                    "hsQuantity": {
+                        "value": "20",
+                        "unitCode": "TNE"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "99000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "99000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "99000",
+                    "itemCifFobValueSgd": "99000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "8910"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

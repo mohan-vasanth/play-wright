@@ -1,5 +1,6 @@
 package com.automation.playwright_framework;
 
+import com.automation.DeclarationPayloads;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -31,7 +32,7 @@ class LoadTestingDeclarationCatalog {
                     "In-Payment (IPT)",
                     "/declarations/ipt",
                     "declaration-json/IPT",
-                    WorkflowKind.IPT_STYLE,
+                    WorkflowKind.IPT,
                     List.of("Edit Declaration", "Job Info")),
             "inp", new DeclarationDefinition(
                     "inp",
@@ -39,7 +40,7 @@ class LoadTestingDeclarationCatalog {
                     "In-Non-Payment (INP)",
                     "/declarations/inp",
                     "declaration-json/INP",
-                    WorkflowKind.IPT_STYLE,
+                    WorkflowKind.INP,
                     List.of("Edit Declaration", "Job Info")),
             "tnp", new DeclarationDefinition(
                     "tnp",
@@ -47,7 +48,7 @@ class LoadTestingDeclarationCatalog {
                     "Transhipment (TNP)",
                     "/declarations/tnp",
                     "declaration-json/TNP",
-                    WorkflowKind.IPT_STYLE,
+                    WorkflowKind.TNP,
                     List.of("Edit Declaration", "Job Info")),
             "out", new DeclarationDefinition(
                     "out",
@@ -148,7 +149,9 @@ class LoadTestingDeclarationCatalog {
     List<JsonNode> loadDeclarationPayloads(String type, String selectedJson) {
         Path jsonPath = resolveSelectedJsonPath(type, selectedJson);
         try (InputStream inputStream = Files.newInputStream(jsonPath)) {
-            JsonNode root = OBJECT_MAPPER.readTree(inputStream);
+            JsonNode root = DeclarationPayloads.annotatePermitType(
+                    OBJECT_MAPPER.readTree(inputStream),
+                    selectedJson);
             if (root == null || root.isNull()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected declaration JSON file is empty.");
             }
@@ -208,12 +211,14 @@ class LoadTestingDeclarationCatalog {
 
     private List<Path> resourceFolderCandidates(DeclarationDefinition definition) {
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        addPreferredModuleTestResourceCandidates(candidates, definition.type());
         candidates.add(Paths.get("src", "main", "resources", definition.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("src", "test", "resources", definition.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "test-classes", definition.resourceFolder()).toAbsolutePath().normalize());
         candidates.add(Paths.get("target", "classes", definition.resourceFolder()).toAbsolutePath().normalize());
 
         locateProjectRoot().ifPresent(projectRoot -> {
+            addPreferredModuleTestResourceCandidates(candidates, projectRoot, definition.type());
             candidates.add(projectRoot.resolve(Paths.get("src", "main", "resources", definition.resourceFolder()))
                     .toAbsolutePath()
                     .normalize());
@@ -229,6 +234,22 @@ class LoadTestingDeclarationCatalog {
         });
 
         return List.copyOf(candidates);
+    }
+
+    private void addPreferredModuleTestResourceCandidates(LinkedHashSet<Path> candidates, String type) {
+        if (!"inp".equalsIgnoreCase(type) && !"tnp".equalsIgnoreCase(type)) {
+            return;
+        }
+        candidates.add(Paths.get("src", "test", "resources", type.toUpperCase()).toAbsolutePath().normalize());
+    }
+
+    private void addPreferredModuleTestResourceCandidates(LinkedHashSet<Path> candidates, Path projectRoot, String type) {
+        if (!"inp".equalsIgnoreCase(type) && !"tnp".equalsIgnoreCase(type)) {
+            return;
+        }
+        candidates.add(projectRoot.resolve(Paths.get("src", "test", "resources", type.toUpperCase()))
+                .toAbsolutePath()
+                .normalize());
     }
 
     private Optional<Path> locateProjectRoot() {
@@ -271,7 +292,9 @@ class LoadTestingDeclarationCatalog {
     }
 
     enum WorkflowKind {
-        IPT_STYLE,
+        IPT,
+        INP,
+        TNP,
         OUT,
         COO
     }

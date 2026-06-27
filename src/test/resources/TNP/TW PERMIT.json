@@ -1,0 +1,173 @@
+{
+    "type": "TNPDEC",
+    "previousPermitNumber": null,
+    "status": null,
+    "jobReferenceNumber": null,
+    
+        "type": "TNP",
+        "header": {
+            "messageReference": "TDX2606250024",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1023"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "TNPDEC",
+            "declarationType": "72",
+            "declarationIndicator": true
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": true,
+            "itemPackingIsActive": false,
+            "shippingMarksIsActive": false,
+            "declarationIndicator": true
+        },
+        "cargo": {
+            "cargoPackingType": "9",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "PPZ",
+                "locationName": "PASIR PANJANG FTZ"
+            },
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "REWSAE12",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "12",
+                    "transportEquipmentSeal": {
+                        "sealID": "WSEDRF"
+                    }
+                }
+            ]
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "QWERT123",
+                        "transportIdentifier": "QAWSED321"
+                    },
+                    "mawboucroblNumber": "WERTY123"
+                },
+                "arrivalDate": "20260625",
+                "loadingPort": "TWTPE"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "TREWQ123",
+                        "transportIdentifier": "EDWSQA213"
+                    },
+                    "mawboucroblNumber": "YTRWE321"
+                },
+                "departureDate": "20260625",
+                "dischargePort": "IDJKT",
+                "finalDestinationCountry": "ID",
+                "additionalVesselInformation": {
+                    "vesselType": "CV",
+                    "towingVessel": {
+                        "vesselID": "TEST123",
+                        "vesselName": "SUN PHARMA"
+                    }
+                }
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198402847H"
+                },
+                "partyName": {
+                    "name": "BAYSWATER SHIPPING FORWARDING PTE LTD"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "NAME1"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "ADD2"
+                        ]
+                    },
+                    "cityName": "SAMPLECITY",
+                    "countrySubentityCode": "21312",
+                    "countrySubentity": "SAA",
+                    "postalZone": "21312",
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "84732100",
+                "goodsDescription": "PARTS & ACCESSORIES OF ELECTRONIC CALCULATING MACHINES OF SUBHEADING 84701000 84702100 OR 84702900 EXCL COVERS CARRYING CASES & THE LIKE (KGM)",
+                "dangerousGoodsIndicator": false,
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "100.000",
+                        "unitCode": "KGM"
+                    }
+                },
+                "originCountry": "TW",
+                "transactionValue": {
+                    "itemCIFFOBValue": "29990.90"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfItems": "1",
+            "totalCIFFOBValue": "29990.90",
+            "totalOuterPack": {
+                "value": "100",
+                "unitCode": "CTN"
+            },
+            "totalGrossWeight": {
+                "value": "20.000",
+                "unitCode": "TNE"
+            }
+        }
+    }

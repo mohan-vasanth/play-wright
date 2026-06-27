@@ -182,4 +182,40 @@ class TestReportControllerParsingTest {
             Files.deleteIfExists(diagnosticsFile);
         }
     }
+
+    @Test
+    void parseSurefireReportReadsInpAndTnpTestDataProperties() throws Exception {
+        Path reportPath = Files.createTempFile("TEST-inp-report-", ".xml");
+        Files.writeString(reportPath, """
+                <testsuite name="com.automation.playwright_framework.IptDeclarationTestCase1Test"
+                           tests="1"
+                           failures="0"
+                           errors="0"
+                           skipped="0"
+                           time="12.345">
+                    <properties>
+                        <property name="tradenix.inp.test.data" value="src/test/resources/INP/ME PERMIT.json" />
+                        <property name="tradenix.report.artifact.prefix" value="inp-batch-submit" />
+                    </properties>
+                    <testcase name="submitIptDeclarationTestCase1UsingJsonData"
+                              classname="com.automation.playwright_framework.IptDeclarationTestCase1Test"
+                              time="12.345" />
+                </testsuite>
+                """);
+
+        try {
+            TestReportController controller = new TestReportController();
+            Method method = TestReportController.class.getDeclaredMethod("parseSurefireReport", Path.class);
+            method.setAccessible(true);
+            Object summary = method.invoke(controller, reportPath);
+
+            Method testDataResourcePath = summary.getClass().getDeclaredMethod("testDataResourcePath");
+            Method artifactPrefix = summary.getClass().getDeclaredMethod("artifactPrefix");
+
+            assertEquals("src/test/resources/INP/ME PERMIT.json", testDataResourcePath.invoke(summary));
+            assertEquals("inp-batch-submit", artifactPrefix.invoke(summary));
+        } finally {
+            Files.deleteIfExists(reportPath);
+        }
+    }
 }

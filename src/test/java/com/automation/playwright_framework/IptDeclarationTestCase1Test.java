@@ -1,9 +1,12 @@
 package com.automation.playwright_framework;
 
 import base.BaseTest;
+import com.automation.DeclarationPayloads;
 import com.automation.DeclarationsPage;
+import com.automation.InpDeclarationPage;
 import com.automation.IptDeclarationPage;
 import com.automation.LoginPage;
+import com.automation.TnpDeclarationPage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Assertions;
@@ -15,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.Locale;
 
 public class IptDeclarationTestCase1Test extends BaseTest {
 
@@ -29,9 +33,11 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
     private static final String IPT_ROUTE = System.getProperty("tradenix.declaration.route", "/declarations/ipt");
     private static final String IPT_MENU_LABEL = System.getProperty("tradenix.declaration.menu.label", "In-Payment (IPT)");
-    private static final String TEST_DATA_RESOURCE = System.getProperty(
-            "tradenix.ipt.test.data",
-            "IPT/ipt-declaration-test-case-1.json");
+    private static final String DECLARATION_FAMILY = System.getProperty("tradenix.declaration.type", "IPT")
+            .trim()
+            .toUpperCase(Locale.ROOT);
+    private static final String TEST_DATA_RESOURCE = resolveTestDataResource();
+    private static final String TEST_DATA_PROPERTY = resolveTestDataPropertyName();
     private static final String SELECTED_PERMIT_TYPE = normalizePermitType(
             System.getProperty("tradenix.ipt.permit.type"));
     private static final String REPORT_ARTIFACT_PREFIX = System.getProperty(
@@ -41,7 +47,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
     @Test
     void submitIptDeclarationTestCase1UsingJsonData() {
-        System.setProperty("tradenix.ipt.test.data", TEST_DATA_RESOURCE);
+        System.setProperty(TEST_DATA_PROPERTY, TEST_DATA_RESOURCE);
         System.setProperty("tradenix.report.artifact.prefix", REPORT_ARTIFACT_PREFIX);
         deleteExistingArtifacts(REPORT_ARTIFACT_PREFIX);
         StaticReportDataWriter.clear();
@@ -50,7 +56,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
         LoginPage loginPage = new LoginPage(page);
         DeclarationsPage declarationsPage = new DeclarationsPage(page);
-        IptDeclarationPage iptDeclarationPage = new IptDeclarationPage(page);
+        IptDeclarationPage iptDeclarationPage = createDeclarationPage();
 
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
@@ -70,9 +76,18 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         String initialJobId = declarationsPage.readCurrentJobIdFromUrl();
         String messageReference = firstNonBlank(
                 iptDeclarationPage.readCurrentMessageReference(),
-                testData.path("header").path("messageReference").asText(null));
+                declarationMessageReference(testData));
 
-        iptDeclarationPage.populateFrom(testData);
+        try {
+            iptDeclarationPage.populateFrom(testData);
+        } catch (Exception exception) {
+            Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-1.json");
+            captureDiagnosticsArtifacts(
+                    Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-1.png"),
+                    diagnosticsPath,
+                    iptDeclarationPage);
+            throw exception;
+        }
         if (shouldSubmitDeclaration) {
             Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-validation-1.json");
             captureDiagnosticsArtifacts(
@@ -105,7 +120,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                 diagnosticsPath,
                 testData,
                 initialJobId,
-                firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)),
+                firstNonBlank(messageReference, declarationMessageReference(testData)),
                 executionStartedAt,
                 Instant.now());
         StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
@@ -140,7 +155,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             String initialJobId = declarationsPage.readCurrentJobIdFromUrl();
             String messageReference = firstNonBlank(
                     iptDeclarationPage.readCurrentMessageReference(),
-                    declaration.path("header").path("messageReference").asText(null));
+                    declarationMessageReference(declaration));
 
             try {
                 iptDeclarationPage.populateDraftFrom(declaration);
@@ -223,6 +238,15 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Files.writeString(diagnosticsPath, iptDeclarationPage.captureSubmitValidationDiagnostics());
         } catch (Exception ignored) {
         }
+        try {
+            String diagnosticsFileName = diagnosticsPath.getFileName().toString();
+            String auditFileName = diagnosticsFileName.endsWith(".json")
+                    ? diagnosticsFileName.substring(0, diagnosticsFileName.length() - 5) + "-audit.json"
+                    : diagnosticsFileName + "-audit.json";
+            Path auditPath = diagnosticsPath.resolveSibling(auditFileName);
+            Files.writeString(auditPath, iptDeclarationPage.captureRenderedFormAuditSnapshot());
+        } catch (Exception ignored) {
+        }
     }
 
     private void captureStepScreenshot(Path screenshotPath) {
@@ -238,7 +262,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         Path filePath = Paths.get(resourcePath);
         if (Files.exists(filePath)) {
             try (InputStream inputStream = Files.newInputStream(filePath)) {
-                return OBJECT_MAPPER.readTree(inputStream);
+                return DeclarationPayloads.annotatePermitType(OBJECT_MAPPER.readTree(inputStream), resourcePath);
             } catch (IOException exception) {
                 throw new IllegalStateException("Unable to read test data from file: " + resourcePath, exception);
             }
@@ -252,7 +276,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             if (inputStream == null) {
                 throw new IllegalArgumentException("Resource not found: " + resourcePath);
             }
-            return OBJECT_MAPPER.readTree(inputStream);
+            return DeclarationPayloads.annotatePermitType(OBJECT_MAPPER.readTree(inputStream), resourcePath);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to read test data from: " + resourcePath, exception);
         }
@@ -365,10 +389,12 @@ public class IptDeclarationTestCase1Test extends BaseTest {
     }
 
     private String resolveDeclarationType(JsonNode declaration) {
+        JsonNode payload = DeclarationPayloads.unwrap(declaration);
         return firstNonBlank(
-                declaration.path("header").path("declarationType").asText(null),
-                declaration.path("header").path("applicationType").asText(null),
-                declaration.path("header").path("commonAccessReference").asText(null),
+                payload.path("header").path("declarationType").asText(null),
+                payload.path("header").path("applicationType").asText(null),
+                payload.path("header").path("commonAccessReference").asText(null),
+                payload.path("type").asText(null),
                 declaration.path("type").asText(null),
                 DEFAULT_DECLARATION_TYPE);
     }
@@ -390,7 +416,8 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         if (diagnosticsValue != null) {
             return diagnosticsValue;
         }
-        return asBooleanFlag(declaration.path("cargo").path("supplyIndicator"));
+        JsonNode payload = DeclarationPayloads.unwrap(declaration);
+        return asBooleanFlag(payload.path("cargo").path("supplyIndicator"));
     }
 
     private Boolean asBooleanFlag(JsonNode node) {
@@ -486,7 +513,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             String declarationType = resolveDeclarationType(declaration);
             String declarationNumber = firstNonBlank(
                     fallbackMessageReference,
-                    declaration.path("header").path("messageReference").asText(null));
+                    declarationMessageReference(declaration));
             String jobCreatedBy = firstNonBlank(USER_USERNAME);
             Boolean supplyIndicator = resolveSupplyIndicator(root, declaration);
             root.put("jobStatus", "DRF");
@@ -521,6 +548,28 @@ public class IptDeclarationTestCase1Test extends BaseTest {
             Files.writeString(diagnosticsPath, OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(root));
         } catch (Exception ignored) {
         }
+    }
+
+    private static String resolveTestDataResource() {
+        return switch (DECLARATION_FAMILY) {
+            case "INP" -> System.getProperty(
+                    "tradenix.inp.test.data",
+                    System.getProperty("tradenix.ipt.test.data", "INP/IE PERMIT.JSON"));
+            case "TNP" -> System.getProperty(
+                    "tradenix.tnp.test.data",
+                    System.getProperty("tradenix.ipt.test.data", "TNP/TW PERMIT.json"));
+            default -> System.getProperty(
+                    "tradenix.ipt.test.data",
+                    "IPT/ipt-declaration-test-case-1.json");
+        };
+    }
+
+    private static String resolveTestDataPropertyName() {
+        return switch (DECLARATION_FAMILY) {
+            case "INP" -> "tradenix.inp.test.data";
+            case "TNP" -> "tradenix.tnp.test.data";
+            default -> "tradenix.ipt.test.data";
+        };
     }
 
     private static String normalizePermitType(String value) {
@@ -791,6 +840,21 @@ public class IptDeclarationTestCase1Test extends BaseTest {
         loginPage.navigate(LOGIN_URL);
         loginPage.loginAsUser(USER_USERNAME, USER_PASSWORD, USER_FORWARDER, USER_DEPARTMENT);
         loginPage.waitForAuthenticatedState();
+    }
+
+    private IptDeclarationPage createDeclarationPage() {
+        return switch (DECLARATION_FAMILY) {
+            case "INP" -> new InpDeclarationPage(page);
+            case "TNP" -> new TnpDeclarationPage(page);
+            default -> new IptDeclarationPage(page);
+        };
+    }
+
+    private String declarationMessageReference(JsonNode declaration) {
+        JsonNode payload = DeclarationPayloads.unwrap(declaration);
+        return firstNonBlank(
+                payload.path("header").path("messageReference").asText(null),
+                declaration.path("header").path("messageReference").asText(null));
     }
 
     private void deleteExistingArtifacts(String artifactPrefix) {

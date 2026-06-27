@@ -1,0 +1,149 @@
+{
+    "type": "TNPDEC",
+    "previousPermitNumber": null,
+    "status": null,
+    "jobReferenceNumber": null,
+    
+        "type": "TNP",
+        "header": {
+            "messageReference": "TDX2606250022",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1021"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "TNPDEC",
+            "declarationType": "70",
+            "declarationIndicator": true
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "itemPackingIsActive": false,
+            "shippingMarksIsActive": false,
+            "declarationIndicator": true
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "JZ",
+                "locationName": "JURONG FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            }
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "2343S",
+                        "transportIdentifier": "BATWEEN"
+                    }
+                },
+                "arrivalDate": "20260426",
+                "loadingPort": "CNSHA"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "WDWEWE",
+                        "transportIdentifier": "BATWEEN"
+                    }
+                },
+                "departureDate": "20260428",
+                "dischargePort": "IDJKT",
+                "finalDestinationCountry": "ID"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "handlingAgentParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD CUSTOMER SERVICE CENTRE"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            }
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "85041000",
+                "goodsDescription": "BALLASTS FOR DISCHARGE LAMPS OR TUBES (NMB)",
+                "dangerousGoodsIndicator": false,
+                "inMAWBOUCROBLNumber": "ASDGFDG",
+                "outMAWBOUCROBLNumber": "GDFGERFER",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "85.000",
+                        "unitCode": "NMB"
+                    }
+                },
+                "originCountry": "CN"
+            },
+            {
+                "itemSequenceNumeric": "2",
+                "itemHarmonizedSystemCode": "85042111",
+                "goodsDescription": "INSTRUMENT TRANSFORMERS WITH POWER HANDLING CAPACITY NOT OVER 1KVA & OF HIGH SIDE VOLTAGE OF 110KV OR MORE (NMB)",
+                "dangerousGoodsIndicator": false,
+                "inMAWBOUCROBLNumber": "EDEEEEE",
+                "outMAWBOUCROBLNumber": "REDFERERF",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "58.000",
+                        "unitCode": "NMB"
+                    }
+                },
+                "originCountry": "CN"
+            }
+        ],
+        "summary": {
+            "numberOfItems": "2",
+            "totalOuterPack": {
+                "value": "5",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "0.920",
+                "unitCode": "TNE"
+            }
+        }
+    }

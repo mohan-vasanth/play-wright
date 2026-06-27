@@ -1,5 +1,6 @@
 package com.automation.playwright_framework;
 
+import com.automation.DeclarationPayloads;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.Resource;
@@ -46,6 +47,8 @@ public class TestReportController {
     private static final List<String> TEST_DATA_PROPERTIES = List.of(
             "tradenix.out.test.data",
             "tradenix.ipt.test.data",
+            "tradenix.inp.test.data",
+            "tradenix.tnp.test.data",
             "tradenix.coo.test.data");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -82,12 +85,6 @@ public class TestReportController {
             if (batchReport.batchCases().isEmpty()) {
                 surefireReport = null;
             }
-        }
-
-        if (surefireReport != null
-                && normalizedReportPrefix != null
-                && batchReport.updatedAtMillis() > surefireReport.updatedAtMillis()) {
-            surefireReport = null;
         }
 
         if (surefireReport == null && batchReport.batchCases().isEmpty()) {
@@ -260,8 +257,8 @@ public class TestReportController {
             case "out-batch-submit" -> "OUT/out-declaration-batch-test-case.json";
             case "coo-batch-submit" -> "COO/coo-declaration-batch-test-case.json";
             case "ipt-batch-submit" -> "IPT/ipt-declaration-test-case-1.json";
-            case "inp-batch-submit" -> "INP/inp-declaration-test-case-1.json";
-            case "tnp-batch-submit" -> "TNP/tnp-declaration-test-case-1.json";
+            case "inp-batch-submit" -> "INP/IE PERMIT.JSON";
+            case "tnp-batch-submit" -> "TNP/TW PERMIT.json";
             default -> null;
         };
     }
@@ -443,18 +440,20 @@ public class TestReportController {
             if (root.isArray()) {
                 for (int index = 0; index < root.size(); index++) {
                     JsonNode declaration = root.path(index);
+                    JsonNode payload = DeclarationPayloads.unwrap(declaration);
                     String code = resolveDeclarationTypeCode(declaration);
                     batchMeta.put(index + 1, new BatchMetaInfo(
                             code,
                             mapDeclarationTypeDisplay(code),
-                            blankToNull(declaration.path("header").path("messageReference").asText(null))));
+                            blankToNull(payload.path("header").path("messageReference").asText(null))));
                 }
             } else if (root.isObject()) {
+                JsonNode payload = DeclarationPayloads.unwrap(root);
                 String code = resolveDeclarationTypeCode(root);
                 batchMeta.put(1, new BatchMetaInfo(
                         code,
                         mapDeclarationTypeDisplay(code),
-                        blankToNull(root.path("header").path("messageReference").asText(null))));
+                        blankToNull(payload.path("header").path("messageReference").asText(null))));
             }
             return batchMeta;
         } catch (Exception exception) {
@@ -483,10 +482,12 @@ public class TestReportController {
     }
 
     private String resolveDeclarationTypeCode(JsonNode declaration) {
+        JsonNode payload = DeclarationPayloads.unwrap(declaration);
         return firstNonBlank(
-                blankToNull(declaration.path("header").path("declarationType").asText(null)),
-                blankToNull(declaration.path("header").path("applicationType").asText(null)),
-                blankToNull(declaration.path("header").path("commonAccessReference").asText(null)),
+                blankToNull(payload.path("header").path("declarationType").asText(null)),
+                blankToNull(payload.path("header").path("applicationType").asText(null)),
+                blankToNull(payload.path("header").path("commonAccessReference").asText(null)),
+                blankToNull(payload.path("type").asText(null)),
                 blankToNull(declaration.path("type").asText(null)));
     }
 

@@ -1,10 +1,13 @@
 package com.automation.playwright_framework;
 
 import com.automation.CooDeclarationPage;
+import com.automation.DeclarationPayloads;
 import com.automation.DeclarationsPage;
+import com.automation.InpDeclarationPage;
 import com.automation.IptDeclarationPage;
 import com.automation.LoginPage;
 import com.automation.OutDeclarationPage;
+import com.automation.TnpDeclarationPage;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -1363,7 +1366,9 @@ public class LoadTestingDashboardService {
         return switch (definition.workflowKind()) {
             case OUT -> new OutDeclarationPage(page);
             case COO -> new CooDeclarationPage(page);
-            case IPT_STYLE -> new IptDeclarationPage(page);
+            case INP -> new InpDeclarationPage(page);
+            case TNP -> new TnpDeclarationPage(page);
+            case IPT -> new IptDeclarationPage(page);
         };
     }
 
@@ -1381,8 +1386,9 @@ public class LoadTestingDashboardService {
     }
 
     private JsonNode personalizePayloadForUser(ObjectNode payload, int userIndex) {
+        ObjectNode declarationPayload = DeclarationPayloads.unwrapObject(payload);
         String messageReference = generateMessageReference(userIndex);
-        ObjectNode header = objectNode(payload, "header");
+        ObjectNode header = objectNode(declarationPayload, "header");
         header.put("messageReference", messageReference);
 
         ObjectNode uniqueReferenceNumber = objectNode(header, "uniqueReferenceNumber");
@@ -1390,7 +1396,7 @@ public class LoadTestingDashboardService {
         uniqueReferenceNumber.put("sequenceNumeric", String.format("%04d", ((userIndex - 1) % 9000) + 1000));
 
         Map<String, String> personalizedInvoiceNumbers = new HashMap<>();
-        JsonNode invoicesNode = payload.path("invoice");
+        JsonNode invoicesNode = declarationPayload.path("invoice");
         if (invoicesNode instanceof ArrayNode invoices) {
             for (int index = 0; index < invoices.size(); index++) {
                 JsonNode invoiceNode = invoices.get(index);
@@ -1410,7 +1416,7 @@ public class LoadTestingDashboardService {
             }
         }
 
-        JsonNode supportingDocumentsNode = payload.path("supportingDocumentReference");
+        JsonNode supportingDocumentsNode = declarationPayload.path("supportingDocumentReference");
         if (supportingDocumentsNode instanceof ArrayNode supportingDocuments) {
             for (int index = 0; index < supportingDocuments.size(); index++) {
                 JsonNode documentNode = supportingDocuments.get(index);
@@ -1421,7 +1427,7 @@ public class LoadTestingDashboardService {
             }
         }
 
-        JsonNode itemsNode = payload.path("item");
+        JsonNode itemsNode = declarationPayload.path("item");
         if (itemsNode instanceof ArrayNode items) {
             for (int index = 0; index < items.size(); index++) {
                 JsonNode itemNode = items.get(index);
@@ -1537,14 +1543,16 @@ public class LoadTestingDashboardService {
     private void applyDefaultHeaderValues(
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
             ObjectNode payload) {
-        if (definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.IPT_STYLE
+        if (definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.IPT
+                && definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.INP
+                && definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.TNP
                 && definition.workflowKind() != LoadTestingDeclarationCatalog.WorkflowKind.OUT) {
             return;
         }
         if (DEFAULT_BG_INDICATOR == null || DEFAULT_BG_INDICATOR.isBlank()) {
             return;
         }
-        ObjectNode header = objectNode(payload, "header");
+        ObjectNode header = objectNode(DeclarationPayloads.unwrapObject(payload), "header");
         if (isBlank(text(header, "bankerGuaranteeCode"))) {
             header.put("bankerGuaranteeCode", DEFAULT_BG_INDICATOR.trim());
         }
@@ -1640,28 +1648,29 @@ public class LoadTestingDashboardService {
     private List<String> validatePreparedPayload(
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
             JsonNode payload) {
+        JsonNode declarationPayload = DeclarationPayloads.unwrap(payload);
         List<String> issues = new ArrayList<>();
-        requireText(payload, issues, "header.messageReference");
-        requireAnyText(payload, issues, "header.applicationType", "header.declarationType", "header.commonAccessReference", "type");
+        requireText(declarationPayload, issues, "header.messageReference");
+        requireAnyText(declarationPayload, issues, "header.applicationType", "header.declarationType", "header.commonAccessReference", "type");
 
         if (definition.workflowKind() == LoadTestingDeclarationCatalog.WorkflowKind.COO) {
-            requireAnyText(payload, issues, "party.exporterParty.partyDetail.partyIdentification.id", "party.exporterParty.partyIdentification.id");
-            requireAnyText(payload, issues, "party.exporterParty.partyDetail.partyName.name", "party.exporterParty.partyName.name");
-            requireText(payload, issues, "transport.outwardTransport.transportMeans.transportMode.conveyanceReferenceNumber");
-            requireText(payload, issues, "transport.outwardTransport.departureDate");
-            requireText(payload, issues, "transport.outwardTransport.dischargePort");
-            requireText(payload, issues, "transport.outwardTransport.finalDestinationCountry");
-            requireText(payload, issues, "item[0].itemHarmonizedSystemCode");
-            requireText(payload, issues, "item[0].goodsDescription");
-            requireText(payload, issues, "item[0].originCountry");
-            requireText(payload, issues, "item[0].harmonizedSystemQuantity.value");
-            requireText(payload, issues, "item[0].harmonizedSystemQuantity.unitCode");
-            requireText(payload, issues, "item[0].itemCertificate.itemCertificateQuantity.value");
-            requireText(payload, issues, "item[0].itemCertificate.itemCertificateQuantity.unitCode");
-            requireText(payload, issues, "item[0].itemCertificate.itemValue");
-            requireText(payload, issues, "item[0].itemCertificate.itemInvoiceNumber");
-            requireText(payload, issues, "item[0].itemCertificate.itemInvoiceDate");
-            requireText(payload, issues, "item[0].itemCertificate.originCriterion[0]");
+            requireAnyText(declarationPayload, issues, "party.exporterParty.partyDetail.partyIdentification.id", "party.exporterParty.partyIdentification.id");
+            requireAnyText(declarationPayload, issues, "party.exporterParty.partyDetail.partyName.name", "party.exporterParty.partyName.name");
+            requireText(declarationPayload, issues, "transport.outwardTransport.transportMeans.transportMode.conveyanceReferenceNumber");
+            requireText(declarationPayload, issues, "transport.outwardTransport.departureDate");
+            requireText(declarationPayload, issues, "transport.outwardTransport.dischargePort");
+            requireText(declarationPayload, issues, "transport.outwardTransport.finalDestinationCountry");
+            requireText(declarationPayload, issues, "item[0].itemHarmonizedSystemCode");
+            requireText(declarationPayload, issues, "item[0].goodsDescription");
+            requireText(declarationPayload, issues, "item[0].originCountry");
+            requireText(declarationPayload, issues, "item[0].harmonizedSystemQuantity.value");
+            requireText(declarationPayload, issues, "item[0].harmonizedSystemQuantity.unitCode");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.itemCertificateQuantity.value");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.itemCertificateQuantity.unitCode");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.itemValue");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.itemInvoiceNumber");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.itemInvoiceDate");
+            requireText(declarationPayload, issues, "item[0].itemCertificate.originCriterion[0]");
         }
 
         return issues;
@@ -3087,7 +3096,7 @@ public class LoadTestingDashboardService {
                 applicationStatus,
                 result != null ? result.permitNumber() : null,
                 result != null ? result.urn() : null,
-                firstNonBlank(result != null ? result.submissionDate() : null, result != null ? result.dateCreated() : null),
+                resolveUrnDate(payload, result),
                 firstNonBlank(text(payload, "declarantId"), text(payload.path("header"), "declarantId")),
                 successful,
                 result != null ? result.errorMessage() : null,
@@ -3105,6 +3114,26 @@ public class LoadTestingDashboardService {
                 primaryFailureDetail != null ? primaryFailureDetail.timestamp() : null,
                 result != null ? result.diagnosticsArtifactUrl() : null,
                 Instant.now().toString());
+    }
+
+    private String resolveUrnDate(JsonNode payload, WorkflowResult result) {
+        return firstNonBlank(
+                result != null ? normalizeDashboardDate(result.submissionDate()) : null,
+                result != null ? normalizeDashboardDate(result.dateCreated()) : null,
+                normalizeDashboardDate(text(payload.path("header").path("uniqueReferenceNumber"), "date")),
+                normalizeDashboardDate(text(payload, "urnDate")),
+                normalizeDashboardDate(text(payload.path("header"), "urnDate")));
+    }
+
+    private String normalizeDashboardDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.matches("\\d{8}")) {
+            return normalized.substring(0, 4) + "-" + normalized.substring(4, 6) + "-" + normalized.substring(6, 8);
+        }
+        return normalized;
     }
 
     private String buildFailureReason(WorkflowResult result, String applicationStatus) {

@@ -1,0 +1,250 @@
+{
+    "type": "INPDEC",
+
+        "header": {
+            "messageReference": "TDX2606250012",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1011"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "25",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false,
+            "remarks": {
+                "freeText": "ADATA TEST CASE 1"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "AEO",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "KR",
+                            "processingCodeTwo": "TESTAEO2002"
+                        }
+                    ]
+                }
+            ]
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "VOY444",
+                        "transportIdentifier": "MVDEF"
+                    },
+                    "mawboucroblNumber": "BL789"
+                },
+                "arrivalDate": "20260627",
+                "loadingPort": "HKHKG"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "VOY555",
+                        "transportIdentifier": "MVUVW"
+                    },
+                    "mawboucroblNumber": "MAWB12345671"
+                },
+                "additionalVesselInformation": {
+                    "vesselType": "CS",
+                    "netRegisterTonnage": "1",
+                    "loadingNextPort": "HKHKG"
+                },
+                "departureDate": "20260326",
+                "dischargePort": "HKHKG",
+                "finalDestinationCountry": "AE"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD "
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE. LTD. "
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "1",
+                "invoiceDate": "20260326",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "899",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "899",
+                    "gstAmountSgd": "80.91"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "899",
+            "sumOfItemAmount": "899",
+            "totalInvoiceCifValue": "899",
+            "totalCifFobValue": "899",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "29",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "80.91",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": true,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "42050010",
+                "goodsDescription": "BOOT LACES & MATS OF LEATHER OR COMPOSITION LEATHER (TEN)",
+                "originCountry": "KR",
+                "brandName": "WALKARO",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "HAWB12345678",
+                "outHawbHucrHblNumber": "OUTWARD45678",
+                "itemInvoiceNumber": "1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "99",
+                        "unitCode": "TEN"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "99",
+                        "unitCode": "TEN"
+                    },
+                    "dutiableQuantity": {
+                        "value": "99",
+                        "unitCode": "TEN"
+                    },
+                    "hsQuantity": {
+                        "value": "99",
+                        "unitCode": "TEN"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "899",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "899",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "899",
+                    "itemCifFobValueSgd": "899"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "80.91"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

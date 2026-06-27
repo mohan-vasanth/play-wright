@@ -1,5 +1,7 @@
 package com.automation.playwright_framework;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
@@ -19,6 +21,7 @@ import java.util.stream.Stream;
 
 final class ArtifactPaths {
 
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     static final Path TARGET_DIR = Paths.get("target").toAbsolutePath().normalize();
     static final Path REPORTS_DIR = Paths.get("reports").toAbsolutePath().normalize();
     static final Path SCREENSHOTS_DIR = Paths.get("screenshots").toAbsolutePath().normalize();
@@ -52,6 +55,8 @@ final class ArtifactPaths {
             return;
         }
 
+        refreshStaticReportData(artifactPrefix);
+
         try (Stream<Path> files = Files.list(TARGET_DIR)) {
             files.filter(Files::isRegularFile)
                     .filter(path -> path.getFileName().toString().startsWith(artifactPrefix))
@@ -68,6 +73,22 @@ final class ArtifactPaths {
         aliasScreenshot(artifactPrefix, artifactPrefix + "-status-1.png", artifactPrefix + "-submission-success.png");
         if (!Files.isRegularFile(SCREENSHOTS_DIR.resolve(artifactPrefix + "-submission-success.png"))) {
             aliasScreenshot(artifactPrefix, artifactPrefix + "-progress-10-after-submit.png", artifactPrefix + "-submission-success.png");
+        }
+    }
+
+    static void refreshStaticReportData(String artifactPrefix) {
+        if (artifactPrefix == null || artifactPrefix.isBlank()) {
+            return;
+        }
+        try {
+            TestReportController controller = new TestReportController();
+            TestReportController.TestReportResponse body = controller.buildLatestReport(artifactPrefix, null, null);
+            String payload = OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(body);
+            String script = "window.__REPORT_DATA__ = " + payload + ";" + System.lineSeparator();
+            Files.writeString(TARGET_DIR.resolve("report-data.js"), script, StandardCharsets.UTF_8);
+            ensureBaseDirectories();
+            Files.writeString(REPORT_DATA, script, StandardCharsets.UTF_8);
+        } catch (Exception ignored) {
         }
     }
 

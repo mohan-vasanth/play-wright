@@ -1,0 +1,184 @@
+{
+    "type": "INPDEC",
+    
+        "header": {
+            "messageReference": "TDX2606250018",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1017"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "22",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false,
+            "remarks": {
+                "freeText": "WRONG CARGO RELEASED TO FTZ"
+            }
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "O",
+                "locationName": "OTHERS"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "3"
+                    }
+                },
+                "arrivalDate": "20260619",
+                "loadingPort": "SGSIN"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "20110715GST"
+                },
+                "partyName": {
+                    "name": "GST DUMMY COMPANY GSTDUMMYCOMPANY"
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "1",
+                "invoiceDate": "20260507",
+                "supplierManufacturerParty": {
+                    "name": "-"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "500",
+                        "currencyID": "CAD"
+                    },
+                    "exchangeRate": "103.53"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "51765",
+                    "gstAmountSgd": "4658.85"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "500",
+            "sumOfItemAmount": "500",
+            "totalInvoiceCifValue": "51765",
+            "totalCifFobValue": "51765",
+            "totalOuterPack": {
+                "value": "1",
+                "unitCode": "PKG"
+            },
+            "totalGrossWeight": {
+                "value": "20",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "4658.85",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "98920030",
+                "goodsDescription": "PARTS AND EQUIPMENT FROM SHIPPING AIRCRAFT OR OIL RIG COMPANY'S STOCK FOR USE SOLELY IN ITS OWN SHIPS AIRCRAFT OR OIL RIGS (KGM)",
+                "originCountry": "CN",
+                "brandName": "NA",
+                "dangerousGoodsIndicator": false,
+                "itemInvoiceNumber": "1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "15",
+                        "unitCode": "KGM"
+                    },
+                    "hsQuantity": {
+                        "value": "15",
+                        "unitCode": "KGM"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "51765",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "500",
+                            "currencyID": "CAD"
+                        },
+                        "exchangeRate": "103.53"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "51765",
+                    "itemCifFobValueSgd": "51765"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "4658.85"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

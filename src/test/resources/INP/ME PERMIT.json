@@ -1,0 +1,202 @@
+{
+    "type": "INPDEC",
+    
+        "header": {
+            "messageReference": "TDX2606250011",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1010"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "20",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "ME",
+                "locationName": "MAJOR EXPORTER SCHEME"
+            },
+            "transportEquipmentIsActive": false
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "234ED",
+                        "transportIdentifier": "ASDF234"
+                    },
+                    "mawboucroblNumber": "ASDF2345"
+                },
+                "arrivalDate": "20260618",
+                "loadingPort": "CNBJS"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "20110715GST"
+                },
+                "partyName": {
+                    "name": "GST DUMMY COMPANY  "
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "001",
+                "invoiceDate": "20260416",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "55000",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "55000",
+                    "gstAmountSgd": "4950"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "55000",
+            "sumOfItemAmount": "55000",
+            "totalInvoiceCifValue": "55000",
+            "totalCifFobValue": "55000",
+            "totalOuterPack": {
+                "value": "10",
+                "unitCode": "BUN"
+            },
+            "totalGrossWeight": {
+                "value": "990",
+                "unitCode": "KGM"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "4950",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                false
+            ],
+            "itemPackingIsActive": [
+                false
+            ],
+            "tariffLotIdentificationIsActive": [
+                false
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "95067000",
+                "goodsDescription": "ICE SKATES ROLLER SKATES INCL SKATING BOOTS WITH SKATES ATTACHED (TPR)",
+                "originCountry": "CN",
+                "brandName": "XZZZ",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "ASDF34556",
+                "outHawbHucrHblNumber": "DFDG45",
+                "itemInvoiceNumber": "001",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    },
+                    "hsQuantity": {
+                        "value": "1230",
+                        "unitCode": "TPR"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "55000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "55000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "55000",
+                    "itemCifFobValueSgd": "55000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "4950"
+                    }
+                }
+            }
+        ],
+        "type": "INP"
+    }

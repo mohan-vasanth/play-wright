@@ -4,8 +4,10 @@ import com.automation.IptDeclarationPage;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IptDeclarationPartySelectionTest {
@@ -44,6 +46,25 @@ class IptDeclarationPartySelectionTest {
                 "FORESPAND FOOD ENTER PRISE PTE LTD",
                 "198700002E",
                 "FORESPAND FOOD ENTER PRISE PTE LTD"));
+    }
+
+    @Test
+    void prefersPartyIdBeforePartyNameWhenPreparingLookupSearchCandidates() throws Exception {
+        IptDeclarationPage page = new IptDeclarationPage(null);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "partySearchCandidates",
+                String.class,
+                String.class);
+        method.setAccessible(true);
+
+        String[] candidates = (String[]) method.invoke(
+                page,
+                "FORESPAND FOOD ENTER PRISE PTE LTD",
+                "198700002E");
+
+        assertEquals(
+                Arrays.asList("198700002E", "FORESPAND FOOD ENTER PRISE PTE LTD"),
+                Arrays.asList(candidates));
     }
 
     private boolean invokeResolvedPartySelectionValue(

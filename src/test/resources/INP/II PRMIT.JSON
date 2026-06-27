@@ -1,0 +1,234 @@
+{
+    "type": "INPDEC",
+    
+        "header": {
+            "messageReference": "TDX2606250016",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260625",
+                "sequenceNumeric": "1015"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "INPDEC",
+            "declarationType": "20",
+            "interGatewayMovement": false,
+            "declarationIndicator": true,
+            "additionalRecipientIdIsActive": false,
+            "remarks": {
+                "freeText": "ADTATA TEST CASE 2"
+            }
+        },
+        "cargo": {
+            "cargoPackingType": "9",
+            "releaseLocation": {
+                "locationCode": "KZ",
+                "locationName": "KEPPEL FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "AP017",
+                "locationName": "AP017"
+            },
+            "transportEquipmentIsActive": true,
+            "transportEquipment": [
+                {
+                    "sequenceNumeric": "1",
+                    "equipmentID": "TRIU6719798",
+                    "sizeTypeCode": "FCL20",
+                    "equipmentWeightMeasureNumeric": "8",
+                    "transportEquipmentSeal": {
+                        "sealID": "KSC547522"
+                    }
+                }
+            ]
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "1",
+                        "conveyanceReferenceNumber": "2513S",
+                        "transportIdentifier": "KMTC SHIMIZU"
+                    },
+                    "mawboucroblNumber": "KMTCPUSJ548945"
+                },
+                "arrivalDate": "20260630",
+                "loadingPort": "KRCHA"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "importerParty": {
+                "partyIdentification": {
+                    "id": "198700002E"
+                },
+                "partyName": {
+                    "name": "FORESPAND FOOD ENTER PRISE PTE LTD "
+                }
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "freightForwarderParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATACOMPANY PTE. LTD. NAMASIVAYAM GUNESPARAN"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "199201306R"
+                },
+                "partyName": {
+                    "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD"
+                }
+            }
+        },
+        "invoice": [
+            {
+                "invoiceNumber": "1",
+                "invoiceDate": "20260425",
+                "supplierManufacturerParty": {
+                    "name": "ADATA"
+                },
+                "unitPriceTermType": "CIF",
+                "totalInvoiceValue": {
+                    "amount": {
+                        "value": "500000",
+                        "currencyID": "SGD"
+                    },
+                    "exchangeRate": "1"
+                },
+                "gst": "9",
+                "invoiceCalculation": {
+                    "cifAmountSgd": "500000",
+                    "gstAmountSgd": "45000"
+                }
+            }
+        ],
+        "summary": {
+            "numberOfInvoices": "1",
+            "numberOfItems": "1",
+            "sumOfInvoiceAmount": "500000",
+            "sumOfItemAmount": "500000",
+            "totalInvoiceCifValue": "500000",
+            "totalCifFobValue": "500000",
+            "totalOuterPack": {
+                "value": "1000",
+                "unitCode": "CTN"
+            },
+            "totalGrossWeight": {
+                "value": "720",
+                "unitCode": "TNE"
+            },
+            "totalTariff": {
+                "totalGoodsAndServicesTaxAmount": "45000",
+                "totalAmountPayable": "0"
+            }
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": false,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": true,
+            "aeoIsActive": false,
+            "cwcIsActive": false,
+            "seastoreIsActive": false,
+            "stsIsActive": false,
+            "stsAndCwcIsActive": false,
+            "internationalPermitExchangeIsActive": false,
+            "declarationIndicator": false,
+            "editUnitPrice": [
+                false
+            ],
+            "shippingMarksIsActive": [
+                true
+            ],
+            "itemPackingIsActive": [
+                true
+            ],
+            "tariffLotIdentificationIsActive": [
+                true
+            ],
+            "otherAmountFieldsIsActive": [
+                false
+            ],
+            "otherQuantityFieldIsActive": [
+                false
+            ]
+        },
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "65050020",
+                "goodsDescription": "HAIR-NETS (NMB)",
+                "originCountry": "KR",
+                "brandName": "ABC",
+                "dangerousGoodsIndicator": false,
+                "inHawbHucrHblNumber": "1073496780",
+                "outHawbHucrHblNumber": "OUT1234567",
+                "itemInvoiceNumber": "1",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "100",
+                        "unitCode": "NMB"
+                    },
+                    "totalDutiableQuantity": {
+                        "value": "100",
+                        "unitCode": "NMB"
+                    },
+                    "dutiableQuantity": {
+                        "value": "100",
+                        "unitCode": "NMB"
+                    },
+                    "hsQuantity": {
+                        "value": "100",
+                        "unitCode": "NMB"
+                    }
+                },
+                "transactionValue": {
+                    "itemCIFFOBValue": "500000",
+                    "unitPriceValue": {
+                        "amount": {
+                            "value": "500000",
+                            "currencyID": "SGD"
+                        },
+                        "exchangeRate": "1"
+                    }
+                },
+                "itemCalculation": {
+                    "itemBaseValueSgd": "500000",
+                    "itemCifFobValueSgd": "500000"
+                },
+                "tariff": {
+                    "goodsAndServicesTax": {
+                        "goodsAndServicesTaxPercent": "9",
+                        "goodsAndServicesTaxAmount": "45000"
+                    }
+                },
+                "lotIdentification": {
+                    "currentLotNumber": "PSB001"
+                },
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "PSB001"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "type": "INP"
+    }

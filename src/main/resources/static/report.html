@@ -881,6 +881,15 @@
         return `${apiBase}/api/reports/latest${queryString ? `?${queryString}` : ''}`;
     }
 
+    function buildPrefixOnlyReportUrl() {
+        if (!requestedReportPrefix) {
+            return null;
+        }
+        const params = new URLSearchParams();
+        params.set('reportPrefix', requestedReportPrefix);
+        return `${apiBase}/api/reports/latest?${params.toString()}`;
+    }
+
     function normalizeQueryValue(value) {
         const normalized = String(value || '').trim().toUpperCase();
         return normalized || null;
@@ -939,6 +948,20 @@
         ].some(value => String(value || '').startsWith(requestedReportPrefix));
     }
 
+    function resolveFocusedBatchCases(report, allowPrefixFallback = false) {
+        const batchCases = Array.isArray(report?.batchCases) ? report.batchCases : [];
+        if (!focusJobId && !focusMessageRef && !requestedReportPrefix) {
+            return batchCases;
+        }
+
+        const exactMatches = batchCases.filter(matchesFocusedCase);
+        if (exactMatches.length || !allowPrefixFallback || !requestedReportPrefix) {
+            return exactMatches;
+        }
+
+        return batchCases.filter(batchCaseMatchesRequestedPrefix);
+    }
+
     function matchesFocusedCase(batchCase) {
         const batchJobId = normalizeQueryValue(batchCase?.jobId);
         const batchMessageRef = normalizeQueryValue(batchCase?.declarationNumber);
@@ -985,7 +1008,7 @@
         if (!focusJobId && !focusMessageRef && !requestedReportPrefix) {
             return report;
         }
-        const matchingBatchCases = (report?.batchCases || []).filter(matchesFocusedCase);
+        const matchingBatchCases = resolveFocusedBatchCases(report, true);
         if (!matchingBatchCases.length) {
             return report;
         }
@@ -1002,8 +1025,7 @@
         if (!focusJobId && !focusMessageRef && !requestedReportPrefix) {
             return true;
         }
-        const batchCases = Array.isArray(report?.batchCases) ? report.batchCases : [];
-        return batchCases.some(matchesFocusedCase);
+        return resolveFocusedBatchCases(report, true).length > 0;
     }
 
     function resolveHeroContextText() {
@@ -1148,6 +1170,14 @@
             autoRefreshTimer = null;
             loadReport();
         }, refreshInterval);
+    }
+
+    async function fetchReportJson(reportUrl) {
+        const response = await fetch(reportUrl, { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
     }
 
     async function loadLocalReportData() {
@@ -1332,11 +1362,7 @@
 
             let report;
             try {
-                const response = await fetch(reportUrl, { cache: 'no-store' });
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                report = await response.json();
+                report = await fetchReportJson(reportUrl);
             } catch (_) {
                 if (localReport && !reportMatchesRequestedContext(localReport)) {
                     renderWaitingForRequestedReport(reportUrl);
@@ -1366,6 +1392,17 @@
                 return;
             }
             if (!reportMatchesRequestedContext(report)) {
+                const prefixOnlyReportUrl = buildPrefixOnlyReportUrl();
+                if (prefixOnlyReportUrl && prefixOnlyReportUrl !== reportUrl) {
+                    try {
+                        const prefixOnlyReport = await fetchReportJson(prefixOnlyReportUrl);
+                        if (reportMatchesRequestedContext(prefixOnlyReport)) {
+                            renderReport(prefixOnlyReport);
+                            return;
+                        }
+                    } catch (_) {
+                    }
+                }
                 renderWaitingForRequestedReport(reportUrl);
                 return;
             }
