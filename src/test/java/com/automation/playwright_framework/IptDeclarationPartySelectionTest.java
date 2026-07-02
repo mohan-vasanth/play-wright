@@ -49,6 +49,15 @@ class IptDeclarationPartySelectionTest {
     }
 
     @Test
+    void acceptsShortPartyNameWhenNoPartyIdExists() throws Exception {
+        assertTrue(invokeResolvedPartySelectionValue(
+                "NAME1",
+                "NAME1",
+                null,
+                "NAME1"));
+    }
+
+    @Test
     void usesOnlyPartyNameWhenPreparingLookupSearchCandidates() throws Exception {
         IptDeclarationPage page = new IptDeclarationPage(null);
         Method method = IptDeclarationPage.class.getDeclaredMethod(

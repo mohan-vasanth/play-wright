@@ -1161,20 +1161,18 @@ public class IptDeclarationPage {
         String[] searchCandidates = partySearchCandidates(partyName);
 
         boolean matched = false;
-        boolean requiresPartyId = partyId != null && !partyId.isBlank();
-        boolean requiresCommittedSelection = requiresPartyId;
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
-            attemptPartySuggestionSelection(selectionHints);
+            boolean suggestionSelected = attemptPartySuggestionSelection(selectionHints);
             try {
                 page.keyboard().press("Tab");
             } catch (PlaywrightException ignored) {
             }
             pauseUi(UI_NEXT_FIELD_PAUSE_MS);
             boolean committedSelection = waitForCommittedPartySelection(field, 2500);
-            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
-            boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
-            boolean fieldValueMatches = !requiresCommittedSelection && waitForPartyFieldValue(field, partyName, 2500);
+            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, null, searchCandidate, 2500);
+            boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1500);
+            boolean fieldValueMatches = waitForPartyFieldValue(field, partyName, 2500);
             String finalFieldValue = readRenderedFieldValue(field);
             String finalRowValue = readPartyRowText(rowLabel);
             logPartyMappingAttempt(
@@ -1188,19 +1186,9 @@ public class IptDeclarationPage {
                     fieldValueMatches,
                     finalFieldValue,
                     finalRowValue);
-            boolean nameResolved = (committedSelection && (resolvedSelection || rowValuesMatch || fieldValueMatches))
-                    || resolvedSelection
-                    || rowValuesMatch
-                    || fieldValueMatches;
-            boolean partyIdResolved = !requiresPartyId || !hasVisiblePartyIdField(rowLabel);
-            if (nameResolved && !partyIdResolved) {
-                partyIdResolved = syncPartyLookupComponentSelection(rowLabel, partyName, partyId)
-                        || waitForPartyRowValues(rowLabel, partyName, partyId, 1200)
-                        || waitForStablePartyIdFieldValue(resolvePartyIdFieldOrNull(rowLabel), partyId, 600, 1200)
-                        || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
-                        || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
-            }
-            if (nameResolved && partyIdResolved) {
+            boolean nameResolved = suggestionSelected
+                    && (committedSelection || resolvedSelection || rowValuesMatch || fieldValueMatches);
+            if (nameResolved) {
                 matched = true;
                 logPartyMappingState(
                         rowLabel,
@@ -1319,11 +1307,13 @@ public class IptDeclarationPage {
 
         String normalizedSearchCandidate = normalize(searchCandidate);
         String normalizedPartyName = normalize(partyName);
+        String normalizedPartyId = normalize(partyId);
         if (!normalizedPartyName.isBlank()
                 && (normalizedValue.equalsIgnoreCase(normalizedPartyName)
                 || normalizedValue.contains(normalizedPartyName)
                 || normalizedPartyName.contains(normalizedValue))
-                && (!looksLikePartyLookupCode(normalizedPartyName)
+                && ((normalizedPartyId == null || normalizedPartyId.isBlank())
+                || !looksLikePartyLookupCode(normalizedPartyName)
                 || !normalizedValue.equalsIgnoreCase(normalizedSearchCandidate))) {
             return true;
         }
@@ -1336,7 +1326,6 @@ public class IptDeclarationPage {
             return false;
         }
 
-        String normalizedPartyId = normalize(partyId);
         if (!normalizedPartyId.isBlank() && normalizedValue.equalsIgnoreCase(normalizedPartyId)) {
             return false;
         }
@@ -3476,15 +3465,33 @@ public class IptDeclarationPage {
             }
         }
         if (!suggestionClicked) {
+            suggestionClicked = clickFirstVisibleSuggestion();
+        }
+        pauseUi(UI_ACTION_PAUSE_MS);
+
+        boolean componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
+        if (componentSynced) {
+            pauseUi(UI_ACTION_PAUSE_MS);
+        }
+
+        if (lookupClickOnlySelectionResolved(field, value, suggestionHints, expectedValues)) {
+            validatedFieldEntryCount++;
+            return;
+        }
+
+        if (!suggestionClicked) {
             throw new IllegalStateException(buildFieldVerificationFailure(
                     "Lookup suggestion was not selected by click",
                     field,
                     value,
                     expectedValues.toArray(String[]::new)));
         }
-        pauseUi(UI_ACTION_PAUSE_MS);
-        ensureLookupValue(field, value);
-        ensureFieldEntryCommitted(field, value, true, expectedValues);
+
+        throw new IllegalStateException(buildFieldVerificationFailure(
+                "Lookup suggestion click did not resolve field",
+                field,
+                value,
+                expectedValues.toArray(String[]::new)));
     }
 
     private void ensureFieldEntryCommitted(
@@ -4074,6 +4081,234 @@ public class IptDeclarationPage {
                 || commaInsensitiveExpected.contains(commaInsensitiveActual));
     }
 
+    private boolean lookupClickOnlySelectionResolved(
+            Locator field,
+            String value,
+            String[] suggestionHints,
+            List<String> expectedValues) {
+        if (waitForCommittedPartySelection(field, 1200)) {
+            return true;
+        }
+
+        String displayHint = preferredLookupDisplayHint(value, suggestionHints, expectedValues);
+        String codeHint = preferredLookupCodeHint(displayHint, value, suggestionHints, expectedValues);
+        if (waitForResolvedClickOnlyLookupValue(field, displayHint, codeHint, value, 1500)) {
+            return true;
+        }
+
+        return !looksLikePartyLookupCode(value)
+                && waitForAnyRenderedFieldValue(field, 1200, expectedValues.toArray(String[]::new));
+    }
+
+    private String preferredLookupDisplayHint(
+            String value,
+            String[] suggestionHints,
+            List<String> expectedValues) {
+        List<String> candidates = new ArrayList<>();
+        appendCandidate(candidates, value);
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                appendCandidate(candidates, suggestionHint);
+            }
+        }
+        if (expectedValues != null) {
+            for (String expectedValue : expectedValues) {
+                appendCandidate(candidates, expectedValue);
+            }
+        }
+
+        for (String candidate : candidates) {
+            if (!looksLikePartyLookupCode(candidate)) {
+                return candidate;
+            }
+        }
+        return candidates.isEmpty() ? value : candidates.get(0);
+    }
+
+    private String preferredLookupCodeHint(
+            String displayHint,
+            String value,
+            String[] suggestionHints,
+            List<String> expectedValues) {
+        List<String> candidates = new ArrayList<>();
+        appendCandidate(candidates, value);
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                appendCandidate(candidates, suggestionHint);
+            }
+        }
+        if (expectedValues != null) {
+            for (String expectedValue : expectedValues) {
+                appendCandidate(candidates, expectedValue);
+            }
+        }
+
+        String normalizedDisplayHint = normalize(displayHint);
+        for (String candidate : candidates) {
+            if (!looksLikePartyLookupCode(candidate)) {
+                continue;
+            }
+            if (!normalizedDisplayHint.isBlank() && normalizedDisplayHint.equalsIgnoreCase(normalize(candidate))) {
+                continue;
+            }
+            return candidate;
+        }
+        return null;
+    }
+
+    private boolean waitForResolvedClickOnlyLookupValue(
+            Locator field,
+            String displayHint,
+            String codeHint,
+            String searchCandidate,
+            int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            if (isResolvedPartySelectionValue(readRenderedFieldValue(field), displayHint, codeHint, searchCandidate)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private boolean syncLookupComponentSelection(Locator field, String value, String... suggestionHints) {
+        if (field == null || value == null || value.isBlank()) {
+            return false;
+        }
+
+        List<String> sanitizedSuggestionHints = new ArrayList<>();
+        if (suggestionHints != null) {
+            for (String suggestionHint : suggestionHints) {
+                if (suggestionHint != null) {
+                    sanitizedSuggestionHints.add(suggestionHint);
+                }
+            }
+        }
+
+        try {
+            return Boolean.TRUE.equals(field.evaluate("""
+                    (element, args) => {
+                        const normalize = input => (input || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const hints = [args.value, ...(args.suggestionHints || [])]
+                            .map(normalize)
+                            .filter(Boolean);
+                        const unique = candidates => candidates.filter((candidate, index) =>
+                            !!candidate && candidates.indexOf(candidate) === index);
+                        const visible = candidate =>
+                            !!candidate && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        const scoreOption = option => {
+                            const code = normalize(option?.code);
+                            const description = normalize(option?.description);
+                            const combined = normalize(`${option?.code || ''} ${option?.description || ''}`);
+                            return hints.reduce((best, hint) => {
+                                let score = 0;
+                                if (hint === code) {
+                                    score = Math.max(score, 1000);
+                                } else if (code && (code.includes(hint) || hint.includes(code))) {
+                                    score = Math.max(score, 400);
+                                }
+                                if (hint === description) {
+                                    score = Math.max(score, 900);
+                                } else if (description && (description.includes(hint) || hint.includes(description))) {
+                                    score = Math.max(score, 350);
+                                }
+                                if (hint === combined) {
+                                    score = Math.max(score, 800);
+                                } else if (combined && (combined.includes(hint) || hint.includes(combined))) {
+                                    score = Math.max(score, 300);
+                                }
+                                return Math.max(best, score);
+                            }, 0);
+                        };
+
+                        const candidateElements = unique([
+                            element,
+                            element.closest?.('[formcontrolname]'),
+                            element.closest?.('app-lookup, app-dropdown, ng-select, mat-select, .ng-select, [role="combobox"], [class*="lookup"], [class*="select"]'),
+                            element.parentElement,
+                            element.parentElement?.parentElement,
+                            element.parentElement?.parentElement?.parentElement
+                        ]).filter(visible);
+
+                        for (const candidate of candidateElements) {
+                            const component = typeof window.ng !== 'undefined' && typeof window.ng.getComponent === 'function'
+                                ? window.ng.getComponent(candidate)
+                                : null;
+                            if (!component) {
+                                continue;
+                            }
+
+                            const allOptions = Array.isArray(component.allOptions)
+                                ? component.allOptions
+                                : Array.isArray(component.options)
+                                    ? component.options
+                                    : [];
+                            if (allOptions.length === 0) {
+                                continue;
+                            }
+
+                            const ranked = allOptions
+                                .map(option => ({ option, score: scoreOption(option) }))
+                                .filter(entry => entry.score > 0)
+                                .sort((left, right) => right.score - left.score);
+                            const selected = ranked[0]?.option;
+                            if (!selected) {
+                                continue;
+                            }
+
+                            const selectedValue = selected.code || args.value;
+                            const selectedDisplay = selected.description || selected.code || args.value;
+                            if ('value' in component) {
+                                component.value = selectedValue;
+                            }
+                            if ('_value' in component) {
+                                component._value = selectedValue;
+                            }
+                            if ('inputDisplayValue' in component) {
+                                component.inputDisplayValue = selectedDisplay;
+                            }
+                            if ('displayValue' in component) {
+                                component.displayValue = selectedDisplay;
+                            }
+
+                            const nativeInput = component.inputElement?.nativeElement
+                                || candidate.querySelector?.("input:not([type='hidden']), textarea, [contenteditable='true']")
+                                || element;
+                            if (nativeInput && 'value' in nativeInput) {
+                                nativeInput.value = selectedDisplay;
+                                nativeInput.setAttribute?.('value', selectedDisplay);
+                            } else if (nativeInput?.isContentEditable) {
+                                nativeInput.textContent = selectedDisplay;
+                            }
+                            nativeInput?.dispatchEvent?.(new Event('input', { bubbles: true }));
+                            nativeInput?.dispatchEvent?.(new Event('change', { bubbles: true }));
+                            nativeInput?.dispatchEvent?.(new Event('blur', { bubbles: true }));
+
+                            if (typeof component.selectOptionItem === 'function') {
+                                component.selectOptionItem(selected);
+                            }
+                            if (typeof component.selectOptionLabel === 'function') {
+                                component.selectOptionLabel(selected);
+                            }
+                            if (typeof component.onChange === 'function') {
+                                component.onChange(selectedValue);
+                            }
+                            if (typeof component.onTouched === 'function') {
+                                component.onTouched();
+                            }
+                            return true;
+                        }
+                        return false;
+                    }
+                    """, java.util.Map.of(
+                    "value", value,
+                    "suggestionHints", sanitizedSuggestionHints)));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
     private boolean clickVisibleSuggestion(String... values) {
         return Boolean.TRUE.equals(page.evaluate("""
                 expectedValues => {
@@ -4254,16 +4489,16 @@ public class IptDeclarationPage {
         page.waitForTimeout(500);
     }
 
-    private void attemptPartySuggestionSelection(String... selectionHints) {
+    private boolean attemptPartySuggestionSelection(String... selectionHints) {
         if (waitForVisibleSuggestion(2000, selectionHints) && clickVisibleSuggestion(selectionHints)) {
             page.waitForTimeout(1000);
-            return;
+            return true;
         }
 
         if (waitForAnyVisibleSuggestion(2500)
                 && clickVisibleSuggestion(selectionHints)) {
             page.waitForTimeout(1000);
-            return;
+            return true;
         }
 
         try {
@@ -4272,12 +4507,13 @@ public class IptDeclarationPage {
             if (waitForAnyVisibleSuggestion(1500)
                     && clickVisibleSuggestion(selectionHints)) {
                 page.waitForTimeout(1000);
-                return;
+                return true;
             }
         } catch (PlaywrightException ignored) {
         }
 
         page.waitForTimeout(1000);
+        return false;
     }
 
     private Locator resolvePartyRowContainerOrNull(String rowLabel) {

@@ -651,9 +651,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
         }
 
         fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
-        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
-        fillFieldAfterScopeLabelIfPresent(card, "Party Name", 0, name);
-        fillFieldAfterScopeLabelIfPresent(card, "Name", 0, name);
+        fillNthFieldInScopeIfPresent(card, 1, id);
 
         String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
         String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
@@ -701,32 +699,32 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
     private void fillSingleItem(JsonNode item, JsonNode formMetaData, JsonNode certificate, int index) {
         Locator itemDetailsSection = resolveSection("Item Details");
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS Code",
                 0,
                 text(item, "itemHarmonizedSystemCode"),
                 text(item, "itemHarmonizedSystemCode"));
-        fillValidatedFieldAfterScopeLabelIfPresent(itemDetailsSection, "Description", 0, text(item, "goodsDescription"));
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+        fillFieldAfterScopeLabelIfPresent(itemDetailsSection, "Description", 0, text(item, "goodsDescription"));
+        fillLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "COO",
                 0,
                 text(item, "originCountry"),
                 text(item, "originCountry"));
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS Type",
                 0,
                 text(item, "hsType"),
                 text(item, "hsType"));
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "Duty Type",
                 0,
                 text(item, "dutyType"),
                 text(item, "dutyType"));
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "HS CA",
                 0,
@@ -736,9 +734,9 @@ public class CooDeclarationPage extends IptDeclarationPage {
         String itemCurrency = firstNonBlank(
                 arrayText(formMetaData.path("unitPriceCurrencies"), index),
                 text(certificate, "currencyCode"));
-        fillItemDetailsByLayoutFallback(itemDetailsSection, item, itemCurrency);
 
-        fillScopedQuantityRowInScope(resolveItemQuantitySection(), "HS Quantity", item.path("harmonizedSystemQuantity"));
+        Locator itemQuantitySection = resolveItemQuantitySection();
+        fillScopedQuantityRowInScope(itemQuantitySection, "HS Quantity", item.path("harmonizedSystemQuantity"));
 
         fillVerifiedLookupFieldInSectionIfPresent("Item Details", "Currency", itemCurrency, itemCurrency);
 
@@ -747,18 +745,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 arrayText(formMetaData.path("itemValues"), index),
                 text(item.path("itemCertificate"), "itemValue"));
         fillScopedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
-        fillScopedFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
-        fillScopedFieldAfterScopeLabelIfPresent(
+        fillScopedValidatedFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
+        fillScopedValidatedFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
                 "Item CIF/FOB Value (SGD)",
                 0,
                 normalizeNumericForEntry(text(item, "itemCIFFOBValue")));
-        fillItemQuantityValuesByLayoutFallback(
-                itemValuesSection,
-                item.path("harmonizedSystemQuantity"),
-                itemValue,
-                itemCurrency,
-                text(item, "itemCIFFOBValue"));
 
         fillShippingMarks(firstArrayItem(item.path("shippingMarksInformation")));
         fillItemCertificate(item.path("itemCertificate"), formMetaData);
@@ -1133,61 +1125,121 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        fillScopedQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
-        fillScopedDateFieldAfterScopeLabelIfPresent(
-                section,
-                "Manufacturing Cost Date",
-                0,
+        fillQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
+        fillFieldAfterScopeLabelIfPresent(section, "Manufacturing Cost Date", 0,
                 formatUiDate(text(itemCertificate, "manufacturingCostDate")));
-        fillScopedValidatedFieldAfterScopeLabelIfPresent(
-                section,
-                "Item Invoice Number",
-                0,
-                text(itemCertificate, "itemInvoiceNumber"));
-        fillScopedDateFieldAfterScopeLabelIfPresent(
-                section,
-                "Item Invoice Date",
-                0,
+        fillFieldAfterScopeLabelIfPresent(section, "Certificate Item Value", 0,
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")));
+        fillFieldAfterScopeLabelIfPresent(section, "Item Invoice Number", 0, text(itemCertificate, "itemInvoiceNumber"));
+        fillFieldAfterScopeLabelIfPresent(section, "Item Invoice Date", 0,
                 formatUiDate(text(itemCertificate, "itemInvoiceDate")));
-        fillScopedValidatedFieldAfterScopeLabelIfPresent(
-                section,
-                "HS Code",
-                0,
-                text(itemCertificate, "harmonizedSystemCode"));
-        fillScopedFieldAfterScopeLabelIfPresent(
-                section,
-                "Content Percent",
-                0,
+        fillFieldAfterScopeLabelIfPresent(section, "HS Code", 0, text(itemCertificate, "harmonizedSystemCode"));
+        fillFieldAfterScopeLabelIfPresent(section, "Content Percent", 0,
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillScopedFieldAfterScopeLabelIfPresent(
-                section,
-                "Content Percent (%)",
-                0,
+        fillFieldAfterScopeLabelIfPresent(section, "Content Percent (%)", 0,
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillScopedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 1",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 0),
                 arrayText(itemCertificate.path("originCriterion"), 0));
-        fillScopedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 2",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 1),
                 arrayText(itemCertificate.path("originCriterion"), 1));
-        fillScopedLookupFieldAfterScopeLabelIfPresent(
+        fillLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 3",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 2),
                 arrayText(itemCertificate.path("originCriterion"), 2));
-        fillScopedValidatedFieldAfterScopeLabelIfPresent(
+        fillLastOrderedFieldInScope(
                 section,
-                "Certificate Item Description",
-                0,
                 itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
         captureProgressScreenshot("item-certificate-filled");
+    }
+
+    private boolean requiresItemCertificateLayoutFallback(Locator section) {
+        return resolveScopedDateFieldNearLabelOrNull(section, "Manufacturing Cost Date", 0) == null
+                || resolveScopedFieldNearLabelOrNull(section, "Certificate Item Value", 0) == null
+                || resolveScopedFieldNearLabelOrNull(section, "Item Invoice Number", 0) == null
+                || resolveScopedDateFieldNearLabelOrNull(section, "Item Invoice Date", 0) == null
+                || resolveScopedFieldNearLabelOrNull(section, "Origin Criterion 1", 0) == null
+                || resolveScopedFieldNearLabelOrNull(section, "Certificate Item Description", 0) == null;
+    }
+
+    private void fillItemCertificateByLayoutFallback(Locator section, JsonNode itemCertificate) {
+        List<Locator> fields = orderedVisibleEditableFields(section);
+        if (fields.size() < 12) {
+            return;
+        }
+
+        fillVerifiedLookupField(fields.get(1),
+                text(itemCertificate.path("itemCertificateQuantity"), "unitCode"),
+                "Certificate Quantity UOM",
+                text(itemCertificate.path("itemCertificateQuantity"), "unitCode"));
+        fillVerifiedLookupField(fields.get(2),
+                arrayText(itemCertificate.path("originCriterion"), 0),
+                "Origin Criterion 1",
+                arrayText(itemCertificate.path("originCriterion"), 0));
+        fillVerifiedTextField(fields.get(3),
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")),
+                "Certificate Item Value");
+        fillDirectDateField(fields.get(4),
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")),
+                "Manufacturing Cost Date");
+        fillVerifiedLookupField(fields.get(5),
+                arrayText(itemCertificate.path("originCriterion"), 1),
+                "Origin Criterion 2",
+                arrayText(itemCertificate.path("originCriterion"), 1));
+        fillVerifiedTextField(fields.get(6),
+                text(itemCertificate, "itemInvoiceNumber"),
+                "Item Invoice Number");
+        fillDirectDateField(fields.get(7),
+                formatUiDate(text(itemCertificate, "itemInvoiceDate")),
+                "Item Invoice Date");
+        fillVerifiedLookupField(fields.get(8),
+                arrayText(itemCertificate.path("originCriterion"), 2),
+                "Origin Criterion 3",
+                arrayText(itemCertificate.path("originCriterion"), 2));
+        fillVerifiedTextField(fields.get(9),
+                text(itemCertificate, "harmonizedSystemCode"),
+                "Certificate HS Code");
+        fillVerifiedTextField(fields.get(10),
+                normalizeNumericForEntry(text(itemCertificate, "contentPercent")),
+                "Content Percent");
+        fillVerifiedTextField(fields.get(11),
+                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")),
+                "Certificate Item Description");
+    }
+
+    private void fillDirectDateField(Locator field, String value, String rowLabel) {
+        if (field == null || value == null || value.isBlank()) {
+            return;
+        }
+
+        try {
+            field.scrollIntoViewIfNeeded();
+            field.evaluate("""
+                    (element, newValue) => {
+                        element.value = newValue;
+                        element.setAttribute('value', newValue);
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        element.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                    """, value);
+        } catch (Exception ignored) {
+            focusAndType(field, value, false);
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("Date value was not rendered for " + rowLabel + ". Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
     }
 
     private void fillScopedQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode) {
@@ -1615,7 +1667,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private Locator resolveItemQuantitySection() {
-        String[] titles = new String[] { "Item Quantity", "Item Quantity & value", "Item Quantity & Value" };
+        String[] titles = new String[] {
+                "Item Quantity",
+                "Item Quantity & value",
+                "Item Quantity & Value",
+                "Item Quantity & Values"
+        };
         for (String title : titles) {
             String escapedTitle = xpathLiteral(title);
             Locator section = page.locator(
@@ -1632,7 +1689,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private Locator resolveItemValuesSection() {
-        String[] titles = new String[] { "Item Values", "Item Quantity & value", "Item Quantity & Value" };
+        String[] titles = new String[] {
+                "Item Values",
+                "Item Quantity & value",
+                "Item Quantity & Value",
+                "Item Quantity & Values"
+        };
         for (String title : titles) {
             String escapedTitle = xpathLiteral(title);
             Locator section = page.locator(
@@ -1663,6 +1725,18 @@ public class CooDeclarationPage extends IptDeclarationPage {
 
     private Locator resolveItemCertificateSectionOrNull() {
         String sectionTitle = xpathLiteral("Certificate of Origin (CO)");
+        String strictSectionXPath =
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]";
+        Locator strictSection = firstVisible(page.locator(strictSectionXPath));
+        if (strictSection != null) {
+            return strictSection;
+        }
+
         return firstVisible(page.locator(
                 "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
                         + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
