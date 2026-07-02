@@ -49,21 +49,19 @@ class IptDeclarationPartySelectionTest {
     }
 
     @Test
-    void prefersPartyIdBeforePartyNameWhenPreparingLookupSearchCandidates() throws Exception {
+    void usesOnlyPartyNameWhenPreparingLookupSearchCandidates() throws Exception {
         IptDeclarationPage page = new IptDeclarationPage(null);
         Method method = IptDeclarationPage.class.getDeclaredMethod(
                 "partySearchCandidates",
-                String.class,
                 String.class);
         method.setAccessible(true);
 
         String[] candidates = (String[]) method.invoke(
                 page,
-                "FORESPAND FOOD ENTER PRISE PTE LTD",
-                "198700002E");
+                "FORESPAND FOOD ENTER PRISE PTE LTD");
 
         assertEquals(
-                Arrays.asList("198700002E", "FORESPAND FOOD ENTER PRISE PTE LTD"),
+                Arrays.asList("FORESPAND FOOD ENTER PRISE PTE LTD"),
                 Arrays.asList(candidates));
     }
 

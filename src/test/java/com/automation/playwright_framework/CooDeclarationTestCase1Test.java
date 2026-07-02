@@ -237,6 +237,15 @@ public class CooDeclarationTestCase1Test extends BaseTest {
             Files.writeString(diagnosticsPath, cooDeclarationPage.captureSubmitValidationDiagnostics());
         } catch (Exception ignored) {
         }
+        try {
+            String diagnosticsFileName = diagnosticsPath.getFileName().toString();
+            String auditFileName = diagnosticsFileName.endsWith(".json")
+                    ? diagnosticsFileName.substring(0, diagnosticsFileName.length() - 5) + "-audit.json"
+                    : diagnosticsFileName + "-audit.json";
+            Path auditPath = diagnosticsPath.resolveSibling(auditFileName);
+            Files.writeString(auditPath, cooDeclarationPage.captureRenderedFormAuditSnapshot());
+        } catch (Exception ignored) {
+        }
     }
 
     private void captureStepScreenshot(Path screenshotPath) {

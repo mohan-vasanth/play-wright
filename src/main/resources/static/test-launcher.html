@@ -1192,7 +1192,7 @@
         }
         if (window.location.protocol === 'file:') {
             const stored = localStorage.getItem(API_BASE_STORAGE_KEY);
-            return (stored || 'http://localhost:8080').replace(/\/$/, '');
+            return (stored || 'http://localhost:8081').replace(/\/$/, '');
         }
         return '';
     }
@@ -1208,6 +1208,25 @@
         if (window.location.protocol === 'file:' && apiBase) {
             localStorage.setItem(API_BASE_STORAGE_KEY, apiBase);
         }
+    }
+
+    function defaultLauncherApiBases() {
+        const defaults = [
+            'http://localhost:8081',
+            'http://127.0.0.1:8081',
+            'http://localhost:8080',
+            'http://127.0.0.1:8080'
+        ];
+        const { protocol, hostname } = window.location;
+        if (hostname) {
+            if (protocol === 'https:') {
+                defaults.unshift(`https://${hostname}:8081`);
+                defaults.unshift(`https://${hostname}:8080`);
+            }
+            defaults.unshift(`http://${hostname}:8081`);
+            defaults.unshift(`http://${hostname}:8080`);
+        }
+        return defaults;
     }
 
     function apiBaseCandidates() {
@@ -1226,17 +1245,32 @@
         addCandidate(apiBase);
         if (window.location.protocol !== 'file:') {
             addCandidate('');
-        } else {
-            addCandidate(localStorage.getItem(API_BASE_STORAGE_KEY) || '');
-            addCandidate('http://localhost:8080');
-            addCandidate('http://127.0.0.1:8080');
         }
+        addCandidate(localStorage.getItem(API_BASE_STORAGE_KEY) || '');
+        defaultLauncherApiBases().forEach(addCandidate);
 
         return candidates;
     }
 
     function launcherApiConnectionMessage() {
-        return 'Could not reach the launcher API. Start the Spring Boot app and open http://localhost:8080/test-launcher.html.';
+        return 'Could not reach the launcher API. Start the Spring Boot app and open http://localhost:8081/test-launcher.html.';
+    }
+
+    function looksLikeWrongApiResponse(resp) {
+        if (!resp) {
+            return true;
+        }
+        const contentType = String(resp.headers.get('content-type') || '').toLowerCase();
+        if (resp.status === 404) {
+            return true;
+        }
+        if (contentType.includes('text/html')) {
+            return true;
+        }
+        if (resp.ok && contentType && !contentType.includes('json')) {
+            return true;
+        }
+        return false;
     }
 
     async function fetchFromApi(path, options) {
@@ -1244,6 +1278,10 @@
         for (const base of apiBaseCandidates()) {
             try {
                 const resp = await fetch(apiUrlForBase(base, path), options);
+                if (looksLikeWrongApiResponse(resp)) {
+                    lastError = new Error('Received an unexpected response while trying to reach the launcher API.');
+                    continue;
+                }
                 rememberApiBase(base);
                 return resp;
             } catch (error) {

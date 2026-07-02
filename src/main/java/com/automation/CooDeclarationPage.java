@@ -650,7 +650,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        fillNthLookupFieldInScopeIfPresent(card, 0, name, name, id);
+        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
         fillFieldAfterScopeLabelIfPresent(card, "Party Name", 0, name);
         fillFieldAfterScopeLabelIfPresent(card, "Name", 0, name);
@@ -733,27 +733,96 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 firstNonBlank(text(item, "hsCa"), text(item, "hsExportCa")),
                 firstNonBlank(text(item, "hsCa"), text(item, "hsExportCa")));
 
-        fillQuantityRowInScope(resolveItemQuantitySection(), "HS Quantity", item.path("harmonizedSystemQuantity"));
-
         String itemCurrency = firstNonBlank(
                 arrayText(formMetaData.path("unitPriceCurrencies"), index),
                 text(certificate, "currencyCode"));
+        fillItemDetailsByLayoutFallback(itemDetailsSection, item, itemCurrency);
+
+        fillScopedQuantityRowInScope(resolveItemQuantitySection(), "HS Quantity", item.path("harmonizedSystemQuantity"));
+
         fillVerifiedLookupFieldInSectionIfPresent("Item Details", "Currency", itemCurrency, itemCurrency);
 
         Locator itemValuesSection = resolveItemValuesSection();
         String itemValue = firstNonBlank(
                 arrayText(formMetaData.path("itemValues"), index),
                 text(item.path("itemCertificate"), "itemValue"));
-        fillVerifiedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
-        fillFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
-        fillFieldAfterScopeLabelIfPresent(
+        fillScopedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
+        fillScopedFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
+        fillScopedFieldAfterScopeLabelIfPresent(
                 itemValuesSection,
                 "Item CIF/FOB Value (SGD)",
                 0,
                 normalizeNumericForEntry(text(item, "itemCIFFOBValue")));
+        fillItemQuantityValuesByLayoutFallback(
+                itemValuesSection,
+                item.path("harmonizedSystemQuantity"),
+                itemValue,
+                itemCurrency,
+                text(item, "itemCIFFOBValue"));
 
         fillShippingMarks(firstArrayItem(item.path("shippingMarksInformation")));
         fillItemCertificate(item.path("itemCertificate"), formMetaData);
+    }
+
+    private void fillItemDetailsByLayoutFallback(Locator section, JsonNode item, String itemCurrency) {
+        List<Locator> fields = orderedVisibleEditableFields(section);
+        if (fields.isEmpty()) {
+            return;
+        }
+
+        fillVerifiedLookupField(fields.get(0), text(item, "itemHarmonizedSystemCode"), "HS Code",
+                text(item, "itemHarmonizedSystemCode"));
+        if (fields.size() > 1) {
+            fillVerifiedLookupField(fields.get(1), text(item, "originCountry"), "COO",
+                    text(item, "originCountry"));
+        }
+        if (fields.size() > 2) {
+            fillVerifiedTextField(fields.get(2), text(item, "goodsDescription"), "Description");
+        }
+        if (fields.size() > 3) {
+            fillVerifiedLookupField(fields.get(3), text(item, "hsType"), "HS Type", text(item, "hsType"));
+        }
+        if (fields.size() > 4) {
+            fillVerifiedLookupField(fields.get(4), text(item, "dutyType"), "Duty Type", text(item, "dutyType"));
+        }
+        if (fields.size() > 5) {
+            String hsCa = firstNonBlank(text(item, "hsCa"), text(item, "hsExportCa"));
+            fillVerifiedLookupField(fields.get(5), hsCa, "HS CA", hsCa);
+        }
+        if (fields.size() > 6) {
+            fillVerifiedLookupField(fields.get(6), itemCurrency, "Currency", itemCurrency);
+        }
+    }
+
+    private void fillItemQuantityValuesByLayoutFallback(
+            Locator section,
+            JsonNode quantityNode,
+            String itemValue,
+            String itemCurrency,
+            String itemCifFobValue) {
+        List<Locator> fields = orderedVisibleEditableFields(section);
+        if (fields.isEmpty()) {
+            return;
+        }
+
+        String quantityValue = text(quantityNode, "value");
+        String quantityUnitCode = text(quantityNode, "unitCode");
+
+        fillVerifiedTextField(fields.get(0), quantityValue, "HS Quantity");
+        if (fields.size() > 1) {
+            fillVerifiedLookupField(fields.get(1), quantityUnitCode, "HS Quantity UOM", quantityUnitCode);
+        }
+        if (fields.size() > 2) {
+            fillVerifiedTextField(fields.get(2), normalizeNumericForEntry(itemValue), "Item Value");
+        }
+        if (fields.size() > 4) {
+            fillVerifiedLookupField(fields.get(3), itemCurrency, "Item Value Currency", itemCurrency);
+            fillVerifiedTextField(fields.get(4), normalizeNumericForEntry(itemCifFobValue), "Item CIF/FOB Value (SGD)");
+            return;
+        }
+        if (fields.size() > 3) {
+            fillVerifiedTextField(fields.get(3), normalizeNumericForEntry(itemCifFobValue), "Item CIF/FOB Value (SGD)");
+        }
     }
 
     private void fillVerifiedFieldInSectionByAnyLabelIfPresent(String sectionTitle, String value, String... labels) {
@@ -821,6 +890,10 @@ public class CooDeclarationPage extends IptDeclarationPage {
             String value,
             String label,
             String... suggestionHints) {
+        if (field == null || value == null || value.isBlank()) {
+            return;
+        }
+
         focusAndType(field, value, true, suggestionHints);
         if (waitForAnyRenderedFieldValue(field, 1500, appendLookupExpectedValues(value, suggestionHints))) {
             return;
@@ -964,17 +1037,22 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return null;
         }
 
-        Locator field = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        Locator field = resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, false);
         if (field != null) {
             return field;
         }
 
-        field = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
+        field = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
         if (field != null) {
             return field;
         }
 
-        return resolveEditableFieldInScopeRowOrNull(visibleScope, rowLabel, occurrence);
+        field = resolveEditableFieldInScopeRowByLabelOrNull(visibleScope, rowLabel, occurrence, true);
+        if (field != null) {
+            return field;
+        }
+
+        return resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
     }
 
     private Locator resolveEditableFieldInScopeRowOrNull(Locator visibleScope, String rowLabel, int occurrence) {
@@ -1055,57 +1133,285 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        fillQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
-        fillFieldAfterScopeLabelIfPresent(
+        fillScopedQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
+        fillScopedDateFieldAfterScopeLabelIfPresent(
                 section,
                 "Manufacturing Cost Date",
                 0,
                 formatUiDate(text(itemCertificate, "manufacturingCostDate")));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Item Invoice Number",
                 0,
                 text(itemCertificate, "itemInvoiceNumber"));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedDateFieldAfterScopeLabelIfPresent(
                 section,
                 "Item Invoice Date",
                 0,
                 formatUiDate(text(itemCertificate, "itemInvoiceDate")));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "HS Code",
                 0,
                 text(itemCertificate, "harmonizedSystemCode"));
-        fillFieldAfterScopeLabelIfPresent(
+        fillScopedFieldAfterScopeLabelIfPresent(
                 section,
                 "Content Percent",
                 0,
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillFieldAfterScopeLabelIfPresent(
+        fillScopedFieldAfterScopeLabelIfPresent(
                 section,
                 "Content Percent (%)",
                 0,
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 1",
                 0,
+                arrayText(itemCertificate.path("originCriterion"), 0),
                 arrayText(itemCertificate.path("originCriterion"), 0));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 2",
                 0,
+                arrayText(itemCertificate.path("originCriterion"), 1),
                 arrayText(itemCertificate.path("originCriterion"), 1));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedLookupFieldAfterScopeLabelIfPresent(
                 section,
                 "Origin Criterion 3",
                 0,
+                arrayText(itemCertificate.path("originCriterion"), 2),
                 arrayText(itemCertificate.path("originCriterion"), 2));
-        fillValidatedFieldAfterScopeLabelIfPresent(
+        fillScopedValidatedFieldAfterScopeLabelIfPresent(
                 section,
                 "Certificate Item Description",
                 0,
                 itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
+        captureProgressScreenshot("item-certificate-filled");
+    }
+
+    private void fillScopedQuantityRowInScope(Locator scope, String rowLabel, JsonNode quantityNode) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return;
+        }
+
+        fillScopedFieldAfterScopeLabelIfPresent(scope, rowLabel, 0, text(quantityNode, "value"));
+        String unitCode = text(quantityNode, "unitCode");
+        fillScopedLookupFieldAfterScopeLabelIfPresent(scope, rowLabel, 1, unitCode, unitCode);
+    }
+
+    private void fillScopedFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveScopedFieldNearLabelOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            logFieldMappingWarning("COO scoped UI field not found for row label '" + rowLabel
+                    + "' while JSON value was '" + value + "'.");
+            return;
+        }
+
+        fillVerifiedTextField(field, value, rowLabel);
+    }
+
+    private void fillScopedValidatedFieldAfterScopeLabelIfPresent(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveScopedFieldNearLabelOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            logFieldMappingWarning("COO scoped validated UI field not found for row label '" + rowLabel
+                    + "' while JSON value was '" + value + "'.");
+            return;
+        }
+
+        focusAndType(field, value, false);
+        if (!waitForAnyRenderedFieldValue(field, 1000, value)) {
+            ensureTextFieldValue(field, value);
+        }
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("Field value was not rendered for " + rowLabel + ". Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
+    private void fillScopedDateFieldAfterScopeLabelIfPresent(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveScopedDateFieldNearLabelOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            logFieldMappingWarning("COO scoped date UI field not found for row label '" + rowLabel
+                    + "' while JSON value was '" + value + "'.");
+            return;
+        }
+
+        try {
+            field.scrollIntoViewIfNeeded();
+            field.evaluate("""
+                    (element, newValue) => {
+                        element.value = newValue;
+                        element.setAttribute('value', newValue);
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                        element.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                    """, value);
+        } catch (Exception ignored) {
+            focusAndType(field, value, false);
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 1500, value)) {
+            throw new IllegalStateException("Date value was not rendered for " + rowLabel + ". Expected: "
+                    + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
+    private void fillScopedLookupFieldAfterScopeLabelIfPresent(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String value,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveScopedFieldNearLabelOrNull(scope, rowLabel, occurrence);
+        if (field == null) {
+            logFieldMappingWarning("COO scoped lookup UI field not found for row label '" + rowLabel
+                    + "' while JSON value was '" + value + "'.");
+            return;
+        }
+
+        fillVerifiedLookupField(field, value, rowLabel, suggestionHints);
+    }
+
+    private Locator resolveScopedFieldNearLabelOrNull(Locator scope, String rowLabel, int occurrence) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null || rowLabel == null || rowLabel.isBlank()) {
+            return null;
+        }
+
+        Locator field = resolveScopedFieldNearLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        if (field != null) {
+            return field;
+        }
+
+        field = resolveScopedFieldNearLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
+        if (field != null) {
+            return field;
+        }
+
+        return resolveEditableFieldAfterScopeLabelInScopeOrNull(visibleScope, rowLabel, occurrence);
+    }
+
+    private Locator resolveScopedDateFieldNearLabelOrNull(Locator scope, String rowLabel, int occurrence) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null || rowLabel == null || rowLabel.isBlank()) {
+            return null;
+        }
+
+        String escapedRowLabel = xpathLiteral(rowLabel);
+        String[] matchExpressions = new String[] {
+                "normalize-space(translate(., '*', ''))=" + escapedRowLabel,
+                "contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")"
+        };
+
+        for (String matchExpression : matchExpressions) {
+            Locator label = visibleScope.locator(
+                    "xpath=(.//*[" + matchExpression + "]"
+                            + "[not(.//*[" + matchExpression + "])])[1]");
+            Locator visibleLabel = firstVisible(label);
+            if (visibleLabel == null) {
+                continue;
+            }
+
+            Locator directInput = visibleLabel.locator(
+                    "xpath=(following::*[self::input[not(@type='checkbox')] or self::textarea]["
+                            + (occurrence + 1) + "])[1]");
+            Locator visibleDirectInput = firstVisible(directInput);
+            if (visibleDirectInput != null) {
+                return visibleDirectInput;
+            }
+
+            Locator row = visibleLabel.locator(
+                    "xpath=(ancestor::*[.//input[not(@type='checkbox')] or .//textarea][1])");
+            Locator visibleRow = firstVisible(row);
+            if (visibleRow != null) {
+                List<Locator> orderedFields = orderedVisibleTextLikeFields(visibleRow);
+                if (occurrence >= 0 && occurrence < orderedFields.size()) {
+                    return orderedFields.get(occurrence);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Locator resolveScopedFieldNearLabelByMatchOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        String escapedRowLabel = xpathLiteral(rowLabel);
+        String matchExpression = containsMatch
+                ? "contains(normalize-space(translate(., '*', '')), " + escapedRowLabel + ")"
+                : "normalize-space(translate(., '*', ''))=" + escapedRowLabel;
+
+        Locator row = visibleScope.locator(
+                "xpath=((.//*[" + matchExpression + "]"
+                        + "[not(.//*[" + matchExpression + "])])[last()]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1])");
+        Locator visibleRow = firstVisible(row);
+        if (visibleRow == null) {
+            return null;
+        }
+
+        return resolveVisibleEditableFieldInRowOrNull(visibleRow, occurrence);
+    }
+
+    private boolean scopeContainsText(Locator scope, String... values) {
+        try {
+            String text = normalize(scope.innerText());
+            if (text.isBlank()) {
+                return false;
+            }
+            for (String value : values) {
+                String candidate = normalize(value);
+                if (!candidate.isBlank() && (text.contains(candidate) || candidate.contains(text))) {
+                    return true;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
+    }
+
+    private List<Locator> orderedVisibleTextLikeFields(Locator scope) {
+        List<Locator> orderedFields = new ArrayList<>();
+        Locator fields = scope.locator("input:not([type='checkbox']), textarea");
+        List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
+        positionedElements.stream()
+                .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
+                .forEach(positionedElement -> {
+                    Locator resolvedField = firstVisible(fields.nth(positionedElement.index()));
+                    if (resolvedField != null) {
+                        orderedFields.add(resolvedField);
+                    }
+                });
+        return orderedFields;
     }
 
     private void fillSummary(JsonNode data) {
@@ -1170,7 +1476,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
         List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
         positionedElements.stream()
                 .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
-                .forEach(positionedElement -> orderedFields.add(fields.nth(positionedElement.index())));
+                .forEach(positionedElement -> {
+                    Locator resolvedField = resolveConcreteEditableFieldOrNull(fields.nth(positionedElement.index()));
+                    if (resolvedField != null) {
+                        orderedFields.add(resolvedField);
+                    }
+                });
         return orderedFields;
     }
 
@@ -1193,11 +1504,19 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 continue;
             }
 
-            PositionedElement current = new PositionedElement(index, box.x, box.y, box.width, box.height);
+            PositionedElement current = new PositionedElement(
+                    index,
+                    box.x,
+                    box.y,
+                    box.width,
+                    box.height,
+                    editableCandidatePriority(candidate));
             int duplicateIndex = findDuplicatePositionedElementIndex(positionedElements, current);
             if (duplicateIndex >= 0) {
                 PositionedElement existing = positionedElements.get(duplicateIndex);
-                if (current.width() * current.height() > existing.width() * existing.height()) {
+                if (current.priority() > existing.priority()
+                        || (current.priority() == existing.priority()
+                        && current.width() * current.height() > existing.width() * existing.height())) {
                     positionedElements.set(duplicateIndex, current);
                 }
                 continue;
@@ -1229,6 +1548,62 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 + "[contenteditable='true'], "
                 + "[role='combobox'], "
                 + "[role='textbox']";
+    }
+
+    private String concreteEditableSelector() {
+        return "input:not([type='checkbox']):not([readonly]):not([disabled]), "
+                + "textarea:not([readonly]):not([disabled]), "
+                + "select:not([disabled]), "
+                + "[contenteditable='true']";
+    }
+
+    private Locator resolveConcreteEditableFieldOrNull(Locator candidate) {
+        Locator visibleCandidate = firstVisible(candidate);
+        if (visibleCandidate == null) {
+            return null;
+        }
+        if (isConcreteEditableField(visibleCandidate)) {
+            return visibleCandidate;
+        }
+
+        Locator nestedConcreteField = firstVisible(visibleCandidate.locator(concreteEditableSelector()));
+        if (nestedConcreteField != null) {
+            return nestedConcreteField;
+        }
+
+        Locator nestedTextbox = firstVisible(visibleCandidate.locator("[role='combobox'], [role='textbox']"));
+        if (nestedTextbox != null) {
+            return nestedTextbox;
+        }
+
+        return visibleCandidate;
+    }
+
+    private int editableCandidatePriority(Locator candidate) {
+        return isConcreteEditableField(candidate) ? 2 : 1;
+    }
+
+    private boolean isConcreteEditableField(Locator field) {
+        try {
+            Object editable = field.evaluate("""
+                    element => {
+                        const tagName = (element.tagName || '').toUpperCase();
+                        if (tagName === 'INPUT') {
+                            return element.type !== 'checkbox' && !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'TEXTAREA') {
+                            return !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'SELECT') {
+                            return !element.disabled;
+                        }
+                        return element.getAttribute('contenteditable') === 'true';
+                    }
+                    """);
+            return Boolean.TRUE.equals(editable);
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private Locator resolvePartyCard(String title) {
@@ -1584,6 +1959,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
             double x,
             double y,
             double width,
-            double height) {
+            double height,
+            int priority) {
     }
 }

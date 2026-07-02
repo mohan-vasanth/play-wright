@@ -1051,65 +1051,55 @@ public class IptDeclarationPage {
         JsonNode summary = data.path("summary");
         JsonNode totalOuterPack = summary.path("totalOuterPack");
         JsonNode totalGrossWeight = summary.path("totalGrossWeight");
-        Locator cargoDetailsSection = resolveSectionOrNull("Cargo Details");
-        if (cargoDetailsSection == null) {
-            logFieldMappingWarning("Transport section 'Cargo Details' was not visible while JSON cargo summary values were present.");
-        } else {
-            fillFieldInSectionIfPresent("Cargo Details", "Total Package", text(totalOuterPack, "value"));
-            fillNthLookupFieldInSectionIfPresent("Cargo Details", 1, text(totalOuterPack, "unitCode"), text(totalOuterPack, "unitCode"));
-            fillFieldInSectionIfPresent("Cargo Details", "Gross Weight", text(totalGrossWeight, "value"));
-            fillNthLookupFieldInSectionIfPresent("Cargo Details", 3, text(totalGrossWeight, "unitCode"), text(totalGrossWeight, "unitCode"));
-        }
+        fillFieldInSection("Cargo Details", "Total Package", text(totalOuterPack, "value"));
+        fillNthLookupFieldInSection("Cargo Details", 1, text(totalOuterPack, "unitCode"), text(totalOuterPack, "unitCode"));
+        fillFieldInSection("Cargo Details", "Gross Weight", text(totalGrossWeight, "value"));
+        fillNthLookupFieldInSection("Cargo Details", 3, text(totalGrossWeight, "unitCode"), text(totalGrossWeight, "unitCode"));
 
         JsonNode inwardTransport = data.path("transport").path("inwardTransport");
         JsonNode transportMeans = inwardTransport.path("transportMeans");
         JsonNode transportMode = transportMeans.path("transportMode");
-        Locator inwardTransportSection = resolveSectionOrNull("Inward Transport Means");
-        if (inwardTransportSection == null) {
-            logFieldMappingWarning("Transport section 'Inward Transport Means' was not visible while JSON inward transport values were present.");
-        } else {
-            waitForAnyVisibleText(
-                    "Inward Flight Number",
-                    "Flight Number",
-                    "Conveyance Reference Number",
-                    "Transport Identifier",
-                    "Inward Aircraft Registration Number",
-                    "Inward Voyage Number",
-                    "Inward Vessel Name",
-                    "Vehicle Licence/Registration Number",
-                    "Inward Master Air Waybill",
-                    "Master Air Waybill",
-                    "MAWB/UCR/OBL Number",
-                    "Inward Ocean Bill of Lading Number",
-                    "Inward Ocean Bill Of Lading Number");
-            fillFieldInSectionByAnyLabelIfPresent(
-                    "Inward Transport Means",
-                    text(transportMode, "conveyanceReferenceNumber"),
-                    "Inward Flight Number",
-                    "Flight Number",
-                    "Conveyance Reference Number",
-                    "Inward Voyage Number");
-            fillFieldInSectionByAnyLabelIfPresent(
-                    "Inward Transport Means",
-                    text(transportMode, "transportIdentifier"),
-                    "Transport Identifier",
-                    "Inward Aircraft Registration Number",
-                    "Inward Vessel Name",
-                    "Vehicle Licence/Registration Number");
-            fillFieldInSectionByAnyLabelIfPresent(
-                    "Inward Transport Means",
-                    text(transportMeans, "mawboucroblNumber"),
-                    "Inward Master Air Waybill",
-                    "Master Air Waybill",
-                    "MAWB/UCR/OBL Number",
-                    "Inward Ocean Bill of Lading Number",
-                    "Inward Ocean Bill Of Lading Number");
-            fillDateFieldInSectionIfPresent("Inward Transport Means", "Arrival Date", formatUiDate(text(inwardTransport, "arrivalDate")));
-            fillLookupFieldIfPresent(
-                    "Loading Port",
-                    text(inwardTransport, "loadingPort"),
-                    text(inwardTransport, "loadingPort"));
-        }
+        waitForAnyVisibleText(
+                "Inward Flight Number",
+                "Flight Number",
+                "Conveyance Reference Number",
+                "Transport Identifier",
+                "Inward Aircraft Registration Number",
+                "Inward Voyage Number",
+                "Inward Vessel Name",
+                "Vehicle Licence/Registration Number",
+                "Inward Master Air Waybill",
+                "Master Air Waybill",
+                "MAWB/UCR/OBL Number",
+                "Inward Ocean Bill of Lading Number",
+                "Inward Ocean Bill Of Lading Number");
+        fillFieldInSectionByAnyLabelIfPresent(
+                "Inward Transport Means",
+                text(transportMode, "conveyanceReferenceNumber"),
+                "Inward Flight Number",
+                "Flight Number",
+                "Conveyance Reference Number",
+                "Inward Voyage Number");
+        fillFieldInSectionByAnyLabelIfPresent(
+                "Inward Transport Means",
+                text(transportMode, "transportIdentifier"),
+                "Transport Identifier",
+                "Inward Aircraft Registration Number",
+                "Inward Vessel Name",
+                "Vehicle Licence/Registration Number");
+        fillFieldInSectionByAnyLabelIfPresent(
+                "Inward Transport Means",
+                text(transportMeans, "mawboucroblNumber"),
+                "Inward Master Air Waybill",
+                "Master Air Waybill",
+                "MAWB/UCR/OBL Number",
+                "Inward Ocean Bill of Lading Number",
+                "Inward Ocean Bill Of Lading Number");
+        fillDateFieldInSection("Inward Transport Means", "Arrival Date", formatUiDate(text(inwardTransport, "arrivalDate")));
+        fillLookupFieldIfPresent(
+                "Loading Port",
+                text(inwardTransport, "loadingPort"),
+                text(inwardTransport, "loadingPort"));
         fillDeclarationSpecificTransportInfo(data);
         fillTransportEquipmentDetails(cargo);
     }
@@ -1144,22 +1134,35 @@ public class IptDeclarationPage {
         JsonNode identityNode = partyIdentityNode(partyNode);
         String partyName = normalize(text(identityNode.path("partyName"), "name"));
         String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
-        if (partyName == null || partyName.isBlank()) {
+        if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
             return;
         }
 
         logPartyMappingState(rowLabel, "JSON value", partyName, partyId, null);
 
+        if (partyName == null || partyName.isBlank()) {
+            if (partyId != null && !partyId.isBlank() && !fillPartyIdFieldIfPresent(rowLabel, null, partyId)) {
+                throw new IllegalStateException("Party UEN value was not populated for row: "
+                        + rowLabel + " Expected UEN: " + partyId);
+            }
+            return;
+        }
+
         Locator field = resolvePartyNameField(rowLabel);
+        Locator idField = resolvePartyIdFieldOrNull(rowLabel);
         field.waitFor(new Locator.WaitForOptions().setTimeout(5000));
+        logFieldMappingInfo("Party row '" + rowLabel + "' controls"
+                + " -> nameControl={" + describeControl(field) + "},"
+                + " idControl={" + (idField == null ? "N/A" : describeControl(idField)) + "}");
 
         field.scrollIntoViewIfNeeded();
         field.click(new Locator.ClickOptions().setForce(true));
-        String[] selectionHints = partySelectionHints(partyName, partyId);
-        String[] searchCandidates = partySearchCandidates(partyName, partyId);
+        String[] selectionHints = partySelectionHints(partyName);
+        String[] searchCandidates = partySearchCandidates(partyName);
 
         boolean matched = false;
-        boolean requiresCommittedSelection = partyId != null && !partyId.isBlank();
+        boolean requiresPartyId = partyId != null && !partyId.isBlank();
+        boolean requiresCommittedSelection = requiresPartyId;
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
             attemptPartySuggestionSelection(selectionHints);
@@ -1185,13 +1188,26 @@ public class IptDeclarationPage {
                     fieldValueMatches,
                     finalFieldValue,
                     finalRowValue);
-            if ((committedSelection && (resolvedSelection || rowValuesMatch || fieldValueMatches))
+            boolean nameResolved = (committedSelection && (resolvedSelection || rowValuesMatch || fieldValueMatches))
                     || resolvedSelection
                     || rowValuesMatch
-                    || fieldValueMatches
-                    || (requiresCommittedSelection && fillPartyIdFieldIfPresent(rowLabel, partyName, partyId))) {
+                    || fieldValueMatches;
+            boolean partyIdResolved = !requiresPartyId || !hasVisiblePartyIdField(rowLabel);
+            if (nameResolved && !partyIdResolved) {
+                partyIdResolved = syncPartyLookupComponentSelection(rowLabel, partyName, partyId)
+                        || waitForPartyRowValues(rowLabel, partyName, partyId, 1200)
+                        || waitForStablePartyIdFieldValue(resolvePartyIdFieldOrNull(rowLabel), partyId, 600, 1200)
+                        || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
+                        || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
+            }
+            if (nameResolved && partyIdResolved) {
                 matched = true;
-                logPartyMappingState(rowLabel, "UI final value", finalFieldValue, partyId, finalRowValue);
+                logPartyMappingState(
+                        rowLabel,
+                        "UI final value",
+                        readRenderedFieldValue(field),
+                        partyId,
+                        readPartyRowText(rowLabel));
                 break;
             }
         }
@@ -1219,6 +1235,38 @@ public class IptDeclarationPage {
             logFieldMappingWarning("Party mapping skipped for row '" + rowLabel + "' with value '"
                     + firstNonBlank(partyName, partyId, "N/A") + "': " + exception.getMessage());
         }
+    }
+
+    private void reconcilePartyRowIfNeeded(String rowLabel, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        String partyName = normalize(text(identityNode.path("partyName"), "name"));
+        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+        if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
+            return;
+        }
+
+        if (isPartyRowResolved(rowLabel, partyName, partyId)) {
+            return;
+        }
+
+        logFieldMappingWarning("Party row '" + rowLabel + "' drifted after initial mapping. Reapplying lookup selection.");
+        fillPartyRow(rowLabel, partyNode);
+    }
+
+    private boolean isPartyRowResolved(String rowLabel, String partyName, String partyId) {
+        Locator nameField = resolvePartyNameField(rowLabel);
+        Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+
+        boolean nameResolved = partyName == null
+                || partyName.isBlank()
+                || waitForResolvedPartyNameFieldValue(nameField, partyName, partyId, 500)
+                || waitForPartyFieldValue(nameField, partyName, 500)
+                || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
+        boolean idResolved = partyId == null
+                || partyId.isBlank()
+                || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
+                || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
+        return nameResolved && idResolved;
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {
@@ -1382,19 +1430,174 @@ public class IptDeclarationPage {
 
         Locator nameField = resolvePartyNameField(rowLabel);
 
-        boolean nameAlreadyMatches = waitForPartyFieldValue(nameField, partyName, 500)
+        boolean nameAlreadyMatches = waitForResolvedPartyNameFieldValue(nameField, partyName, partyId, 500)
+                || waitForPartyFieldValue(nameField, partyName, 500)
                 || waitForPartyRowValues(rowLabel, partyName, null, 800);
-        if (waitForAnyRenderedFieldValue(idField, 500, partyId)
+        if (waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
                 && nameAlreadyMatches) {
             return true;
         }
 
-        focusAndType(idField, partyId, true, partyId);
-        boolean idMatches = waitForAnyRenderedFieldValue(idField, 1500, partyId);
-        boolean nameMatches = waitForPartyFieldValue(nameField, partyName, 1500)
+        boolean idMatches = false;
+        for (int attempt = 0; attempt < 2 && !idMatches; attempt++) {
+            focusAndType(idField, partyId, false);
+            if (!waitForStablePartyIdFieldValue(idField, partyId, 600, 1800)) {
+                ensureTextFieldValue(idField, partyId);
+                idMatches = waitForStablePartyIdFieldValue(idField, partyId, 600, 1200);
+            } else {
+                idMatches = true;
+            }
+        }
+        boolean nameMatches = waitForResolvedPartyNameFieldValue(nameField, partyName, partyId, 1500)
+                || waitForPartyFieldValue(nameField, partyName, 1500)
                 || waitForPartyRowValues(rowLabel, partyName, null, 1500);
         boolean rowMatches = waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
         return idMatches && (nameMatches || rowMatches);
+    }
+
+    private boolean waitForStablePartyIdFieldValue(Locator field, String expectedValue, int stableMs, int timeoutMs) {
+        if (field == null || expectedValue == null || expectedValue.isBlank()) {
+            return false;
+        }
+
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        long stableSince = -1L;
+        while (System.currentTimeMillis() <= deadline) {
+            String currentValue = normalize(inputValueOrEmpty(field));
+            if (!currentValue.isBlank() && renderedFieldValueMatches(currentValue, expectedValue)) {
+                if (stableSince < 0) {
+                    stableSince = System.currentTimeMillis();
+                }
+                if (System.currentTimeMillis() - stableSince >= stableMs) {
+                    return true;
+                }
+            } else {
+                stableSince = -1L;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private boolean waitForResolvedPartyNameFieldValue(Locator field, String partyName, String partyId, int timeoutMs) {
+        if (field == null || partyName == null || partyName.isBlank()) {
+            return false;
+        }
+
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            String currentValue = readRenderedFieldValue(field);
+            if (isResolvedPartySelectionValue(currentValue, partyName, partyId, partyName)) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
+    }
+
+    private boolean hasVisiblePartyIdField(String rowLabel) {
+        Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+        return idField != null && idField.isVisible();
+    }
+
+    private boolean syncPartyLookupComponentSelection(String rowLabel, String partyName, String partyId) {
+        String selector = partyNameComponentSelector(rowLabel);
+        if (selector == null || selector.isBlank()) {
+            return false;
+        }
+
+        try {
+            Object synced = page.evaluate("""
+                    args => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const hosts = Array.from(document.querySelectorAll(args.selector))
+                            .filter(element => !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+                        const host = hosts[0];
+                        if (!host || typeof window.ng === 'undefined' || typeof window.ng.getComponent !== 'function') {
+                            return false;
+                        }
+
+                        const component = window.ng.getComponent(host);
+                        if (!component || !Array.isArray(component.allOptions) || component.allOptions.length === 0) {
+                            return false;
+                        }
+
+                        const expectedName = normalize(args.partyName);
+                        const expectedId = normalize(args.partyId);
+                        const scoreOption = option => {
+                            const code = normalize(option?.code);
+                            const description = normalize(option?.description);
+                            const combined = normalize(`${option?.code || ''} ${option?.description || ''}`);
+                            let score = 0;
+                            if (expectedId && code === expectedId) {
+                                score += 1000;
+                            } else if (expectedId && combined.includes(expectedId)) {
+                                score += 500;
+                            }
+                            if (expectedName && description === expectedName) {
+                                score += 400;
+                            } else if (expectedName && (description.includes(expectedName) || expectedName.includes(description))) {
+                                score += 200;
+                            }
+                            return score;
+                        };
+
+                        const ranked = component.allOptions
+                            .map(option => ({ option, score: scoreOption(option) }))
+                            .filter(entry => entry.score > 0)
+                            .sort((left, right) => right.score - left.score);
+                        const selected = ranked[0]?.option;
+                        if (!selected) {
+                            return false;
+                        }
+
+                        const display = selected.description || selected.code || args.partyName || args.partyId || '';
+                        component._value = selected.code || component._value;
+                        if ('inputDisplayValue' in component) {
+                            component.inputDisplayValue = display;
+                        }
+                        if ('displayValue' in component) {
+                            component.displayValue = display;
+                        }
+
+                        const field = host.querySelector('input, textarea, select');
+                        if (field && 'value' in field) {
+                            field.value = display;
+                            field.dispatchEvent(new Event('input', { bubbles: true }));
+                            field.dispatchEvent(new Event('change', { bubbles: true }));
+                            field.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                        if (typeof component.selectOptionItem === 'function') {
+                            component.selectOptionItem(selected);
+                        }
+                        if (typeof component.selectOptionLabel === 'function') {
+                            component.selectOptionLabel(selected);
+                        }
+                        if (typeof component.onChange === 'function') {
+                            component.onChange(selected.code || display);
+                        }
+                        if (typeof component.onTouched === 'function') {
+                            component.onTouched();
+                        }
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "selector", selector,
+                    "partyName", firstNonBlank(partyName, ""),
+                    "partyId", firstNonBlank(partyId, "")));
+
+            if (!Boolean.TRUE.equals(synced)) {
+                return false;
+            }
+
+            pauseUi(UI_ACTION_PAUSE_MS);
+            Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+            return partyId == null
+                    || partyId.isBlank()
+                    || waitForStablePartyIdFieldValue(idField, partyId, 600, 1500);
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private void fillInvoiceInfo(JsonNode data) {
@@ -2316,6 +2519,14 @@ public class IptDeclarationPage {
     protected void fillSectionAndAdvance(String sectionName, Runnable filler) {
         openSection(sectionName);
         filler.run();
+        completeSection(sectionName);
+    }
+
+    protected void completeSection(String sectionName) {
+        if (sectionTabMatches("Party Info (P)", sectionName)) {
+            saveDraftAndAdvanceToNextSection();
+            return;
+        }
         saveDraft();
         goToNextSection();
     }
@@ -2959,6 +3170,21 @@ public class IptDeclarationPage {
         focusAndType(field, value, true, suggestionHints);
     }
 
+    protected void fillNthLookupFieldInScopeByClickOnlyIfPresent(
+            Locator scope,
+            int occurrence,
+            String value,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        Locator field = resolveNthVisibleEditableFieldInScopeOrNull(scope, occurrence);
+        if (field == null) {
+            return;
+        }
+        focusAndTypeByClickOnly(field, value, suggestionHints);
+    }
+
     protected void fillFieldInScopeRowIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
@@ -3137,6 +3363,32 @@ public class IptDeclarationPage {
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
     }
 
+    protected void focusAndTypeByClickOnly(Locator field, String value, String... suggestionHints) {
+        if (field == null || value == null || value.isBlank()) {
+            return;
+        }
+
+        closeTransientOverlays();
+        field.scrollIntoViewIfNeeded();
+        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+
+        if (trySelectNativeDropdown(field, value, suggestionHints)) {
+            ensureFieldEntryCommitted(field, value, true, expectedValues);
+            page.keyboard().press("Tab");
+            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            return;
+        }
+
+        field.click(new Locator.ClickOptions().setForce(true));
+        page.keyboard().press("Control+A");
+        page.keyboard().press("Backspace");
+        page.keyboard().type(value);
+        pauseUi(UI_ACTION_PAUSE_MS);
+        commitSuggestionSelectionByClickOnly(field, value, suggestionHints, expectedValues);
+        page.keyboard().press("Tab");
+        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+    }
+
     protected void fillVerifiedTextField(Locator field, String value, String fieldLabel) {
         fillVerifiedTextField(field, value, fieldLabel, true);
     }
@@ -3202,6 +3454,33 @@ public class IptDeclarationPage {
                 }
             } catch (PlaywrightException ignored) {
             }
+        }
+        pauseUi(UI_ACTION_PAUSE_MS);
+        ensureLookupValue(field, value);
+        ensureFieldEntryCommitted(field, value, true, expectedValues);
+    }
+
+    private void commitSuggestionSelectionByClickOnly(
+            Locator field,
+            String value,
+            String[] suggestionHints,
+            List<String> expectedValues) {
+        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, suggestionHints);
+        boolean suggestionClicked = clickVisibleSuggestion(suggestionHints);
+        if (!suggestionClicked) {
+            try {
+                page.keyboard().press("ArrowDown");
+                pauseUi(UI_ACTION_PAUSE_MS);
+                suggestionClicked = clickVisibleSuggestion(suggestionHints);
+            } catch (PlaywrightException ignored) {
+            }
+        }
+        if (!suggestionClicked) {
+            throw new IllegalStateException(buildFieldVerificationFailure(
+                    "Lookup suggestion was not selected by click",
+                    field,
+                    value,
+                    expectedValues.toArray(String[]::new)));
         }
         pauseUi(UI_ACTION_PAUSE_MS);
         ensureLookupValue(field, value);
@@ -3661,7 +3940,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void ensureTextFieldValue(Locator field, String expectedValue) {
+    protected void ensureTextFieldValue(Locator field, String expectedValue) {
         if (expectedValue == null || expectedValue.isBlank()) {
             return;
         }
@@ -3982,7 +4261,7 @@ public class IptDeclarationPage {
         }
 
         if (waitForAnyVisibleSuggestion(2500)
-                && (clickVisibleSuggestion(selectionHints) || clickFirstVisibleSuggestion())) {
+                && clickVisibleSuggestion(selectionHints)) {
             page.waitForTimeout(1000);
             return;
         }
@@ -3991,11 +4270,10 @@ public class IptDeclarationPage {
             page.keyboard().press("ArrowDown");
             page.waitForTimeout(300);
             if (waitForAnyVisibleSuggestion(1500)
-                    && (clickVisibleSuggestion(selectionHints) || clickFirstVisibleSuggestion())) {
+                    && clickVisibleSuggestion(selectionHints)) {
                 page.waitForTimeout(1000);
                 return;
             }
-            page.keyboard().press("Enter");
         } catch (PlaywrightException ignored) {
         }
 
@@ -4028,6 +4306,13 @@ public class IptDeclarationPage {
 
     private String readPartyRowText(String rowLabel) {
         try {
+            Locator partyRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
+            if (partyRow != null) {
+                String rowText = normalizedInnerText(partyRow);
+                if (!rowText.isBlank()) {
+                    return rowText;
+                }
+            }
             Locator field = resolvePartyNameField(rowLabel);
             return normalize(String.valueOf(field.evaluate("""
                     (element, expectedRowLabel) => {
@@ -4047,6 +4332,14 @@ public class IptDeclarationPage {
                         return '';
                     }
                     """, rowLabel)));
+        } catch (PlaywrightException ignored) {
+            return "";
+        }
+    }
+
+    private String normalizedInnerText(Locator locator) {
+        try {
+            return normalize(locator.innerText());
         } catch (PlaywrightException ignored) {
             return "";
         }
@@ -4072,16 +4365,14 @@ public class IptDeclarationPage {
         }
     }
 
-    private String[] partySelectionHints(String partyName, String partyId) {
+    private String[] partySelectionHints(String partyName) {
         List<String> hints = new ArrayList<>();
         appendCandidate(hints, partyName);
-        appendCandidate(hints, partyId);
         return hints.toArray(String[]::new);
     }
 
-    private String[] partySearchCandidates(String partyName, String partyId) {
+    private String[] partySearchCandidates(String partyName) {
         List<String> candidates = new ArrayList<>();
-        appendCandidate(candidates, partyId);
         appendCandidate(candidates, partyName);
         return candidates.stream().distinct().toArray(String[]::new);
     }
@@ -4168,7 +4459,7 @@ public class IptDeclarationPage {
                 continue;
             }
             if (visibleIndex++ == occurrence) {
-                return candidate;
+                return resolveConcreteEditableFieldOrNull(candidate);
             }
         }
         return null;
@@ -4234,6 +4525,11 @@ public class IptDeclarationPage {
     }
 
     private Locator resolvePartyNameField(String rowLabel) {
+        Locator componentField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        if (componentField != null) {
+            return componentField;
+        }
+
         Locator directRowField = resolvePartyFieldInRowOrNull(rowLabel, 0);
         if (directRowField != null) {
             return directRowField;
@@ -4281,17 +4577,240 @@ public class IptDeclarationPage {
         return resolveFirstFieldInRow(rowLabel);
     }
 
+    private Locator resolvePartyNameFieldFromComponentOrNull(String rowLabel) {
+        String selector = partyNameComponentSelector(rowLabel);
+        if (selector == null || selector.isBlank()) {
+            return null;
+        }
+
+        waitForFormControls();
+        Locator components = page.locator(selector);
+        int count = components.count();
+        for (int index = 0; index < count; index++) {
+            Locator component = components.nth(index);
+            Locator nestedConcreteField = firstVisible(component.locator(concreteEditableSelector()));
+            if (nestedConcreteField != null) {
+                return nestedConcreteField;
+            }
+
+            Locator nestedTextbox = firstVisible(component.locator("[role='combobox'], [role='textbox']"));
+            if (nestedTextbox != null) {
+                return nestedTextbox;
+            }
+        }
+        return null;
+    }
+
+    private String partyNameComponentSelector(String rowLabel) {
+        return switch (normalize(rowLabel).toUpperCase()) {
+            case "IMPORTER" -> "app-importer-lookup[formcontrolname='name']";
+            case "INWARD CARRIER" -> "app-inward-carrier-lookup[formcontrolname='name']";
+            case "FREIGHT FORWARDER" -> "app-freight-forwarder-lookup[formcontrolname='name']";
+            case "DECLARING AGENT" -> "app-declaring-agent-lookup[formcontrolname='name']";
+            default -> null;
+        };
+    }
+
     private Locator resolvePartyIdFieldOrNull(String rowLabel) {
+        Locator nameField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        Locator componentField = resolvePartyIdFieldFromComponentOrNull(rowLabel);
+        if (componentField != null && !sameEditableField(componentField, nameField)) {
+            return componentField;
+        }
+
         Locator directRowField = resolvePartyFieldInRowOrNull(rowLabel, 1);
-        if (directRowField != null) {
+        if (directRowField != null && !sameEditableField(directRowField, nameField)) {
             return directRowField;
         }
-        return resolveEditableFieldInRowByExactText(rowLabel, 1);
+
+        Locator exactRowField = resolveEditableFieldInRowByExactText(rowLabel, 1);
+        if (exactRowField != null && !sameEditableField(exactRowField, nameField)) {
+            return exactRowField;
+        }
+
+        return resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, partyNameComponentSelector(rowLabel));
+    }
+
+    private Locator resolvePartyLookupComponentOrNull(String rowLabel) {
+        String selector = partyNameComponentSelector(rowLabel);
+        if (selector == null || selector.isBlank()) {
+            return null;
+        }
+
+        waitForFormControls();
+        Locator components = page.locator(selector);
+        int count = components.count();
+        for (int index = 0; index < count; index++) {
+            Locator component = components.nth(index);
+            Locator nestedField = firstVisible(component.locator(combinedEditableSelector()));
+            if (nestedField != null) {
+                return component;
+            }
+        }
+        return count > 0 ? components.first() : null;
+    }
+
+    private Locator resolvePartyIdFieldFromComponentOrNull(String rowLabel) {
+        Locator nameField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        String selector = partyNameComponentSelector(rowLabel);
+        if (nameField == null || selector == null || selector.isBlank()) {
+            return null;
+        }
+
+        Locator directRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
+        Locator rowSibling = resolveNearestEditableFieldToRightOrNull(directRow, nameField, selector);
+        if (rowSibling != null) {
+            return rowSibling;
+        }
+
+        Locator component = resolvePartyLookupComponentOrNull(rowLabel);
+        if (component != null) {
+            Locator ancestorScopes = component.locator(
+                    "xpath=ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > 1]");
+            int scopeCount = ancestorScopes.count();
+            for (int scopeIndex = 0; scopeIndex < scopeCount; scopeIndex++) {
+                Locator ancestorSibling = resolveNearestEditableFieldToRightOrNull(
+                        ancestorScopes.nth(scopeIndex),
+                        nameField,
+                        selector);
+                if (ancestorSibling != null) {
+                    return ancestorSibling;
+                }
+            }
+        }
+
+        return resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, selector);
+    }
+
+    private Locator resolveNearestPartySiblingFieldOrNull(String rowLabel, Locator nameField, String selector) {
+        if (nameField == null) {
+            return null;
+        }
+
+        Locator section = resolveSection("Party Info (P)");
+        Locator sectionSibling = resolveNearestEditableFieldToRightOrNull(section, nameField, selector);
+        if (sectionSibling != null) {
+            return sectionSibling;
+        }
+
+        Locator rowScope = resolvePartyRowContainerOrNull(rowLabel);
+        return resolveNearestEditableFieldToRightOrNull(rowScope, nameField, selector);
+    }
+
+    private Locator resolveNearestEditableFieldToRightOrNull(Locator scope, Locator anchorField, String excludedSelector) {
+        if (scope == null || anchorField == null) {
+            return null;
+        }
+
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        BoundingBox anchorBox;
+        try {
+            anchorBox = anchorField.boundingBox();
+        } catch (PlaywrightException ignored) {
+            return null;
+        }
+        if (anchorBox == null) {
+            return null;
+        }
+
+        Locator fields = visibleScope.locator(combinedEditableSelector());
+        List<PositionedElement> positionedFields = collectDistinctVisibleEditableElements(fields);
+        if (positionedFields.isEmpty()) {
+            return null;
+        }
+
+        Locator bestField = null;
+        double bestScore = Double.MAX_VALUE;
+        double anchorMidY = anchorBox.y + (anchorBox.height / 2.0d);
+        double anchorRightX = anchorBox.x + anchorBox.width;
+
+        for (PositionedElement positionedField : positionedFields) {
+            Locator candidate = resolveConcreteEditableFieldOrNull(fields.nth(positionedField.index()));
+            if (candidate == null
+                    || sameEditableField(candidate, anchorField)
+                    || isFieldInsideSelector(candidate, excludedSelector)) {
+                continue;
+            }
+
+            BoundingBox candidateBox;
+            try {
+                candidateBox = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (candidateBox == null) {
+                continue;
+            }
+
+            double candidateMidY = candidateBox.y + (candidateBox.height / 2.0d);
+            double deltaY = Math.abs(candidateMidY - anchorMidY);
+            if (deltaY > 44.0d || candidateBox.x < anchorRightX - 8.0d) {
+                continue;
+            }
+
+            double deltaX = Math.abs(candidateBox.x - anchorRightX);
+            double score = deltaY + (deltaX / 1000.0d);
+            if (score < bestScore) {
+                bestScore = score;
+                bestField = candidate;
+            }
+        }
+
+        return bestField;
+    }
+
+    private boolean isFieldInsideSelector(Locator field, String selector) {
+        if (selector == null || selector.isBlank()) {
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(field.evaluate(
+                    "(element, cssSelector) => !!element.closest(cssSelector)",
+                    selector));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private boolean sameEditableField(Locator left, Locator right) {
+        if (left == null || right == null) {
+            return false;
+        }
+
+        String leftId = normalize(left.getAttribute("id"));
+        String rightId = normalize(right.getAttribute("id"));
+        if (!leftId.isBlank() && !rightId.isBlank()) {
+            return leftId.equalsIgnoreCase(rightId);
+        }
+
+        try {
+            BoundingBox leftBox = left.boundingBox();
+            BoundingBox rightBox = right.boundingBox();
+            if (leftBox == null || rightBox == null) {
+                return false;
+            }
+            return Math.abs(leftBox.x - rightBox.x) <= 2.0d
+                    && Math.abs(leftBox.y - rightBox.y) <= 2.0d
+                    && Math.abs(leftBox.width - rightBox.width) <= 2.0d
+                    && Math.abs(leftBox.height - rightBox.height) <= 2.0d;
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private Locator resolvePartyFieldInRowOrNull(String rowLabel, int occurrence) {
         waitForFormControls();
         Locator section = resolveSection("Party Info (P)");
+        Locator directRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
+        Locator fromDirectRow = resolveVisibleEditableFieldInRowOrNull(directRow, occurrence);
+        if (fromDirectRow != null) {
+            return fromDirectRow;
+        }
+
         Locator label = resolvePartyRowLabelOrNull(section, rowLabel);
         if (label == null) {
             return null;
@@ -4322,6 +4841,24 @@ public class IptDeclarationPage {
             return null;
         }
         return fields.nth(rowFields.get(occurrence).index());
+    }
+
+    private Locator resolvePartyRowContainerInSectionOrNull(String rowLabel) {
+        waitForFormControls();
+        Locator section = resolveSection("Party Info (P)");
+        Locator label = resolvePartyRowLabelOrNull(section, rowLabel);
+        if (label == null) {
+            return null;
+        }
+
+        Locator nearestAncestorRow = label.locator(
+                "xpath=ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > 1][1]");
+        Locator visibleNearestAncestorRow = firstVisible(nearestAncestorRow);
+        if (visibleNearestAncestorRow != null) {
+            return visibleNearestAncestorRow;
+        }
+
+        return resolvePartyRowContainerOrNull(rowLabel);
     }
 
     private Locator resolvePartyRowLabelOrNull(Locator section, String rowLabel) {
@@ -4396,7 +4933,8 @@ public class IptDeclarationPage {
             double x,
             double y,
             double width,
-            double height) {
+            double height,
+            int priority) {
     }
 
     private Locator resolveEditableFieldInRowByExactText(String rowLabel, int occurrence) {
@@ -4543,6 +5081,9 @@ public class IptDeclarationPage {
     }
 
     protected Locator resolveVisibleEditableFieldInRowOrNull(Locator row, int occurrence) {
+        if (row == null) {
+            return null;
+        }
         Locator visibleRow = firstVisible(row);
         if (visibleRow == null) {
             return null;
@@ -4712,7 +5253,7 @@ public class IptDeclarationPage {
         List<PositionedElement> orderedElements = positionedElements.stream()
                 .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
                 .toList();
-        return fields.nth(orderedElements.get(occurrence).index());
+        return resolveConcreteEditableFieldOrNull(fields.nth(orderedElements.get(occurrence).index()));
     }
 
     private String concreteEditableSelector() {
@@ -4724,6 +5265,55 @@ public class IptDeclarationPage {
 
     private String combinedEditableSelector() {
         return concreteEditableSelector() + ", [role='combobox'], [role='textbox']";
+    }
+
+    private Locator resolveConcreteEditableFieldOrNull(Locator candidate) {
+        Locator visibleCandidate = firstVisible(candidate);
+        if (visibleCandidate == null) {
+            return null;
+        }
+        if (isConcreteEditableField(visibleCandidate)) {
+            return visibleCandidate;
+        }
+
+        Locator nestedConcreteField = firstVisible(visibleCandidate.locator(concreteEditableSelector()));
+        if (nestedConcreteField != null) {
+            return nestedConcreteField;
+        }
+
+        Locator nestedTextbox = firstVisible(visibleCandidate.locator("[role='combobox'], [role='textbox']"));
+        if (nestedTextbox != null) {
+            return nestedTextbox;
+        }
+
+        return visibleCandidate;
+    }
+
+    private int editableCandidatePriority(Locator candidate) {
+        return isConcreteEditableField(candidate) ? 2 : 1;
+    }
+
+    private boolean isConcreteEditableField(Locator field) {
+        try {
+            Object editable = field.evaluate("""
+                    element => {
+                        const tagName = (element.tagName || '').toUpperCase();
+                        if (tagName === 'INPUT') {
+                            return element.type !== 'checkbox' && !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'TEXTAREA') {
+                            return !element.readOnly && !element.disabled;
+                        }
+                        if (tagName === 'SELECT') {
+                            return !element.disabled;
+                        }
+                        return element.getAttribute('contenteditable') === 'true';
+                    }
+                    """);
+            return Boolean.TRUE.equals(editable);
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private Locator resolveEditableFieldInScopeRowOrNull(Locator scope, String rowLabel, int occurrence) {
@@ -4792,7 +5382,7 @@ public class IptDeclarationPage {
         Locator field = label.locator(
                 "xpath=(following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
                         + (occurrence + 1) + "])[1]");
-        return firstVisible(field);
+        return resolveConcreteEditableFieldOrNull(field);
     }
 
     private Locator resolveScopeLabelOrNull(Locator visibleScope, String rowLabel, boolean containsMatch) {
@@ -5156,11 +5746,19 @@ public class IptDeclarationPage {
                 continue;
             }
 
-            PositionedElement current = new PositionedElement(index, box.x, box.y, box.width, box.height);
+            PositionedElement current = new PositionedElement(
+                    index,
+                    box.x,
+                    box.y,
+                    box.width,
+                    box.height,
+                    editableCandidatePriority(candidate));
             int duplicateIndex = findDuplicatePositionedElementIndex(positionedElements, current);
             if (duplicateIndex >= 0) {
                 PositionedElement existing = positionedElements.get(duplicateIndex);
-                if (current.width() * current.height() > existing.width() * existing.height()) {
+                if (current.priority() > existing.priority()
+                        || (current.priority() == existing.priority()
+                        && current.width() * current.height() > existing.width() * existing.height())) {
                     positionedElements.set(duplicateIndex, current);
                 }
                 continue;
@@ -5176,7 +5774,12 @@ public class IptDeclarationPage {
         List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
         positionedElements.stream()
                 .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
-                .forEach(positionedElement -> orderedFields.add(fields.nth(positionedElement.index())));
+                .forEach(positionedElement -> {
+                    Locator resolvedField = resolveConcreteEditableFieldOrNull(fields.nth(positionedElement.index()));
+                    if (resolvedField != null) {
+                        orderedFields.add(resolvedField);
+                    }
+                });
         return orderedFields;
     }
 
@@ -5424,7 +6027,7 @@ public class IptDeclarationPage {
         Locator fromNearestContainer = page.locator(
                 "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
                         + "//*[" + controlQuery + "])[1]");
-        Locator visibleFromNearestContainer = firstVisible(fromNearestContainer);
+        Locator visibleFromNearestContainer = resolveConcreteEditableFieldOrNull(fromNearestContainer);
         if (visibleFromNearestContainer != null) {
             return preferNativeSelect(visibleFromNearestContainer);
         }
@@ -5432,7 +6035,7 @@ public class IptDeclarationPage {
         Locator fromLabel = page.locator(
                 "xpath=(" + labelQuery + ")[" + (occurrence + 1)
                         + "]/following::*[" + controlQuery + "][1]");
-        Locator visibleFromLabel = firstVisible(fromLabel);
+        Locator visibleFromLabel = resolveConcreteEditableFieldOrNull(fromLabel);
         if (visibleFromLabel != null) {
             return visibleFromLabel;
         }
@@ -5467,7 +6070,7 @@ public class IptDeclarationPage {
         Locator fromNearestContainer = page.locator(
                 "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
                         + "//*[" + controlQuery + "])[1]");
-        Locator visibleFromNearestContainer = firstVisible(fromNearestContainer);
+        Locator visibleFromNearestContainer = resolveConcreteEditableFieldOrNull(fromNearestContainer);
         if (visibleFromNearestContainer != null) {
             return visibleFromNearestContainer;
         }
@@ -5475,7 +6078,7 @@ public class IptDeclarationPage {
         Locator fromLabel = page.locator(
                 "xpath=(" + labelQuery + ")[" + (occurrence + 1)
                         + "]/following::*[" + controlQuery + "][1]");
-        Locator visibleFromLabel = firstVisible(fromLabel);
+        Locator visibleFromLabel = resolveConcreteEditableFieldOrNull(fromLabel);
         return visibleFromLabel == null ? null : preferNativeSelect(visibleFromLabel);
     }
 
@@ -5523,7 +6126,7 @@ public class IptDeclarationPage {
         Locator fromNearestContainer = section.locator(
                 "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
                         + "//*[" + controlQuery + "])[1]");
-        Locator visibleFromNearestContainer = firstVisible(fromNearestContainer);
+        Locator visibleFromNearestContainer = resolveConcreteEditableFieldOrNull(fromNearestContainer);
         if (visibleFromNearestContainer != null) {
             return visibleFromNearestContainer;
         }
@@ -5531,7 +6134,7 @@ public class IptDeclarationPage {
         Locator fromLabel = section.locator(
                 "xpath=(" + labelQuery + ")[" + (occurrence + 1)
                         + "]/following::*[" + controlQuery + "][1]");
-        Locator visibleFromLabel = firstVisible(fromLabel);
+        Locator visibleFromLabel = resolveConcreteEditableFieldOrNull(fromLabel);
         if (visibleFromLabel != null) {
             return visibleFromLabel;
         }
@@ -5596,17 +6199,15 @@ public class IptDeclarationPage {
             }
 
             String targetId = normalize(label.getAttribute("for"));
-            if (targetId.isBlank()) {
-                return null;
+            if (!targetId.isBlank()) {
+                Locator directMatch = scope.locator("#" + escapeCssIdentifier(targetId));
+                Locator visibleDirectMatch = resolveConcreteEditableFieldOrNull(directMatch);
+                if (visibleDirectMatch != null) {
+                    return visibleDirectMatch;
+                }
             }
 
-            Locator directMatch = scope.locator("#" + escapeCssIdentifier(targetId));
-            Locator visibleDirectMatch = firstVisible(directMatch);
-            if (visibleDirectMatch != null) {
-                return visibleDirectMatch;
-            }
-
-            Locator nestedControl = firstVisible(label.locator("xpath=.//*[" + controlQuery + "]"));
+            Locator nestedControl = resolveConcreteEditableFieldOrNull(label.locator("xpath=.//*[" + controlQuery + "]"));
             if (nestedControl != null) {
                 return nestedControl;
             }
@@ -5618,10 +6219,20 @@ public class IptDeclarationPage {
     protected Locator resolveSection(String sectionTitle) {
         waitForFormControls();
         String escapedTitle = toXpathLiteral(sectionTitle);
+        String controlQuery = ".//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button";
+
+        Locator exactNearestSection = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[" + controlQuery + "][1])");
+        Locator visibleExactNearestSection = firstVisible(exactNearestSection);
+        if (visibleExactNearestSection != null) {
+            return visibleExactNearestSection;
+        }
+
         Locator section = page.locator(
                 "xpath=(//*[contains(normalize-space(.), " + escapedTitle + ")]"
                         + "[not(.//*[contains(normalize-space(.), " + escapedTitle + ")])])[1]"
-                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button]");
+                        + "/ancestor::*[" + controlQuery + "]");
         Locator visibleSection = firstVisible(section);
         if (visibleSection != null) {
             return visibleSection;
@@ -5765,6 +6376,7 @@ public class IptDeclarationPage {
                 "[role='tab'], button, a, span, div");
         String normalizedSection = normalize(sectionName);
         List<String> visibleTabs = new ArrayList<>();
+        List<Locator> fallbackMatches = new ArrayList<>();
         int count = tabs.count();
         for (int index = 0; index < count; index++) {
             Locator tab = tabs.nth(index);
@@ -5776,12 +6388,21 @@ public class IptDeclarationPage {
                 continue;
             }
             visibleTabs.add(text);
-            if (sectionTabMatches(normalizedSection, text)) {
+            if (normalizedSection.equals(text)) {
                 tab.scrollIntoViewIfNeeded();
                 tab.click(new Locator.ClickOptions().setForce(true));
                 page.waitForLoadState(LoadState.DOMCONTENTLOADED);
                 return;
             }
+            if (sectionTabMatches(normalizedSection, text)) {
+                fallbackMatches.add(tab);
+            }
+        }
+        for (Locator fallbackMatch : fallbackMatches) {
+            fallbackMatch.scrollIntoViewIfNeeded();
+            fallbackMatch.click(new Locator.ClickOptions().setForce(true));
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            return;
         }
         logFieldMappingWarning("Section tab lookup failed for '" + sectionName
                 + "'. Visible tabs: " + String.join(" | ", visibleTabs));
@@ -5861,16 +6482,29 @@ public class IptDeclarationPage {
     private void saveDraftAndWaitForCompletion() {
         waitForActionButtonEnabled("SAVE DRAFT", 15000);
         clickActionButtonExactWithRetry("SAVE DRAFT", 3);
-        waitForPostSaveReadyState(UI_POST_SAVE_READY_TIMEOUT_MS);
+        waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, "SAVE DRAFT", "SUBMIT DECLARATION");
         summaryDraftSaved = true;
     }
 
+    protected void saveDraftAndAdvanceToNextSection() {
+        waitForActionButtonEnabled("SAVE DRAFT", 15000);
+        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, "SAVE DRAFT", "NEXT");
+        clickActionButtonExactWithRetry("NEXT", 3);
+        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        closeTransientOverlays();
+    }
+
     private void waitForPostSaveReadyState(int timeoutMs) {
+        waitForActionButtonsReady(timeoutMs, "SAVE DRAFT", "SUBMIT DECLARATION");
+    }
+
+    private void waitForActionButtonsReady(int timeoutMs, String... buttonTexts) {
         int stableChecks = 0;
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
             Boolean ready = (Boolean) page.evaluate("""
-                    () => {
+                    expectedButtons => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
                         const isVisible = element => {
                             if (!element) {
@@ -5898,8 +6532,6 @@ public class IptDeclarationPage {
                                 return text === expected || ariaLabel === expected || value === expected;
                             });
 
-                        const saveButton = findExactButton('SAVE DRAFT');
-                        const submitButton = findExactButton('SUBMIT DECLARATION');
                         const busySelector = [
                             '[aria-busy="true"]',
                             '.spinner',
@@ -5911,24 +6543,31 @@ public class IptDeclarationPage {
                             '.cdk-overlay-backdrop-showing'
                         ].join(', ');
                         const hasBusyOverlay = Array.from(document.querySelectorAll(busySelector)).some(isVisible);
-                        return !!saveButton
-                            && isEnabled(saveButton)
-                            && !!submitButton
-                            && isEnabled(submitButton)
-                            && !hasBusyOverlay;
+                        if (hasBusyOverlay) {
+                            return false;
+                        }
+
+                        const requiredButtons = Array.isArray(expectedButtons)
+                            ? expectedButtons.map(normalize).filter(Boolean)
+                            : [];
+                        return requiredButtons.every(buttonText => {
+                            const button = findExactButton(buttonText);
+                            return !!button && isEnabled(button);
+                        });
                     }
-                    """);
+                    """, List.of(buttonTexts));
             if (Boolean.TRUE.equals(ready)) {
                 stableChecks++;
-                if (stableChecks >= 4) {
+                if (stableChecks >= 2) {
                     return;
                 }
             } else {
                 stableChecks = 0;
             }
-            page.waitForTimeout(300);
+            page.waitForTimeout(200);
         }
-        throw new IllegalStateException("Page did not return to ready state after saving draft.");
+        throw new IllegalStateException("Page did not return to ready state after saving draft. Buttons: "
+                + String.join(", ", buttonTexts));
     }
 
     private void waitForActionButtonEnabled(String buttonText, int timeoutMs) {

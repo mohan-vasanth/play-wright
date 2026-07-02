@@ -622,7 +622,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        fillNthLookupFieldInScopeIfPresent(card, 0, name, name, id);
+        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
@@ -2114,10 +2114,11 @@ public class OutDeclarationPage extends IptDeclarationPage {
         return super.resolveSection(sectionTitle);
     }
 
-    private Locator resolveSectionOrNull(String title) {
+    @Override
+    protected Locator resolveSectionOrNull(String title) {
         try {
             return resolveSection(title);
-        } catch (Exception ignored) {
+        } catch (RuntimeException ignored) {
             return null;
         }
     }
@@ -2138,7 +2139,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        focusAndType(field, partyName, true, partyName, partyId);
+        focusAndTypeByClickOnly(field, partyName, partyName, partyId);
     }
 
     private void setHiddenComponentValue(String selector, String labelText, String value) {
@@ -2220,14 +2221,14 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        focusAndType(nameField, partyName, true, partyName, partyId);
+        focusAndTypeByClickOnly(nameField, partyName, partyName, partyId);
         Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
         if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
             return;
         }
 
         if (partyId != null && !partyId.isBlank()) {
-            focusAndType(nameField, partyId, true, partyName, partyId);
+            focusAndTypeByClickOnly(nameField, partyId, partyName, partyId);
             if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
                 return;
             }
