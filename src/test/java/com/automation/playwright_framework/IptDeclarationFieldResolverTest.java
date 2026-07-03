@@ -2,6 +2,8 @@ package com.automation.playwright_framework;
 
 import base.BaseTest;
 import com.automation.IptDeclarationPage;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Locator;
 import org.junit.jupiter.api.Test;
 
@@ -12,6 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class IptDeclarationFieldResolverTest extends BaseTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Test
     void fillsFieldFromActualSectionContentInsteadOfTabHeaderContainer() throws Exception {
@@ -504,5 +508,86 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
         assertTrue(result);
         assertEquals("AB SHIPPING PTE LTD AB SHIPPING PTE LTD", page.locator("#carrier-name").inputValue());
         assertEquals("199201306R", page.locator("#carrier-uen").inputValue());
+    }
+
+    @Test
+    void fillsImporterRowWhenComponentFieldMatchesWithoutSuggestionPopup() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 960px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 320px 40px 220px; gap: 12px; align-items: center;">
+                      <div>Importer</div>
+                      <app-importer-lookup formcontrolname="name" style="display: block;">
+                        <input id="importer-name" type="text" style="width: 320px; height: 28px;">
+                      </app-importer-lookup>
+                      <div>🔍</div>
+                      <input id="importer-uen" type="text" style="width: 220px; height: 28px;">
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "198402847H" },
+                  "partyName": { "name": "BAYSWATER SHIPPING FORWARDING PTE LTD" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Importer", partyNode);
+
+        assertEquals("BAYSWATER SHIPPING FORWARDING PTE LTD", page.locator("#importer-name").inputValue());
+        assertEquals("198402847H", page.locator("#importer-uen").inputValue());
+    }
+
+    @Test
+    void resolvesOutwardCarrierFromDedicatedComponentSelector() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 320px 40px 220px; gap: 12px; align-items: center; margin-bottom: 12px;">
+                      <div>Importer</div>
+                      <app-importer-lookup formcontrolname="name" style="display: block;">
+                        <input id="importer-name" type="text" style="width: 320px; height: 28px;">
+                      </app-importer-lookup>
+                      <div>🔍</div>
+                      <input id="importer-uen" type="text" style="width: 220px; height: 28px;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 180px 320px 40px 220px; gap: 12px; align-items: center;">
+                      <div>Outward Carrier</div>
+                      <app-outward-carrier-agent-lookup formcontrolname="name" style="display: block;">
+                        <input id="outward-name" type="text" style="width: 320px; height: 28px;">
+                      </app-outward-carrier-agent-lookup>
+                      <div>🔍</div>
+                      <input id="outward-uen" type="text" style="width: 220px; height: 28px;">
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "resolvePartyNameField",
+                String.class);
+        method.setAccessible(true);
+
+        Locator field = (Locator) method.invoke(declarationPage, "Outward Carrier");
+        field.fill("AB SHIPPING PTE LTD");
+
+        assertEquals("", page.locator("#importer-name").inputValue());
+        assertEquals("AB SHIPPING PTE LTD", page.locator("#outward-name").inputValue());
     }
 }

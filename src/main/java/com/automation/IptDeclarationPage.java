@@ -1148,7 +1148,8 @@ public class IptDeclarationPage {
             return;
         }
 
-        Locator field = resolvePartyNameField(rowLabel);
+        Locator componentField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        Locator field = componentField != null ? componentField : resolvePartyNameField(rowLabel);
         Locator idField = resolvePartyIdFieldOrNull(rowLabel);
         field.waitFor(new Locator.WaitForOptions().setTimeout(5000));
         logFieldMappingInfo("Party row '" + rowLabel + "' controls"
@@ -1186,9 +1187,19 @@ public class IptDeclarationPage {
                     fieldValueMatches,
                     finalFieldValue,
                     finalRowValue);
-            boolean nameResolved = suggestionSelected
+            boolean nameResolved = (suggestionSelected || componentField != null)
                     && (committedSelection || resolvedSelection || rowValuesMatch || fieldValueMatches);
-            if (nameResolved) {
+            boolean idResolved = partyId == null
+                    || partyId.isBlank()
+                    || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
+                    || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
+            if (!idResolved && partyId != null && !partyId.isBlank()) {
+                idResolved = (componentField != null && syncPartyLookupComponentSelection(rowLabel, partyName, partyId))
+                        || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
+                        || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
+                        || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
+            }
+            if (nameResolved && idResolved) {
                 matched = true;
                 logPartyMappingState(
                         rowLabel,
@@ -4840,9 +4851,12 @@ public class IptDeclarationPage {
     private String partyNameComponentSelector(String rowLabel) {
         return switch (normalize(rowLabel).toUpperCase()) {
             case "IMPORTER" -> "app-importer-lookup[formcontrolname='name']";
+            case "EXPORTER" -> "app-exporter-lookup[formcontrolname='name']";
             case "INWARD CARRIER" -> "app-inward-carrier-lookup[formcontrolname='name']";
+            case "OUTWARD CARRIER" -> "app-outward-carrier-agent-lookup[formcontrolname='name']";
             case "FREIGHT FORWARDER" -> "app-freight-forwarder-lookup[formcontrolname='name']";
             case "DECLARING AGENT" -> "app-declaring-agent-lookup[formcontrolname='name']";
+            case "CLAIMANT PARTY" -> "app-claimant-party-lookup[formcontrolname='name'], app-claimant-lookup[formcontrolname='name']";
             default -> null;
         };
     }
@@ -5121,8 +5135,11 @@ public class IptDeclarationPage {
     private int partyRowOrder(String rowLabel) {
         return switch (normalize(rowLabel).toUpperCase()) {
             case "IMPORTER" -> 0;
+            case "EXPORTER" -> 1;
             case "INWARD CARRIER" -> 1;
+            case "OUTWARD CARRIER" -> 3;
             case "FREIGHT FORWARDER" -> 2;
+            case "CLAIMANT PARTY" -> 4;
             default -> -1;
         };
     }

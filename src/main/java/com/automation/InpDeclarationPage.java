@@ -29,10 +29,10 @@ public class InpDeclarationPage extends IptDeclarationPage {
     @Override
     protected void fillDeclarationSpecificPartyInfo(JsonNode data, JsonNode party) {
         fillPartyRowIfPresent("Exporter", party.path("exporterParty"));
-        fillPartyRowIfPresent("Declaring Agent", party.path("declaringAgentParty"));
         fillPartyRowIfPresent("Outward Carrier", party.path("outwardCarrierAgentParty"));
-        fillPartyRowIfPresent("Consignee", party.path("consigneeParty"));
-        fillPartyRowIfPresent("Claimant", party.path("claimantParty"));
+        fillPartyRowIfPresent("Declaring Agent", party.path("declaringAgentParty"));
+        fillInpPartyCardIfPresent("Consignee", party.path("consigneeParty"));
+        fillClaimantPartyIfPresent(party.path("claimantParty"));
     }
 
     @Override
@@ -333,5 +333,114 @@ public class InpDeclarationPage extends IptDeclarationPage {
             }
         }
         return hints.toArray(String[]::new);
+    }
+
+    private void fillClaimantPartyIfPresent(JsonNode claimantParty) {
+        if (isMissingOrEmpty(claimantParty)) {
+            return;
+        }
+
+        fillPartyRowIfPresent("Claimant Party", claimantParty);
+
+        JsonNode claimantInformation = claimantParty.path("claimantInformation");
+        fillFieldIfPresent("Claimant Id", text(claimantInformation, "codeValue"));
+        fillFieldIfPresent("Claimant Name", text(claimantInformation, "name"));
+    }
+
+    private void fillInpPartyCardIfPresent(String title, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        JsonNode addressNode = partyNode.path("address");
+
+        String name = normalize(text(identityNode.path("partyName"), "name"));
+        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+        String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
+        String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
+        String city = text(addressNode, "cityName");
+        String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
+        String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city, postalCode);
+        String countryCode = text(addressNode, "countryCode");
+
+        if ((name == null || name.isBlank())
+                && (partyId == null || partyId.isBlank())
+                && compactAddress.isBlank()
+                && (countryCode == null || countryCode.isBlank())) {
+            return;
+        }
+
+        Locator card = resolveInpPartyCard(title);
+        if (card == null) {
+            logFieldMappingWarning("INP party card '" + title + "' was not visible while JSON value was '"
+                    + firstNonBlank(name, compactAddress, countryCode, "N/A") + "'.");
+            return;
+        }
+
+        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, partyId);
+        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, partyId);
+        fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
+        fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+    }
+
+    private JsonNode partyIdentityNode(JsonNode partyNode) {
+        JsonNode partyDetail = partyNode.path("partyDetail");
+        return isMissingOrEmpty(partyDetail) ? partyNode : partyDetail;
+    }
+
+    private Locator resolveInpPartyCard(String title) {
+        String escapedTitle = toXpathLiteralLocal(title);
+        Locator cards = page.locator(
+                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1])");
+        int count = cards.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = cards.nth(index);
+            if (candidate.isVisible()) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private String arrayText(JsonNode arrayNode, int index) {
+        if (arrayNode != null && arrayNode.isArray() && index >= 0 && index < arrayNode.size()) {
+            JsonNode valueNode = arrayNode.get(index);
+            if (valueNode != null && !valueNode.isNull()) {
+                return normalize(valueNode.asText());
+            }
+        }
+        return null;
+    }
+
+    private String joinNonBlank(String delimiter, String... values) {
+        List<String> parts = new ArrayList<>();
+        for (String value : values) {
+            String normalizedValue = normalize(value);
+            if (!normalizedValue.isBlank()) {
+                parts.add(normalizedValue);
+            }
+        }
+        return String.join(delimiter, parts);
+    }
+
+    private String toXpathLiteralLocal(String value) {
+        if (value == null) {
+            return "''";
+        }
+        if (!value.contains("'")) {
+            return "'" + value + "'";
+        }
+        if (!value.contains("\"")) {
+            return "\"" + value + "\"";
+        }
+
+        StringBuilder builder = new StringBuilder("concat(");
+        String[] parts = value.split("'");
+        for (int index = 0; index < parts.length; index++) {
+            if (index > 0) {
+                builder.append(", \"'\", ");
+            }
+            builder.append("'").append(parts[index]).append("'");
+        }
+        builder.append(")");
+        return builder.toString();
     }
 }
