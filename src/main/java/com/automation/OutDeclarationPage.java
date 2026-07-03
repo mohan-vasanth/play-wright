@@ -2221,14 +2221,23 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        focusAndTypeByClickOnly(nameField, partyName, partyName, partyId);
+        tryLookupPartySelection(nameField, partyName, partyName, partyId);
         Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
         if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
             return;
         }
 
-        if (partyId != null && !partyId.isBlank()) {
-            focusAndTypeByClickOnly(nameField, partyId, partyName, partyId);
+        boolean nameResolved = waitForAnyRenderedFieldValue(nameField, 800, partyName)
+                || rowTextContains(row, partyName);
+        if (idField != null && partyId != null && !partyId.isBlank() && nameResolved) {
+            focusAndType(idField, partyId, false);
+            if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
+                return;
+            }
+        }
+
+        if (partyId != null && !partyId.isBlank() && !nameResolved) {
+            tryLookupPartySelection(nameField, partyId, partyName, partyId);
             if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
                 return;
             }
@@ -2237,6 +2246,34 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (idField != null && partyId != null && !partyId.isBlank() && !waitForAnyRenderedFieldValue(idField, 1000, partyId)) {
             focusAndType(idField, partyId, false);
         }
+    }
+
+    private boolean tryLookupPartySelection(Locator field, String searchValue, String... suggestionHints) {
+        if (field == null || searchValue == null || searchValue.isBlank()) {
+            return false;
+        }
+        try {
+            focusAndTypeByClickOnly(field, searchValue, suggestionHints);
+            return true;
+        } catch (IllegalStateException exception) {
+            String message = exception.getMessage();
+            if (message != null && message.contains("Lookup suggestion click did not resolve field")) {
+                return false;
+            }
+            throw exception;
+        }
+    }
+
+    private boolean rowTextContains(Locator row, String expectedText) {
+        String normalizedExpected = normalize(expectedText);
+        if (normalizedExpected.isBlank()) {
+            return false;
+        }
+
+        String normalizedRowText = normalize(readRowText(row));
+        return !normalizedRowText.isBlank()
+                && (normalizedRowText.contains(normalizedExpected)
+                || normalizedExpected.contains(normalizedRowText));
     }
 
     private boolean lookupPartyRowResolved(
