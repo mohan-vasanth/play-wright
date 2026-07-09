@@ -400,7 +400,8 @@ public class InpDeclarationPage extends IptDeclarationPage {
         return null;
     }
 
-    private String arrayText(JsonNode arrayNode, int index) {
+    @Override
+    protected String arrayText(JsonNode arrayNode, int index) {
         if (arrayNode != null && arrayNode.isArray() && index >= 0 && index < arrayNode.size()) {
             JsonNode valueNode = arrayNode.get(index);
             if (valueNode != null && !valueNode.isNull()) {

@@ -223,7 +223,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
     }
 
-    private void fillTransportInfo(JsonNode data) {
+    @Override
+    protected void fillTransportInfo(JsonNode data) {
         JsonNode cargo = data.path("cargo");
         JsonNode summary = data.path("summary");
         JsonNode totalOuterPack = summary.path("totalOuterPack");
@@ -549,7 +550,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
     }
 
-    private void fillPartyInfo(JsonNode data) {
+    @Override
+    protected void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
 
         fillPartyLookupRow("Importer", party.path("importerParty"));
@@ -703,7 +705,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
     }
 
-    private void fillItemInfo(JsonNode data) {
+    @Override
+    protected void fillItemInfo(JsonNode data) {
         JsonNode invoice = firstArrayItem(data.path("invoice"));
         JsonNode item = firstArrayItem(data.path("item"));
         JsonNode itemQuantity = item.path("itemQuantity");
@@ -761,91 +764,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillItemCertificate(JsonNode itemCertificate, JsonNode formMetaData) {
-        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
-        boolean itemCoEnabled = hasItemCertificateData
-                || formMetaData.path("itemCoIsActive").path(0).asBoolean(false);
-        if (!itemCoEnabled) {
-            return;
-        }
-
-        setCheckboxByLabel("Certificate of Origin (CO)", true);
-        page.waitForTimeout(300);
-
-        Locator itemCertificateSection = waitForItemCertificateSectionOrNull(3000);
-        if (itemCertificateSection == null) {
-            throw new IllegalStateException("Certificate of Origin (CO) section did not open in the Item tab.");
-        }
-        if (!hasItemCertificateData) {
-            return;
-        }
-
-        fillQuantityRowInScope(itemCertificateSection, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
-        fillQuantityRowInScope(itemCertificateSection, "Textile Quota Quantity", itemCertificate.path("textileQuotaQuantity"));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Manufacturing Cost Date", 0,
-                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Certificate Item Value", 0,
-                normalizeNumericForEntry(text(itemCertificate, "itemValue")));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Textile Category Code", 0,
-                text(itemCertificate, "textileCategoryCode"));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Item Invoice Number", 0, text(itemCertificate, "itemInvoiceNumber"));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Item Invoice Date", 0,
-                formatUiDate(text(itemCertificate, "itemInvoiceDate")));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "HS Code", 0, text(itemCertificate, "harmonizedSystemCode"));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Content Percent (%)", 0,
-                normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 1", 0, arrayText(itemCertificate.path("originCriterion"), 0));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 2", 0, arrayText(itemCertificate.path("originCriterion"), 1));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Origin Criterion 3", 0, arrayText(itemCertificate.path("originCriterion"), 2));
-        fillFieldAfterScopeLabelIfPresent(itemCertificateSection, "Certificate Item Description", 0,
-                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
-    }
-
-    private Locator waitForItemCertificateSectionOrNull(int timeoutMs) {
-        long deadline = System.currentTimeMillis() + timeoutMs;
-        while (System.currentTimeMillis() <= deadline) {
-            Locator section = resolveItemCertificateSectionOrNull();
-            if (section != null) {
-                return section;
-            }
-            page.waitForTimeout(100);
-        }
-        return null;
-    }
-
-    private Locator resolveItemCertificateSectionOrNull() {
-        String sectionTitle = toXpathLiteral("Certificate of Origin (CO)");
-        return firstVisible(page.locator(
-                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
-                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
-                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')"
-                        + " or contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')"
-                        + " or contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
-                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
-    }
-
-    private String itemCertificateDescriptionText(JsonNode itemCertificateDescription) {
-        if (itemCertificateDescription == null || !itemCertificateDescription.isArray()) {
-            return null;
-        }
-
-        java.util.List<String> lines = new java.util.ArrayList<>();
-        for (JsonNode descriptionNode : itemCertificateDescription) {
-            JsonNode lineNodes = descriptionNode.path("line");
-            if (lineNodes.isArray()) {
-                for (JsonNode lineNode : lineNodes) {
-                    String line = normalize(lineNode.asText());
-                    if (line != null && !line.isBlank()) {
-                        lines.add(line);
-                    }
-                }
-            } else {
-                String line = normalize(descriptionNode.asText());
-                if (line != null && !line.isBlank()) {
-                    lines.add(line);
-                }
-            }
-        }
-        return lines.isEmpty() ? null : String.join(System.lineSeparator(), lines);
+        fillCertificateOfOriginSectionFromItemCertificate(itemCertificate, formMetaData, "Item tab");
     }
 
     private void fillPackingDescription(JsonNode packingDescription) {
@@ -2230,7 +2149,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
         boolean nameResolved = waitForAnyRenderedFieldValue(nameField, 800, partyName)
                 || rowTextContains(row, partyName);
         if (idField != null && partyId != null && !partyId.isBlank() && nameResolved) {
-            focusAndType(idField, partyId, false);
+            tryFillLookupPartyIdField(rowLabel, idField, partyId);
             if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
                 return;
             }
@@ -2244,7 +2163,22 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         if (idField != null && partyId != null && !partyId.isBlank() && !waitForAnyRenderedFieldValue(idField, 1000, partyId)) {
+            tryFillLookupPartyIdField(rowLabel, idField, partyId);
+        }
+    }
+
+    private boolean tryFillLookupPartyIdField(String rowLabel, Locator idField, String partyId) {
+        if (idField == null || partyId == null || partyId.isBlank()) {
+            return false;
+        }
+        try {
             focusAndType(idField, partyId, false);
+            return true;
+        } catch (IllegalStateException exception) {
+            logFieldMappingWarning("Lookup party row '" + rowLabel
+                    + "' rejected direct UEN entry '" + partyId
+                    + "'. Continuing with component-based lookup resolution. Cause: " + exception.getMessage());
+            return false;
         }
     }
 
@@ -2888,7 +2822,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         return value.isBlank() ? null : value;
     }
 
-    private String arrayText(JsonNode arrayNode, int index) {
+    @Override
+    protected String arrayText(JsonNode arrayNode, int index) {
         if (arrayNode == null || !arrayNode.isArray() || arrayNode.size() <= index) {
             return null;
         }

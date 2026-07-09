@@ -1046,7 +1046,7 @@ public class IptDeclarationPage {
         return firstVisible(documentSection);
     }
 
-    private void fillTransportInfo(JsonNode data) {
+    protected void fillTransportInfo(JsonNode data) {
         JsonNode cargo = data.path("cargo");
         JsonNode summary = data.path("summary");
         JsonNode totalOuterPack = summary.path("totalOuterPack");
@@ -1122,7 +1122,7 @@ public class IptDeclarationPage {
         fillNthFieldInScopeIfPresent(containerDetailsSection, 3, sealNumber);
     }
 
-    private void fillPartyInfo(JsonNode data) {
+    protected void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
         fillPartyRow("Importer", party.path("importerParty"));
         fillPartyRow("Inward Carrier", party.path("inwardCarrierAgentParty"));
@@ -1158,22 +1158,28 @@ public class IptDeclarationPage {
 
         field.scrollIntoViewIfNeeded();
         field.click(new Locator.ClickOptions().setForce(true));
-        String[] selectionHints = partySelectionHints(partyName);
-        String[] searchCandidates = partySearchCandidates(partyName);
+        boolean lookupCodePartyName = looksLikePartyLookupCode(partyName);
+        String[] selectionHints = partySelectionHints(partyName, partyId);
+        String[] searchCandidates = partySearchCandidates(partyName, partyId);
 
         boolean matched = false;
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
             boolean suggestionSelected = attemptPartySuggestionSelection(selectionHints);
+            if (!suggestionSelected) {
+                suggestionSelected = attemptLookupCodePartySuggestionFallback(partyName);
+            }
             try {
                 page.keyboard().press("Tab");
             } catch (PlaywrightException ignored) {
             }
             pauseUi(UI_NEXT_FIELD_PAUSE_MS);
             boolean committedSelection = waitForCommittedPartySelection(field, 2500);
-            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, null, searchCandidate, 2500);
+            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
             boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1500);
-            boolean fieldValueMatches = waitForPartyFieldValue(field, partyName, 2500);
+            boolean fieldValueMatches = lookupCodePartyName
+                    ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 2500)
+                    : waitForPartyFieldValue(field, partyName, 2500);
             String finalFieldValue = readRenderedFieldValue(field);
             String finalRowValue = readPartyRowText(rowLabel);
             logPartyMappingAttempt(
@@ -1187,7 +1193,10 @@ public class IptDeclarationPage {
                     fieldValueMatches,
                     finalFieldValue,
                     finalRowValue);
-            boolean nameResolved = (suggestionSelected || componentField != null)
+            boolean nameResolved = lookupCodePartyName
+                    ? (resolvedSelection
+                    || waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500))
+                    : (suggestionSelected || componentField != null || rowValuesMatch || fieldValueMatches)
                     && (committedSelection || resolvedSelection || rowValuesMatch || fieldValueMatches);
             boolean idResolved = partyId == null
                     || partyId.isBlank()
@@ -1234,6 +1243,36 @@ public class IptDeclarationPage {
             logFieldMappingWarning("Party mapping skipped for row '" + rowLabel + "' with value '"
                     + firstNonBlank(partyName, partyId, "N/A") + "': " + exception.getMessage());
         }
+    }
+
+    protected void clearPartyRow(String rowLabel) {
+        clearPartyNameField(rowLabel);
+        clearPartyIdField(rowLabel);
+    }
+
+    protected void clearPartyNameField(String rowLabel) {
+        Locator nameField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        if (nameField == null) {
+            nameField = resolvePartyFieldInRowOrNull(rowLabel, 0);
+        }
+        if (nameField == null) {
+            try {
+                nameField = resolveEditableFieldInRowByExactText(rowLabel, 0);
+            } catch (IllegalStateException ignored) {
+                nameField = null;
+            }
+        }
+        clearEditableFieldIfPresent(nameField);
+    }
+
+    protected void clearPartyIdField(String rowLabel) {
+        Locator idField;
+        try {
+            idField = resolvePartyIdFieldOrNull(rowLabel);
+        } catch (IllegalStateException ignored) {
+            idField = null;
+        }
+        clearEditableFieldIfPresent(idField);
     }
 
     private void reconcilePartyRowIfNeeded(String rowLabel, JsonNode partyNode) {
@@ -1649,7 +1688,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void fillItemInfo(JsonNode data) {
+    protected void fillItemInfo(JsonNode data) {
         JsonNode formMetaData = data.path("formMetaData");
         JsonNode invoice = firstArrayItem(data.path("invoice"));
         JsonNode item = firstArrayItem(data.path("item"));
@@ -1796,6 +1835,136 @@ public class IptDeclarationPage {
         fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Quantity", totalDutiableQuantity);
         fillQuantityRowInScope(itemQuantitySection, "HS Quantity", hsQuantity);
         fillFieldAfterScopeLabelIfPresent(itemQuantitySection, "Alcohol %", 0, text(itemQuantity, "alcoholPercent"));
+    }
+
+    protected boolean isCertificateOfOriginSectionEnabled(JsonNode itemCertificate, JsonNode formMetaData) {
+        return !isMissingOrEmpty(itemCertificate)
+                || formMetaData.path("itemCoIsActive").path(0).asBoolean(false);
+    }
+
+    protected void fillCertificateOfOriginSectionFromItemCertificate(
+            JsonNode itemCertificate,
+            JsonNode formMetaData,
+            String sectionContext) {
+        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
+        if (!isCertificateOfOriginSectionEnabled(itemCertificate, formMetaData)) {
+            return;
+        }
+
+        setCheckboxByLabel("Certificate of Origin (CO)", true);
+        page.waitForTimeout(300);
+
+        Locator itemCertificateSection = waitForCertificateOfOriginSectionOrNull(3000);
+        if (itemCertificateSection == null) {
+            throw new IllegalStateException("Certificate of Origin (CO) section did not open in the "
+                    + firstNonBlank(sectionContext, "current tab") + ".");
+        }
+        if (!hasItemCertificateData) {
+            return;
+        }
+
+        fillCertificateOfOriginSectionFields(itemCertificateSection, itemCertificate);
+    }
+
+    protected void fillCertificateOfOriginSectionFields(Locator section, JsonNode itemCertificate) {
+        fillQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
+        fillQuantityRowInScope(section, "Textile Quota Quantity", itemCertificate.path("textileQuotaQuantity"));
+        fillFieldAfterScopeLabelIfPresent(
+                section,
+                "Manufacturing Cost Date",
+                0,
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
+        fillFieldAfterScopeLabelIfPresent(
+                section,
+                "Certificate Item Value",
+                0,
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")));
+        fillFieldAfterScopeLabelIfPresent(
+                section,
+                "Textile Category Code",
+                0,
+                text(itemCertificate, "textileCategoryCode"));
+        fillFieldAfterScopeLabelIfPresent(section, "Item Invoice Number", 0, text(itemCertificate, "itemInvoiceNumber"));
+        fillFieldAfterScopeLabelIfPresent(
+                section,
+                "Item Invoice Date",
+                0,
+                formatUiDate(text(itemCertificate, "itemInvoiceDate")));
+        fillFieldAfterScopeLabelIfPresent(section, "HS Code", 0, text(itemCertificate, "harmonizedSystemCode"));
+        fillCertificateOfOriginContentPercent(section, normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
+        fillFieldAfterScopeLabelIfPresent(section, "Origin Criterion 1", 0, arrayText(itemCertificate.path("originCriterion"), 0));
+        fillFieldAfterScopeLabelIfPresent(section, "Origin Criterion 2", 0, arrayText(itemCertificate.path("originCriterion"), 1));
+        fillFieldAfterScopeLabelIfPresent(section, "Origin Criterion 3", 0, arrayText(itemCertificate.path("originCriterion"), 2));
+        fillFieldAfterScopeLabelIfPresent(
+                section,
+                "Certificate Item Description",
+                0,
+                certificateOfOriginItemDescriptionText(itemCertificate.path("itemCertificateDescription")));
+    }
+
+    private void fillCertificateOfOriginContentPercent(Locator section, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator field = resolveEditableFieldAfterScopeLabelOrNull(section, "Content Percent (%)", 0);
+        if (field == null) {
+            field = resolveEditableFieldAfterScopeLabelOrNull(section, "Content Percent", 0);
+        }
+        if (field == null) {
+            logFieldMappingWarning("Scoped UI field not found for row label 'Content Percent (%)' while JSON value was '"
+                    + value + "'.");
+            return;
+        }
+        fillVerifiedTextField(field, value, "Content Percent");
+    }
+
+    protected Locator waitForCertificateOfOriginSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolveCertificateOfOriginSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    protected Locator resolveCertificateOfOriginSectionOrNull() {
+        String sectionTitle = toXpathLiteral("Certificate of Origin (CO)");
+        return firstVisible(page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')"
+                        + " or contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')"
+                        + " or contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
+    }
+
+    protected String certificateOfOriginItemDescriptionText(JsonNode itemCertificateDescription) {
+        if (itemCertificateDescription == null || !itemCertificateDescription.isArray()) {
+            return null;
+        }
+
+        List<String> lines = new ArrayList<>();
+        for (JsonNode descriptionNode : itemCertificateDescription) {
+            JsonNode lineNodes = descriptionNode.path("line");
+            if (lineNodes.isArray()) {
+                for (JsonNode lineNode : lineNodes) {
+                    String line = normalize(lineNode.asText());
+                    if (line != null && !line.isBlank()) {
+                        lines.add(line);
+                    }
+                }
+            } else {
+                String line = normalize(descriptionNode.asText());
+                if (line != null && !line.isBlank()) {
+                    lines.add(line);
+                }
+            }
+        }
+        return lines.isEmpty() ? null : String.join(System.lineSeparator(), lines);
     }
 
     protected boolean hasOtherQuantityFields(JsonNode itemQuantity) {
@@ -2309,6 +2478,15 @@ public class IptDeclarationPage {
                 return;
             }
             case "90" -> {
+                if (DeclarationPayloads.matchesDeclarationFamily(data, "TNP")) {
+                    selectDeclarationTypeOption(
+                            field,
+                            declarationType,
+                            permitType,
+                            compactValues("90 BRE Blanket Removal", "90 BRE", "BRE"),
+                            compactValues("90 BRE Blanket Removal", "90 BRE", "BRE", "Blanket Removal", "90"));
+                    return;
+                }
                 selectDeclarationTypeOption(
                         field,
                         declarationType,
@@ -2414,8 +2592,16 @@ public class IptDeclarationPage {
                         field,
                         declarationType,
                         permitType,
-                        compactValues("70 - TT Permit", "TT Permit"),
-                        compactValues("70 - TT Permit", "TT Permit", "70 - TT", "TT", "70"));
+                        compactValues(
+                                "70 TTI Thru Transhipment with Inter-gateway movement",
+                                "70 TTI",
+                                "TTI"),
+                        compactValues(
+                                "70 TTI Thru Transhipment with Inter-gateway movement",
+                                "70 TTI",
+                                "TTI",
+                                "Thru Transhipment with Inter-gateway movement",
+                                "70"));
                 return;
             }
             case "72" -> {
@@ -2423,8 +2609,42 @@ public class IptDeclarationPage {
                         field,
                         declarationType,
                         permitType,
-                        compactValues("72 - TW Permit", "TW Permit"),
-                        compactValues("72 - TW Permit", "TW Permit", "72 - TW", "TW", "72"));
+                        compactValues(
+                                "72 IGM Inter-gateway movement",
+                                "72 IGM",
+                                "IGM"),
+                        compactValues(
+                                "72 IGM Inter-gateway movement",
+                                "72 IGM",
+                                "IGM",
+                                "Inter-gateway movement",
+                                "72"));
+                return;
+            }
+            case "71" -> {
+                selectDeclarationTypeOption(
+                        field,
+                        declarationType,
+                        permitType,
+                        compactValues(
+                                "71 TTF Thru Transhipment within same FTZ",
+                                "71 TTF",
+                                "TTF"),
+                        compactValues(
+                                "71 TTF Thru Transhipment within same FTZ",
+                                "71 TTF",
+                                "TTF",
+                                "Thru Transhipment within same FTZ",
+                                "71"));
+                return;
+            }
+            case "80" -> {
+                selectDeclarationTypeOption(
+                        field,
+                        declarationType,
+                        permitType,
+                        compactValues("80 REM Removal", "80 REM", "REM"),
+                        compactValues("80 REM Removal", "80 REM", "REM", "Removal", "80"));
                 return;
             }
         }
@@ -2488,6 +2708,28 @@ public class IptDeclarationPage {
         }
 
         if (!waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
+            if (clickLookupModalOption(field, expectedValues)
+                    && waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
+                logDeclarationTypeRenderedValue(field, declarationType, permitType);
+                return;
+            }
+            String preferredDisplayValue = firstNonBlank(
+                    exactHints.length > 0 ? exactHints[0] : null,
+                    selectionHints.length > 0 ? selectionHints[0] : null,
+                    permitType,
+                    declarationType);
+            if (preferredDisplayValue != null && !preferredDisplayValue.isBlank()) {
+                ensureTextFieldValue(field, preferredDisplayValue);
+                if (waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
+                    logDeclarationTypeRenderedValue(field, declarationType, permitType);
+                    return;
+                }
+            }
+            if (syncLookupComponentSelection(field, declarationType, expectedValues)
+                    && waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
+                logDeclarationTypeRenderedValue(field, declarationType, permitType);
+                return;
+            }
             throw new IllegalStateException(buildFieldVerificationFailure(
                     "Declaration Type value was not rendered",
                     field,
@@ -2495,6 +2737,111 @@ public class IptDeclarationPage {
                     expectedValues));
         }
         logDeclarationTypeRenderedValue(field, declarationType, permitType);
+    }
+
+    private boolean clickLookupModalOption(Locator field, String... optionHints) {
+        if (field == null || optionHints == null || optionHints.length == 0) {
+            return false;
+        }
+
+        List<String> expectedValues = new ArrayList<>();
+        for (String optionHint : optionHints) {
+            appendCandidate(expectedValues, optionHint);
+        }
+        if (expectedValues.isEmpty()) {
+            return false;
+        }
+
+        try {
+            Boolean searchIconClicked = (Boolean) field.evaluate("""
+                    element => {
+                        const isVisible = candidate => {
+                            if (!candidate) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(candidate);
+                            return style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        };
+                        const hosts = [
+                            element.closest('app-declaration-type-lookup, app-lookup, app-dropdown, [formcontrolname]'),
+                            element.parentElement,
+                            element.parentElement?.parentElement,
+                            element.parentElement?.parentElement?.parentElement
+                        ].filter(Boolean);
+                        for (const host of hosts) {
+                            const icon = Array.from(host.querySelectorAll('cds-icon, [shape=\"search\"], .search-icon, [aria-label*=\"search\" i]'))
+                                .find(candidate => isVisible(candidate)
+                                    && ((candidate.getAttribute?.('shape') || '').toLowerCase() === 'search'
+                                    || (candidate.getAttribute?.('aria-label') || '').toLowerCase().includes('search')));
+                            if (!icon) {
+                                continue;
+                            }
+                            icon.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                            icon.click?.();
+                            return true;
+                        }
+                        return false;
+                    }
+                    """);
+            if (!Boolean.TRUE.equals(searchIconClicked)) {
+                return false;
+            }
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+
+        page.waitForTimeout(500);
+        return Boolean.TRUE.equals(page.evaluate("""
+                expectedValues => {
+                    const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const expected = expectedValues.map(normalize).filter(Boolean);
+                    const isVisible = element => {
+                        if (!element) {
+                            return false;
+                        }
+                        const style = window.getComputedStyle(element);
+                        return style.display !== 'none'
+                            && style.visibility !== 'hidden'
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    };
+                    const score = text => expected.reduce((best, hint) => {
+                        if (text === hint) {
+                            return Math.max(best, 10000 + hint.length);
+                        }
+                        if (text.includes(hint)) {
+                            return Math.max(best, 5000 + hint.length);
+                        }
+                        if (hint.includes(text)) {
+                            return Math.max(best, 1000 + text.length);
+                        }
+                        return best;
+                    }, 0);
+
+                    const modalRoots = Array.from(document.querySelectorAll('clr-modal .modal, clr-modal, [role=\"dialog\"], .modal, .cds-modal'))
+                        .filter(isVisible);
+                    const candidates = modalRoots.flatMap(root =>
+                            Array.from(root.querySelectorAll('clr-dg-row, clr-dg-cell, tr, td, button, a, div, span')))
+                        .filter(isVisible)
+                        .map(element => ({
+                            element,
+                            text: normalize(element.innerText || element.textContent)
+                        }))
+                        .filter(candidate => candidate.text && score(candidate.text) > 0)
+                        .sort((left, right) => score(right.text) - score(left.text) || left.text.length - right.text.length);
+
+                    if (candidates.length === 0) {
+                        return false;
+                    }
+
+                    const target = candidates[0].element.closest('clr-dg-row, tr, button, a, div') || candidates[0].element;
+                    target.scrollIntoView({ block: 'center' });
+                    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                    target.click?.();
+                    return true;
+                }
+                """, expectedValues));
     }
 
     private void logDeclarationTypeRenderedValue(Locator field, String declarationType, String permitType) {
@@ -3159,6 +3506,11 @@ public class IptDeclarationPage {
         focusAndType(field, value, false);
     }
 
+    protected void clearNthFieldInScopeIfPresent(Locator scope, int occurrence) {
+        Locator field = resolveNthVisibleEditableFieldInScopeOrNull(scope, occurrence);
+        clearEditableFieldIfPresent(field);
+    }
+
     protected void fillNthLookupFieldInScopeIfPresent(Locator scope, int occurrence, String value, String... suggestionHints) {
         if (value == null || value.isBlank()) {
             return;
@@ -3223,6 +3575,11 @@ public class IptDeclarationPage {
             return;
         }
         focusAndType(field, value, false);
+    }
+
+    protected void clearFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence) {
+        Locator field = resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        clearEditableFieldIfPresent(field);
     }
 
     protected void fillValidatedFieldAfterScopeLabelIfPresent(Locator scope, String rowLabel, int occurrence, String value) {
@@ -3582,7 +3939,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void openLookupAndChooseOption(Locator field, String... optionHints) {
+    protected void openLookupAndChooseOption(Locator field, String... optionHints) {
         closeTransientOverlays();
         field.scrollIntoViewIfNeeded();
         clickDropdownActivator(field);
@@ -3954,6 +4311,59 @@ public class IptDeclarationPage {
         try {
             page.keyboard().press("Control+A");
             page.keyboard().press("Backspace");
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    protected void clearEditableFieldIfPresent(Locator field) {
+        if (field == null) {
+            return;
+        }
+
+        try {
+            closeTransientOverlays();
+            field.scrollIntoViewIfNeeded();
+            field.click(new Locator.ClickOptions().setForce(true));
+        } catch (PlaywrightException ignored) {
+        }
+
+        clearFieldForEntry(field);
+
+        try {
+            field.evaluate("""
+                    element => {
+                        const clearTarget = target => {
+                            if (!target) {
+                                return;
+                            }
+                            if ('value' in target) {
+                                target.value = '';
+                            }
+                            target.setAttribute?.('value', '');
+                            target.dispatchEvent(new Event('input', { bubbles: true }));
+                            target.dispatchEvent(new Event('change', { bubbles: true }));
+                            target.dispatchEvent(new Event('blur', { bubbles: true }));
+                        };
+
+                        clearTarget(element);
+
+                        const container = element.closest('.ng-select, [role="combobox"], [class*="select"], [class*="combobox"]');
+                        if (!container) {
+                            return;
+                        }
+
+                        container.removeAttribute('aria-valuetext');
+                        container.removeAttribute('aria-activedescendant');
+                        container.querySelectorAll(
+                                '.ng-value-label, .selected-item, .mat-mdc-select-value-text, [class*="single-label"], [class*="value-label"]')
+                                .forEach(node => node.textContent = '');
+
+                        clearTarget(container.querySelector('input:not([type="hidden"]), textarea, [role="textbox"], [role="combobox"]'));
+                        container.dispatchEvent(new Event('input', { bubbles: true }));
+                        container.dispatchEvent(new Event('change', { bubbles: true }));
+                        container.dispatchEvent(new Event('blur', { bubbles: true }));
+                    }
+                    """);
         } catch (PlaywrightException ignored) {
         }
     }
@@ -4527,6 +4937,20 @@ public class IptDeclarationPage {
         return false;
     }
 
+    private boolean attemptLookupCodePartySuggestionFallback(String partyName) {
+        if (!looksLikePartyLookupCode(partyName)) {
+            return false;
+        }
+        if (!waitForAnyVisibleSuggestion(1500)) {
+            return false;
+        }
+        if (!clickFirstVisibleSuggestion()) {
+            return false;
+        }
+        page.waitForTimeout(1000);
+        return true;
+    }
+
     private Locator resolvePartyRowContainerOrNull(String rowLabel) {
         waitForFormControls();
         String escapedRowLabel = toXpathLiteral(rowLabel);
@@ -4613,14 +5037,26 @@ public class IptDeclarationPage {
     }
 
     private String[] partySelectionHints(String partyName) {
+        return partySelectionHints(partyName, null);
+    }
+
+    private String[] partySelectionHints(String partyName, String partyId) {
         List<String> hints = new ArrayList<>();
         appendCandidate(hints, partyName);
+        appendCandidate(hints, partyId);
         return hints.toArray(String[]::new);
     }
 
     private String[] partySearchCandidates(String partyName) {
+        return partySearchCandidates(partyName, null);
+    }
+
+    private String[] partySearchCandidates(String partyName, String partyId) {
         List<String> candidates = new ArrayList<>();
         appendCandidate(candidates, partyName);
+        if (looksLikePartyLookupCode(partyName)) {
+            appendCandidate(candidates, partyId);
+        }
         return candidates.stream().distinct().toArray(String[]::new);
     }
 
@@ -4855,6 +5291,8 @@ public class IptDeclarationPage {
             case "INWARD CARRIER" -> "app-inward-carrier-lookup[formcontrolname='name']";
             case "OUTWARD CARRIER" -> "app-outward-carrier-agent-lookup[formcontrolname='name']";
             case "FREIGHT FORWARDER" -> "app-freight-forwarder-lookup[formcontrolname='name']";
+            case "HANDLING AGENT" ->
+                    "app-handling-agent-lookup[formcontrolname='name'], app-handling-agent-party-lookup[formcontrolname='name']";
             case "DECLARING AGENT" -> "app-declaring-agent-lookup[formcontrolname='name']";
             case "CLAIMANT PARTY" -> "app-claimant-party-lookup[formcontrolname='name'], app-claimant-lookup[formcontrolname='name']";
             default -> null;
@@ -5055,15 +5493,20 @@ public class IptDeclarationPage {
     private Locator resolvePartyFieldInRowOrNull(String rowLabel, int occurrence) {
         waitForFormControls();
         Locator section = resolveSection("Party Info (P)");
-        Locator directRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
-        Locator fromDirectRow = resolveVisibleEditableFieldInRowOrNull(directRow, occurrence);
-        if (fromDirectRow != null) {
-            return fromDirectRow;
-        }
-
         Locator label = resolvePartyRowLabelOrNull(section, rowLabel);
         if (label == null) {
-            return null;
+            Locator directRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
+            return resolveVisibleEditableFieldInRowOrNull(directRow, occurrence);
+        }
+
+        Locator directRow = resolvePartyRowContainerInSectionOrNull(rowLabel);
+        Locator fromDirectRow = resolveVisibleEditableFieldInRowOrNull(directRow, occurrence);
+        if (fromDirectRow != null && isFieldAlignedWithPartyLabel(fromDirectRow, label)) {
+            return fromDirectRow;
+        }
+        if (fromDirectRow != null) {
+            logFieldMappingWarning("Discarding broad party-row resolution for '" + rowLabel
+                    + "' because the resolved field was not aligned with the row label.");
         }
 
         BoundingBox labelBox;
@@ -5091,6 +5534,26 @@ public class IptDeclarationPage {
             return null;
         }
         return fields.nth(rowFields.get(occurrence).index());
+    }
+
+    private boolean isFieldAlignedWithPartyLabel(Locator field, Locator label) {
+        if (field == null || label == null) {
+            return false;
+        }
+
+        try {
+            BoundingBox fieldBox = field.boundingBox();
+            BoundingBox labelBox = label.boundingBox();
+            if (fieldBox == null || labelBox == null) {
+                return false;
+            }
+
+            double fieldMidY = fieldBox.y + (fieldBox.height / 2.0d);
+            double labelMidY = labelBox.y + (labelBox.height / 2.0d);
+            return Math.abs(fieldMidY - labelMidY) <= 28.0d;
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private Locator resolvePartyRowContainerInSectionOrNull(String rowLabel) {
@@ -7573,7 +8036,7 @@ public class IptDeclarationPage {
         }
     }
 
-    private void waitForAnyVisibleText(String... texts) {
+    protected void waitForAnyVisibleText(String... texts) {
         try {
             page.waitForFunction("""
                     expectedTexts => {
@@ -7604,6 +8067,16 @@ public class IptDeclarationPage {
             return node.get(0);
         }
         return MissingNode.getInstance();
+    }
+
+    protected String arrayText(JsonNode arrayNode, int index) {
+        if (arrayNode != null && arrayNode.isArray() && index >= 0 && index < arrayNode.size()) {
+            JsonNode valueNode = arrayNode.get(index);
+            if (valueNode != null && !valueNode.isNull()) {
+                return normalize(valueNode.asText());
+            }
+        }
+        return null;
     }
 
     private Boolean readOptionalJsonBoolean(JsonNode node) {

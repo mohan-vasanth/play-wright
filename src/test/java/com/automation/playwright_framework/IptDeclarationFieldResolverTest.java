@@ -438,6 +438,75 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
     }
 
     @Test
+    void fillsInwardCarrierRowBySelectingVisibleSuggestionForLookupCode() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 420px; gap: 16px; align-items: start;">
+                      <div id="carrier-label-shell" style="padding-top: 52px; padding-bottom: 52px; font-weight: 600;">
+                        <span>Inward</span>
+                        <span>Carrier</span>
+                      </div>
+                      <div id="carrier-row" style="display: grid; grid-template-columns: 320px 40px 220px; gap: 12px; align-items: center;">
+                        <app-inward-carrier-lookup formcontrolname="name" style="display: block;">
+                          <input id="carrier-name" type="text" style="width: 320px; height: 28px;">
+                        </app-inward-carrier-lookup>
+                        <div>🔍</div>
+                        <input id="carrier-uen" type="text" style="width: 220px; height: 28px;">
+                      </div>
+                    </div>
+                    <div id="carrier-dropdown" class="dropdown-menu" style="display: none; border: 1px solid #999; width: 320px; background: #fff;">
+                      <div id="carrier-option" class="dropdown-item" style="padding: 6px 8px; cursor: pointer;">
+                        CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const nameField = document.getElementById('carrier-name');
+                      const dropdown = document.getElementById('carrier-dropdown');
+                      const option = document.getElementById('carrier-option');
+                      const normalized = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                      const render = () => {
+                        const query = normalized(nameField.value);
+                        dropdown.style.display = (query === 'CHGI' || query === '197702772D') ? 'block' : 'none';
+                      };
+                      nameField.addEventListener('input', render);
+                      option.addEventListener('click', () => {
+                        nameField.value = option.textContent.trim();
+                        nameField.dispatchEvent(new Event('input', { bubbles: true }));
+                        nameField.dispatchEvent(new Event('change', { bubbles: true }));
+                        dropdown.style.display = 'none';
+                      });
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "197702772D" },
+                  "partyName": { "name": "CHGI" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Inward Carrier", partyNode);
+
+        assertEquals("CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD", page.locator("#carrier-name").inputValue());
+        assertEquals("197702772D", page.locator("#carrier-uen").inputValue());
+    }
+
+    @Test
     void syncsInwardCarrierLookupComponentWhenUiSelectionDidNotPersistUen() throws Exception {
         page.setContent("""
                 <html>
@@ -589,5 +658,65 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
 
         assertEquals("", page.locator("#importer-name").inputValue());
         assertEquals("AB SHIPPING PTE LTD", page.locator("#outward-name").inputValue());
+    }
+
+    @Test
+    void resolvesHandlingAgentFromAlignedRowInsteadOfFirstPartyRow() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1400px;">
+                    <h2>Party Info (P)</h2>
+                    <div id="party-grid">
+                      <div style="display: grid; grid-template-columns: 160px 360px 40px 220px; gap: 12px; align-items: center; margin-bottom: 12px;">
+                        <div>Inward Carrier</div>
+                        <input id="inward-name" type="text">
+                        <div>🔍</div>
+                        <input id="inward-uen" type="text">
+                      </div>
+                      <div style="display: grid; grid-template-columns: 160px 360px 40px 220px; gap: 12px; align-items: center; margin-bottom: 12px;">
+                        <div>Outward Carrier</div>
+                        <input id="outward-name" type="text">
+                        <div>🔍</div>
+                        <input id="outward-uen" type="text">
+                      </div>
+                      <div style="display: grid; grid-template-columns: 160px 360px 40px 220px; gap: 12px; align-items: center; margin-bottom: 12px;">
+                        <div>Handling Agent</div>
+                        <input id="handling-name" type="text">
+                        <div>🔍</div>
+                        <input id="handling-uen" type="text">
+                      </div>
+                      <div style="display: grid; grid-template-columns: 160px 360px 40px 220px; gap: 12px; align-items: center;">
+                        <div>Declaring Agent</div>
+                        <input id="declaring-name" type="text">
+                        <div>🔍</div>
+                        <input id="declaring-uen" type="text">
+                      </div>
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "198800784N" },
+                  "partyName": { "name": "CRIMSONLOGIC PTE LTD CUSTOMER SERVICE CENTRE" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Handling Agent", partyNode);
+
+        assertEquals("", page.locator("#inward-name").inputValue());
+        assertEquals("", page.locator("#outward-name").inputValue());
+        assertEquals("CRIMSONLOGIC PTE LTD CUSTOMER SERVICE CENTRE", page.locator("#handling-name").inputValue());
+        assertEquals("198800784N", page.locator("#handling-uen").inputValue());
     }
 }

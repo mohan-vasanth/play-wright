@@ -569,7 +569,8 @@ public class CooDeclarationPage extends IptDeclarationPage {
         }
     }
 
-    private void fillTransportInfo(JsonNode data) {
+    @Override
+    protected void fillTransportInfo(JsonNode data) {
         JsonNode outwardTransport = data.path("transport").path("outwardTransport");
         JsonNode transportMeans = outwardTransport.path("transportMeans");
         JsonNode transportMode = transportMeans.path("transportMode");
@@ -607,7 +608,8 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 text(outwardTransport, "finalDestinationCountry"));
     }
 
-    private void fillPartyInfo(JsonNode data) {
+    @Override
+    protected void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
 
         fillPartyCard(
@@ -634,6 +636,8 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 "Manufacturer",
                 party.path("manufacturerParty"),
                 partyAddressNode(party.path("manufacturerParty")));
+
+        fillPartyCertificateOfOriginLegends(firstNonEmptyItemCertificate(data.path("item")), data.path("formMetaData"));
     }
 
     private void fillPartyCard(String title, JsonNode partyNode, JsonNode addressNode) {
@@ -680,6 +684,338 @@ public class CooDeclarationPage extends IptDeclarationPage {
             return address;
         }
         return partyNode;
+    }
+
+    private void fillPartyCertificateOfOriginLegends(JsonNode itemCertificate, JsonNode formMetaData) {
+        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
+        if (!isCertificateOfOriginSectionEnabled(itemCertificate, formMetaData)) {
+            return;
+        }
+
+        setCheckboxByLabel("Certificate of Origin (CO)", true);
+        page.waitForTimeout(300);
+
+        Locator section = waitForPartyCertificateOfOriginSectionOrNull(3000);
+        if (section != null) {
+            if (hasItemCertificateData) {
+                fillCertificateOfOriginSectionFields(section, itemCertificate);
+                if (verifyPartyCertificateOfOriginFieldValues(itemCertificate, 1200)) {
+                    return;
+                }
+                logFieldMappingWarning("COO Party Certificate of Origin section was detected, but one or more legend "
+                        + "values were not rendered via the shared scoped flow. Retrying against concrete page fields.");
+            }
+        }
+
+        if (!hasItemCertificateData) {
+            return;
+        }
+
+        if (fillPartyCertificateOfOriginByPageLabels(itemCertificate)) {
+            ensurePartyCertificateOfOriginFieldValues(itemCertificate);
+            return;
+        }
+
+        logFieldMappingWarning("COO Party tab does not expose a resolvable Certificate of Origin (CO) legends section "
+                + "for the current declaration. Skipping Party-tab legend population.");
+        return;
+    }
+
+    private JsonNode firstNonEmptyItemCertificate(JsonNode items) {
+        if (items != null && items.isArray()) {
+            for (JsonNode item : items) {
+                JsonNode itemCertificate = item.path("itemCertificate");
+                if (!isMissingOrEmpty(itemCertificate)) {
+                    return itemCertificate;
+                }
+            }
+        }
+        return MissingNode.getInstance();
+    }
+
+    private Locator waitForPartyCertificateOfOriginSectionOrNull(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            Locator section = resolvePartyCertificateOfOriginSectionOrNull();
+            if (section != null) {
+                return section;
+            }
+            try {
+                page.mouse().wheel(0, 900);
+            } catch (Exception ignored) {
+            }
+            page.waitForTimeout(100);
+        }
+        return null;
+    }
+
+    private Locator resolvePartyCertificateOfOriginSectionOrNull() {
+        String sectionTitle = xpathLiteral("Certificate of Origin (CO)");
+        Locator strictSection = firstVisible(page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + sectionTitle + ")])])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
+        if (strictSection != null) {
+            return strictSection;
+        }
+
+        Locator section = resolveCertificateOfOriginSectionOrNull();
+        if (section != null) {
+            return section;
+        }
+
+        return firstVisible(page.locator(
+                "xpath=(//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')]"
+                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), 'Certificate Quantity')])])[last()]"
+                        + "/ancestor::*[.//*[contains(normalize-space(translate(., '*', '')), 'Origin Criterion 1')]"
+                        + " and .//*[contains(normalize-space(translate(., '*', '')), 'Certificate Item Description')]"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'])][1]"));
+    }
+
+    private boolean fillPartyCertificateOfOriginByPageLabels(JsonNode itemCertificate) {
+        boolean filledAnyField = false;
+
+        JsonNode certificateQuantity = itemCertificate.path("itemCertificateQuantity");
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent(
+                "Certificate Quantity",
+                0,
+                text(certificateQuantity, "value"));
+        filledAnyField |= fillVerifiedPartyLookupFieldAfterLabelIfPresent(
+                "Certificate Quantity",
+                1,
+                text(certificateQuantity, "unitCode"),
+                text(certificateQuantity, "unitCode"));
+
+        JsonNode textileQuotaQuantity = itemCertificate.path("textileQuotaQuantity");
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent(
+                "Textile Quota Quantity",
+                0,
+                text(textileQuotaQuantity, "value"));
+        filledAnyField |= fillVerifiedPartyLookupFieldAfterLabelIfPresent(
+                "Textile Quota Quantity",
+                1,
+                text(textileQuotaQuantity, "unitCode"),
+                text(textileQuotaQuantity, "unitCode"));
+
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Certificate Item Value",
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")));
+        filledAnyField |= fillVerifiedPartyDateFieldAfterLabelIfPresent("Manufacturing Cost Date",
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Item Invoice Number",
+                text(itemCertificate, "itemInvoiceNumber"));
+        filledAnyField |= fillVerifiedPartyDateFieldAfterLabelIfPresent("Item Invoice Date",
+                formatUiDate(text(itemCertificate, "itemInvoiceDate")));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("HS Code",
+                text(itemCertificate, "harmonizedSystemCode"));
+
+        String contentPercent = normalizeNumericForEntry(text(itemCertificate, "contentPercent"));
+        if (!fillVerifiedPartyFieldAfterLabelIfPresent("Content Percent (%)", contentPercent)) {
+            filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Content Percent", contentPercent);
+        } else {
+            filledAnyField = true;
+        }
+
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Textile Category Code",
+                text(itemCertificate, "textileCategoryCode"));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Origin Criterion 1",
+                arrayText(itemCertificate.path("originCriterion"), 0));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Origin Criterion 2",
+                arrayText(itemCertificate.path("originCriterion"), 1));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Origin Criterion 3",
+                arrayText(itemCertificate.path("originCriterion"), 2));
+        filledAnyField |= fillVerifiedPartyFieldAfterLabelIfPresent("Certificate Item Description",
+                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
+
+        return filledAnyField;
+    }
+
+    private boolean hasPartyCertificateOfOriginPageFields() {
+        return resolvePartyConcreteFieldAfterLabelOrNull("Certificate Quantity", 0, false, false) != null
+                || resolvePartyConcreteFieldAfterLabelOrNull("Certificate Item Value", 0, false, true) != null
+                || resolvePartyConcreteFieldAfterLabelOrNull("Certificate Item Description", 0, false, true) != null
+                || resolvePartyConcreteFieldAfterLabelOrNull("Origin Criterion 1", 0, false, true) != null
+                || resolvePartyConcreteFieldAfterLabelOrNull("Manufacturing Cost Date", 0, false, false) != null;
+    }
+
+    private boolean fillVerifiedPartyFieldAfterLabelIfPresent(String label, int occurrence, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Locator field = resolvePartyConcreteFieldAfterLabelOrNull(label, occurrence, false, true);
+        if (field == null) {
+            return false;
+        }
+
+        fillVerifiedTextField(field, value, label);
+        return true;
+    }
+
+    private boolean fillVerifiedPartyFieldAfterLabelIfPresent(String label, String value) {
+        return fillVerifiedPartyFieldAfterLabelIfPresent(label, 0, value);
+    }
+
+    private boolean fillVerifiedPartyDateFieldAfterLabelIfPresent(String label, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Locator field = resolvePartyConcreteFieldAfterLabelOrNull(label, 0, false, false);
+        if (field == null) {
+            return false;
+        }
+
+        fillDirectDateField(field, value, label);
+        return true;
+    }
+
+    private boolean fillVerifiedPartyLookupFieldAfterLabelIfPresent(
+            String label,
+            int occurrence,
+            String value,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Locator field = resolvePartyConcreteFieldAfterLabelOrNull(label, occurrence, true, false);
+        if (field == null) {
+            return false;
+        }
+
+        fillVerifiedLookupField(field, value, label, suggestionHints);
+        return true;
+    }
+
+    private Locator resolvePartyConcreteFieldAfterLabelOrNull(
+            String label,
+            int occurrence,
+            boolean includeSelect,
+            boolean includeTextarea) {
+        String escapedLabel = xpathLiteral(label);
+        String matchExpression = "normalize-space(translate(., '*', ''))=" + escapedLabel;
+        StringBuilder fieldSelector = new StringBuilder("self::input[not(@type='checkbox')]");
+        if (includeTextarea) {
+            fieldSelector.append(" or self::textarea");
+        }
+        if (includeSelect) {
+            fieldSelector.append(" or self::select");
+        }
+
+        Locator field = page.locator(
+                "xpath=((//*["
+                        + matchExpression
+                        + "][not(.//*["
+                        + matchExpression
+                        + "])])[last()]/following::*["
+                        + fieldSelector
+                        + "]["
+                        + (occurrence + 1)
+                        + "])[1]");
+        return firstVisible(field);
+    }
+
+    private boolean verifyPartyCertificateOfOriginFieldValues(JsonNode itemCertificate, int timeoutMs) {
+        return verifyPartyCertificateQuantity(itemCertificate.path("itemCertificateQuantity"), timeoutMs)
+                && verifyPartyCertificateQuantity(itemCertificate.path("textileQuotaQuantity"), timeoutMs, "Textile Quota Quantity")
+                && verifyPartyCertificateFieldValue("Certificate Item Value",
+                        normalizeNumericForEntry(text(itemCertificate, "itemValue")),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Manufacturing Cost Date",
+                        formatUiDate(text(itemCertificate, "manufacturingCostDate")),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Item Invoice Number",
+                        text(itemCertificate, "itemInvoiceNumber"),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Item Invoice Date",
+                        formatUiDate(text(itemCertificate, "itemInvoiceDate")),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("HS Code",
+                        text(itemCertificate, "harmonizedSystemCode"),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue(
+                        new String[] { "Content Percent (%)", "Content Percent" },
+                        normalizeNumericForEntry(text(itemCertificate, "contentPercent")),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Textile Category Code",
+                        text(itemCertificate, "textileCategoryCode"),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Origin Criterion 1",
+                        arrayText(itemCertificate.path("originCriterion"), 0),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Origin Criterion 2",
+                        arrayText(itemCertificate.path("originCriterion"), 1),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Origin Criterion 3",
+                        arrayText(itemCertificate.path("originCriterion"), 2),
+                        timeoutMs)
+                && verifyPartyCertificateFieldValue("Certificate Item Description",
+                        itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")),
+                        timeoutMs);
+    }
+
+    private boolean verifyPartyCertificateQuantity(JsonNode quantityNode, int timeoutMs) {
+        return verifyPartyCertificateQuantity(quantityNode, timeoutMs, "Certificate Quantity");
+    }
+
+    private boolean verifyPartyCertificateQuantity(JsonNode quantityNode, int timeoutMs, String rowLabel) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return true;
+        }
+
+        return verifyPartyCertificateFieldValue(rowLabel, 0, text(quantityNode, "value"), timeoutMs, false)
+                && verifyPartyCertificateFieldValue(rowLabel, 1, text(quantityNode, "unitCode"), timeoutMs, true);
+    }
+
+    private boolean verifyPartyCertificateFieldValue(String label, String expectedValue, int timeoutMs) {
+        return verifyPartyCertificateFieldValue(label, 0, expectedValue, timeoutMs, false, true);
+    }
+
+    private boolean verifyPartyCertificateFieldValue(String[] labels, String expectedValue, int timeoutMs) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+
+        for (String label : labels) {
+            if (verifyPartyCertificateFieldValue(label, 0, expectedValue, timeoutMs, false, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean verifyPartyCertificateFieldValue(
+            String label,
+            int occurrence,
+            String expectedValue,
+            int timeoutMs,
+            boolean includeSelect) {
+        return verifyPartyCertificateFieldValue(label, occurrence, expectedValue, timeoutMs, includeSelect, !includeSelect);
+    }
+
+    private boolean verifyPartyCertificateFieldValue(
+            String label,
+            int occurrence,
+            String expectedValue,
+            int timeoutMs,
+            boolean includeSelect,
+            boolean includeTextarea) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+
+        Locator field = resolvePartyConcreteFieldAfterLabelOrNull(label, occurrence, includeSelect, includeTextarea);
+        return field != null && waitForAnyRenderedFieldValue(field, timeoutMs, expectedValue);
+    }
+
+    private void ensurePartyCertificateOfOriginFieldValues(JsonNode itemCertificate) {
+        if (!verifyPartyCertificateOfOriginFieldValues(itemCertificate, 1500)) {
+            throw new IllegalStateException("COO Party Certificate of Origin legends were detected, but one or more "
+                    + "JSON values were not rendered in the visible UI fields.");
+        }
     }
 
     private void fillItems(JsonNode data) {
@@ -1084,7 +1420,7 @@ public class CooDeclarationPage extends IptDeclarationPage {
         Locator field = label.locator(
                 "xpath=(following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
                         + (occurrence + 1) + "])[1]");
-        return firstVisible(field);
+        return resolveConcreteEditableFieldOrNull(field);
     }
 
     private Locator resolveScopeLabelOrNull(Locator visibleScope, String rowLabel, boolean containsMatch) {
@@ -1107,59 +1443,416 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillItemCertificate(JsonNode itemCertificate, JsonNode formMetaData) {
-        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
-        boolean itemCoEnabled = hasItemCertificateData
-                || formMetaData.path("itemCoIsActive").path(0).asBoolean(false);
-        if (!itemCoEnabled) {
+        fillCertificateOfOriginSectionFromItemCertificate(itemCertificate, formMetaData, "COO item tab");
+        captureProgressScreenshot("item-certificate-filled");
+    }
+
+    private void waitForCopiedItemHsDetailToPopulate(int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            try {
+                Locator descriptionField = page.locator("textarea[placeholder*='Enter description']").last();
+                if (descriptionField.count() > 0 && descriptionField.isVisible()) {
+                    String value = normalize(descriptionField.inputValue());
+                    if (value != null && !value.isBlank()) {
+                        return;
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+            page.waitForTimeout(100);
+        }
+    }
+
+    private void fillCertificateDescriptionTextarea(String value) {
+        if (value == null || value.isBlank()) {
             return;
         }
 
-        setCheckboxByLabel("Certificate of Origin (CO)", true);
-        page.waitForTimeout(300);
+        page.evaluate("""
+                newValue => {
+                    const fields = Array.from(document.querySelectorAll("textarea[placeholder*='Enter description']"))
+                        .filter(candidate => !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length));
+                    const field = fields.length === 0 ? null : fields[fields.length - 1];
+                    if (!field) {
+                        return;
+                    }
+                    field.value = newValue;
+                    field.setAttribute('value', newValue);
+                    field.dispatchEvent(new Event('input', { bubbles: true }));
+                    field.dispatchEvent(new Event('change', { bubbles: true }));
+                    field.dispatchEvent(new Event('blur', { bubbles: true }));
+                }
+                """, value);
+        page.waitForTimeout(150);
+    }
 
-        Locator section = waitForItemCertificateSectionOrNull(3000);
-        if (section == null) {
-            throw new IllegalStateException("Certificate of Origin (CO) section did not open in the COO item tab.");
-        }
-        if (!hasItemCertificateData) {
+    private void fillOriginCriterionRightColumn(JsonNode originCriteria) {
+        if (originCriteria == null || !originCriteria.isArray() || originCriteria.isEmpty()) {
             return;
         }
 
-        fillQuantityRowInScope(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"));
-        fillFieldAfterScopeLabelIfPresent(section, "Manufacturing Cost Date", 0,
-                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
-        fillFieldAfterScopeLabelIfPresent(section, "Certificate Item Value", 0,
+        java.util.Map<String, String> values = new java.util.HashMap<>();
+        values.put("originCriterion1", arrayText(originCriteria, 0));
+        values.put("originCriterion2", arrayText(originCriteria, 1));
+        values.put("originCriterion3", arrayText(originCriteria, 2));
+        page.evaluate("""
+                values => {
+                    const isVisible = candidate =>
+                        !!candidate && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                    const inputs = Array.from(document.querySelectorAll("input[type='text']:not([readonly]):not([disabled])"))
+                        .filter(isVisible)
+                        .filter(candidate => !(candidate.placeholder || '').trim())
+                        .filter(candidate => {
+                            const rect = candidate.getBoundingClientRect();
+                            return rect.width >= 100 && rect.height >= 15;
+                        });
+                    if (inputs.length === 0) {
+                        return;
+                    }
+
+                    const maxX = Math.max(...inputs.map(candidate => candidate.getBoundingClientRect().x));
+                    const rightColumn = inputs
+                        .filter(candidate => candidate.getBoundingClientRect().x >= maxX - 40)
+                        .sort((left, right) => left.getBoundingClientRect().y - right.getBoundingClientRect().y)
+                        .slice(0, 3);
+                    const assignments = [
+                        values.originCriterion1,
+                        values.originCriterion2,
+                        values.originCriterion3
+                    ];
+
+                    rightColumn.forEach((field, index) => {
+                        const newValue = assignments[index];
+                        if (!newValue) {
+                            return;
+                        }
+                        field.value = newValue;
+                        field.setAttribute('value', newValue);
+                        field.dispatchEvent(new Event('input', { bubbles: true }));
+                        field.dispatchEvent(new Event('change', { bubbles: true }));
+                        field.dispatchEvent(new Event('blur', { bubbles: true }));
+                    });
+                }
+                """, values);
+        page.waitForTimeout(150);
+    }
+
+    private boolean fillItemCertificateByPageLabels(JsonNode itemCertificate) {
+        boolean filledAnyField = false;
+
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Certificate Item Value",
                 normalizeNumericForEntry(text(itemCertificate, "itemValue")));
-        fillFieldAfterScopeLabelIfPresent(section, "Item Invoice Number", 0, text(itemCertificate, "itemInvoiceNumber"));
-        fillFieldAfterScopeLabelIfPresent(section, "Item Invoice Date", 0,
+        filledAnyField |= fillPageDateFieldAfterLabelIfPresent("Manufacturing Cost Date",
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")));
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Item Invoice Number",
+                text(itemCertificate, "itemInvoiceNumber"));
+        filledAnyField |= fillPageDateFieldAfterLabelIfPresent("Item Invoice Date",
                 formatUiDate(text(itemCertificate, "itemInvoiceDate")));
-        fillFieldAfterScopeLabelIfPresent(section, "HS Code", 0, text(itemCertificate, "harmonizedSystemCode"));
-        fillFieldAfterScopeLabelIfPresent(section, "Content Percent", 0,
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("HS Code",
+                text(itemCertificate, "harmonizedSystemCode"));
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Content Percent",
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillFieldAfterScopeLabelIfPresent(section, "Content Percent (%)", 0,
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Certificate Item Description",
+                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Origin Criterion 1",
+                arrayText(itemCertificate.path("originCriterion"), 0));
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Origin Criterion 2",
+                arrayText(itemCertificate.path("originCriterion"), 1));
+        filledAnyField |= fillPageFieldAfterLabelIfPresent("Origin Criterion 3",
+                arrayText(itemCertificate.path("originCriterion"), 2));
+
+        return filledAnyField;
+    }
+
+    private boolean fillPageFieldAfterLabelIfPresent(String label, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Locator field = resolvePageFieldAfterLabelOrNull(label, false);
+        if (field == null) {
+            return false;
+        }
+
+        fillVerifiedTextField(field, value, label);
+        return true;
+    }
+
+    private boolean fillPageDateFieldAfterLabelIfPresent(String label, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+
+        Locator field = resolvePageFieldAfterLabelOrNull(label, true);
+        if (field == null) {
+            return false;
+        }
+
+        fillDirectDateField(field, value, label);
+        return true;
+    }
+
+    private Locator resolvePageFieldAfterLabelOrNull(String label, boolean dateField) {
+        String escapedLabel = xpathLiteral(label);
+        String matchExpression = "normalize-space(translate(., '*', ''))=" + escapedLabel;
+        String fieldSelector = dateField
+                ? "self::input[not(@type='checkbox') and not(@type='date')]"
+                : "self::input[not(@type='checkbox') and not(@type='date')] or self::textarea";
+        Locator field = page.locator(
+                "xpath=((//*["
+                        + matchExpression
+                        + "][not(.//*["
+                        + matchExpression
+                        + "])])[last()]/following::*["
+                        + fieldSelector
+                        + "][1])");
+        return resolveConcreteEditableFieldOrNull(field);
+    }
+
+    private boolean verifyItemCertificateFieldValues(Locator section, JsonNode itemCertificate, int timeoutMs) {
+        return verifyScopedQuantityFieldValues(section, "Certificate Quantity", itemCertificate.path("itemCertificateQuantity"), timeoutMs)
+                && verifyScopedQuantityFieldValues(section, "Textile Quota Quantity", itemCertificate.path("textileQuotaQuantity"), timeoutMs)
+                && verifyScopedTextFieldValue(section, "Certificate Item Value",
+                        normalizeNumericForEntry(text(itemCertificate, "itemValue")),
+                        timeoutMs)
+                && verifyScopedDateFieldValue(section, "Manufacturing Cost Date",
+                        formatUiDate(text(itemCertificate, "manufacturingCostDate")),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Item Invoice Number",
+                        text(itemCertificate, "itemInvoiceNumber"),
+                        timeoutMs)
+                && verifyScopedDateFieldValue(section, "Item Invoice Date",
+                        formatUiDate(text(itemCertificate, "itemInvoiceDate")),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "HS Code",
+                        text(itemCertificate, "harmonizedSystemCode"),
+                        timeoutMs)
+                && verifyScopedFirstMatchingTextFieldValue(
+                        section,
+                        new String[] { "Content Percent (%)", "Content Percent" },
+                        normalizeNumericForEntry(text(itemCertificate, "contentPercent")),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Textile Category Code",
+                        text(itemCertificate, "textileCategoryCode"),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Origin Criterion 1",
+                        arrayText(itemCertificate.path("originCriterion"), 0),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Origin Criterion 2",
+                        arrayText(itemCertificate.path("originCriterion"), 1),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Origin Criterion 3",
+                        arrayText(itemCertificate.path("originCriterion"), 2),
+                        timeoutMs)
+                && verifyScopedTextFieldValue(section, "Certificate Item Description",
+                        itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")),
+                        timeoutMs);
+    }
+
+    private void ensureItemCertificateFieldValues(Locator section, JsonNode itemCertificate) {
+        if (!verifyItemCertificateFieldValues(section, itemCertificate, 1500)) {
+            throw new IllegalStateException("COO item Certificate of Origin values were not rendered in the visible "
+                    + "section after JSON entry. " + buildItemCertificateMismatchSummary(section, itemCertificate));
+        }
+    }
+
+    private boolean verifyScopedQuantityFieldValues(Locator section, String rowLabel, JsonNode quantityNode, int timeoutMs) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return true;
+        }
+
+        return verifyScopedTextFieldValue(section, rowLabel, 0, text(quantityNode, "value"), timeoutMs)
+                && verifyScopedTextFieldValue(section, rowLabel, 1, text(quantityNode, "unitCode"), timeoutMs);
+    }
+
+    private boolean verifyScopedFirstMatchingTextFieldValue(
+            Locator section,
+            String[] rowLabels,
+            String expectedValue,
+            int timeoutMs) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+
+        for (String rowLabel : rowLabels) {
+            if (verifyScopedTextFieldValue(section, rowLabel, expectedValue, timeoutMs)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean verifyScopedTextFieldValue(Locator section, String rowLabel, String expectedValue, int timeoutMs) {
+        return verifyScopedTextFieldValue(section, rowLabel, 0, expectedValue, timeoutMs);
+    }
+
+    private boolean verifyScopedTextFieldValue(
+            Locator section,
+            String rowLabel,
+            int occurrence,
+            String expectedValue,
+            int timeoutMs) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+
+        Locator field = resolveScopedFieldNearLabelOrNull(section, rowLabel, occurrence);
+        return field != null && waitForAnyRenderedFieldValue(field, timeoutMs, expectedValue);
+    }
+
+    private boolean verifyScopedDateFieldValue(Locator section, String rowLabel, String expectedValue, int timeoutMs) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return true;
+        }
+
+        Locator field = resolveScopedDateFieldNearLabelOrNull(section, rowLabel, 0);
+        return field != null && waitForAnyRenderedFieldValue(field, timeoutMs, expectedValue);
+    }
+
+    private String buildItemCertificateMismatchSummary(Locator section, JsonNode itemCertificate) {
+        List<String> mismatches = new ArrayList<>();
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Certificate Quantity",
+                0,
+                text(itemCertificate.path("itemCertificateQuantity"), "value"),
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Certificate Quantity",
+                1,
+                text(itemCertificate.path("itemCertificateQuantity"), "unitCode"),
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Certificate Item Value",
+                0,
+                normalizeNumericForEntry(text(itemCertificate, "itemValue")),
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Manufacturing Cost Date",
+                0,
+                formatUiDate(text(itemCertificate, "manufacturingCostDate")),
+                true);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Item Invoice Number",
+                0,
+                text(itemCertificate, "itemInvoiceNumber"),
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Item Invoice Date",
+                0,
+                formatUiDate(text(itemCertificate, "itemInvoiceDate")),
+                true);
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "HS Code",
+                0,
+                text(itemCertificate, "harmonizedSystemCode"),
+                false);
+        appendScopedFirstMatchingFieldMismatch(
+                mismatches,
+                section,
+                new String[] { "Content Percent (%)", "Content Percent" },
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")));
-        fillLookupFieldAfterScopeLabelIfPresent(
+        appendScopedFieldMismatch(
+                mismatches,
+                section,
+                "Textile Category Code",
+                0,
+                text(itemCertificate, "textileCategoryCode"),
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
                 section,
                 "Origin Criterion 1",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 0),
-                arrayText(itemCertificate.path("originCriterion"), 0));
-        fillLookupFieldAfterScopeLabelIfPresent(
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
                 section,
                 "Origin Criterion 2",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 1),
-                arrayText(itemCertificate.path("originCriterion"), 1));
-        fillLookupFieldAfterScopeLabelIfPresent(
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
                 section,
                 "Origin Criterion 3",
                 0,
                 arrayText(itemCertificate.path("originCriterion"), 2),
-                arrayText(itemCertificate.path("originCriterion"), 2));
-        fillLastOrderedFieldInScope(
+                false);
+        appendScopedFieldMismatch(
+                mismatches,
                 section,
-                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")));
-        captureProgressScreenshot("item-certificate-filled");
+                "Certificate Item Description",
+                0,
+                itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")),
+                false);
+        return mismatches.isEmpty() ? "Mismatch details unavailable." : String.join("; ", mismatches);
+    }
+
+    private void appendScopedFirstMatchingFieldMismatch(
+            List<String> mismatches,
+            Locator section,
+            String[] rowLabels,
+            String expectedValue) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return;
+        }
+
+        for (String rowLabel : rowLabels) {
+            Locator field = resolveScopedFieldNearLabelOrNull(section, rowLabel, 0);
+            if (field != null && waitForAnyRenderedFieldValue(field, 200, expectedValue)) {
+                return;
+            }
+        }
+
+        String actualValue = "<field-not-found>";
+        for (String rowLabel : rowLabels) {
+            Locator field = resolveScopedFieldNearLabelOrNull(section, rowLabel, 0);
+            if (field != null) {
+                actualValue = readRenderedFieldValue(field);
+                break;
+            }
+        }
+        mismatches.add(rowLabels[0] + " expected '" + expectedValue + "' but was '" + actualValue + "'");
+    }
+
+    private void appendScopedFieldMismatch(
+            List<String> mismatches,
+            Locator section,
+            String rowLabel,
+            int occurrence,
+            String expectedValue,
+            boolean dateField) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            return;
+        }
+
+        Locator field = dateField
+                ? resolveScopedDateFieldNearLabelOrNull(section, rowLabel, occurrence)
+                : resolveScopedFieldNearLabelOrNull(section, rowLabel, occurrence);
+        if (field == null) {
+            mismatches.add(rowLabel + " expected '" + expectedValue + "' but field was not found");
+            return;
+        }
+
+        if (!waitForAnyRenderedFieldValue(field, 200, expectedValue)) {
+            mismatches.add(rowLabel + " expected '" + expectedValue + "' but was '" + readRenderedFieldValue(field) + "'");
+        }
     }
 
     private boolean requiresItemCertificateLayoutFallback(Locator section) {
@@ -1171,49 +1864,87 @@ public class CooDeclarationPage extends IptDeclarationPage {
                 || resolveScopedFieldNearLabelOrNull(section, "Certificate Item Description", 0) == null;
     }
 
-    private void fillItemCertificateByLayoutFallback(Locator section, JsonNode itemCertificate) {
-        List<Locator> fields = orderedVisibleEditableFields(section);
-        if (fields.size() < 12) {
-            return;
+    private boolean fillItemCertificateByLayoutFallback(Locator section, JsonNode itemCertificate) {
+        List<Locator> fields = waitForOrderedItemCertificateTextFields(section, 3000);
+        if (fields.size() < 11) {
+            return false;
         }
 
-        fillVerifiedLookupField(fields.get(1),
-                text(itemCertificate.path("itemCertificateQuantity"), "unitCode"),
-                "Certificate Quantity UOM",
-                text(itemCertificate.path("itemCertificateQuantity"), "unitCode"));
-        fillVerifiedLookupField(fields.get(2),
-                arrayText(itemCertificate.path("originCriterion"), 0),
-                "Origin Criterion 1",
-                arrayText(itemCertificate.path("originCriterion"), 0));
-        fillVerifiedTextField(fields.get(3),
+        fillVerifiedTextField(fields.get(1),
                 normalizeNumericForEntry(text(itemCertificate, "itemValue")),
                 "Certificate Item Value");
-        fillDirectDateField(fields.get(4),
+        fillDirectDateField(fields.get(2),
                 formatUiDate(text(itemCertificate, "manufacturingCostDate")),
                 "Manufacturing Cost Date");
-        fillVerifiedLookupField(fields.get(5),
-                arrayText(itemCertificate.path("originCriterion"), 1),
-                "Origin Criterion 2",
-                arrayText(itemCertificate.path("originCriterion"), 1));
-        fillVerifiedTextField(fields.get(6),
+        fillVerifiedTextField(fields.get(3),
                 text(itemCertificate, "itemInvoiceNumber"),
                 "Item Invoice Number");
-        fillDirectDateField(fields.get(7),
+        fillDirectDateField(fields.get(4),
                 formatUiDate(text(itemCertificate, "itemInvoiceDate")),
                 "Item Invoice Date");
-        fillVerifiedLookupField(fields.get(8),
-                arrayText(itemCertificate.path("originCriterion"), 2),
-                "Origin Criterion 3",
-                arrayText(itemCertificate.path("originCriterion"), 2));
-        fillVerifiedTextField(fields.get(9),
+        fillVerifiedTextField(fields.get(5),
                 text(itemCertificate, "harmonizedSystemCode"),
                 "Certificate HS Code");
-        fillVerifiedTextField(fields.get(10),
+        fillVerifiedTextField(fields.get(6),
                 normalizeNumericForEntry(text(itemCertificate, "contentPercent")),
                 "Content Percent");
-        fillVerifiedTextField(fields.get(11),
+        fillVerifiedTextField(fields.get(7),
                 itemCertificateDescriptionText(itemCertificate.path("itemCertificateDescription")),
                 "Certificate Item Description");
+        fillVerifiedTextField(fields.get(8),
+                arrayText(itemCertificate.path("originCriterion"), 0),
+                "Origin Criterion 1");
+        fillVerifiedTextField(fields.get(9),
+                arrayText(itemCertificate.path("originCriterion"), 1),
+                "Origin Criterion 2");
+        fillVerifiedTextField(fields.get(10),
+                arrayText(itemCertificate.path("originCriterion"), 2),
+                "Origin Criterion 3");
+        return true;
+    }
+
+    private List<Locator> waitForOrderedItemCertificateTextFields(Locator section, int timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() <= deadline) {
+            List<Locator> fields = orderedItemCertificateTextFields(section);
+            if (fields.size() >= 11) {
+                return fields;
+            }
+            page.waitForTimeout(100);
+        }
+        return orderedItemCertificateTextFields(section);
+    }
+
+    private List<Locator> orderedItemCertificateTextFields(Locator section) {
+        Locator candidates = section.locator(
+                "input:not([type='checkbox']):not([type='date']):not([readonly]):not([disabled]), "
+                        + "textarea:not([readonly]):not([disabled])");
+        List<PositionedElement> positionedElements = new ArrayList<>();
+        int count = candidates.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = candidates.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            BoundingBox box;
+            try {
+                box = candidate.boundingBox();
+            } catch (PlaywrightException ignored) {
+                continue;
+            }
+            if (box == null || box.width < 4 || box.height < 4) {
+                continue;
+            }
+
+            positionedElements.add(new PositionedElement(index, box.x, box.y, box.width, box.height, 1));
+        }
+
+        List<Locator> orderedFields = new ArrayList<>();
+        positionedElements.stream()
+                .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
+                .forEach(positionedElement -> orderedFields.add(candidates.nth(positionedElement.index())));
+        return orderedFields;
     }
 
     private void fillDirectDateField(Locator field, String value, String rowLabel) {
@@ -1805,7 +2536,8 @@ public class CooDeclarationPage extends IptDeclarationPage {
         throw new IllegalStateException("Unable to click button. Candidates: " + String.join(", ", candidates));
     }
 
-    private String arrayText(JsonNode arrayNode, int index) {
+    @Override
+    protected String arrayText(JsonNode arrayNode, int index) {
         if (arrayNode == null || !arrayNode.isArray() || index < 0 || index >= arrayNode.size()) {
             return null;
         }
