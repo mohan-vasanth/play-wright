@@ -45,6 +45,31 @@ class InpDeclarationPartyMappingTest {
         assertEquals("DA LAO BAN", declarationPage.filledFields.get("Claimant Name"));
     }
 
+    @Test
+    void mapsInpPartyRowsWhenPartyNameUsesFlatNameField() throws Exception {
+        RecordingInpDeclarationPage declarationPage = new RecordingInpDeclarationPage();
+        Method method = InpDeclarationPage.class.getDeclaredMethod(
+                "fillDeclarationSpecificPartyInfo",
+                JsonNode.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode party = OBJECT_MAPPER.readTree("""
+                {
+                  "outwardCarrierAgentParty": {
+                    "partyIdentification": { "id": "197702772D" },
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                  }
+                }
+                """);
+
+        method.invoke(declarationPage, OBJECT_MAPPER.createObjectNode(), party);
+
+        assertEquals(
+                "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD",
+                declarationPage.partyRows.get("Outward Carrier"));
+    }
+
     private static final class RecordingInpDeclarationPage extends InpDeclarationPage {
 
         private final Map<String, String> partyRows = new LinkedHashMap<>();
@@ -56,11 +81,7 @@ class InpDeclarationPartyMappingTest {
 
         @Override
         protected void fillPartyRowIfPresent(String rowLabel, JsonNode partyNode) {
-            JsonNode identityNode = partyNode.path("partyDetail");
-            if (identityNode.isMissingNode() || identityNode.isNull() || identityNode.isEmpty()) {
-                identityNode = partyNode;
-            }
-            String partyName = text(identityNode.path("partyName"), "name");
+            String partyName = partyName(partyNode);
             if (partyName != null) {
                 partyRows.put(rowLabel, partyName);
             }

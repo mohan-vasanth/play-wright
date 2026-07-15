@@ -5,13 +5,15 @@ import com.automation.IptDeclarationPage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.PlaywrightException;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class IptDeclarationFieldResolverTest extends BaseTest {
 
@@ -47,6 +49,48 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
         method.invoke(declarationPage, "Party Info (P)", "Exporter Name", "ADATA EXPORT");
 
         assertEquals("ADATA EXPORT", page.locator("#exporter-name").inputValue());
+    }
+
+    @Test
+    void openSectionIgnoresHeaderTextAndClicksActualSectionTab() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <div id="header-shortcut" onclick="window.headerClicks = (window.headerClicks || 0) + 1;">
+                    Party Info (P)
+                  </div>
+                  <div id="tab-strip" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <button id="shipment-tab" type="button"
+                            onclick="window.shipmentTabClicks = (window.shipmentTabClicks || 0) + 1;">
+                      Shipment Info (S)
+                    </button>
+                    <button id="party-tab" type="button"
+                            onclick="window.partyTabClicks = (window.partyTabClicks || 0) + 1;">
+                      Party Info (P)
+                    </button>
+                    <button id="summary-tab" type="button"
+                            onclick="window.summaryTabClicks = (window.summaryTabClicks || 0) + 1;">
+                      Summary (Y)
+                    </button>
+                  </div>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 420px;">
+                    <h2>Party Info (P)</h2>
+                    <label for="exporter-name">Exporter Name</label>
+                    <input id="exporter-name" type="text" style="display: block; width: 240px; height: 28px;">
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod("openSection", String.class);
+        method.setAccessible(true);
+
+        method.invoke(declarationPage, "Party Info (P)");
+
+        assertEquals(0, ((Number) page.evaluate("window.headerClicks || 0")).intValue());
+        assertEquals(1, ((Number) page.evaluate("window.partyTabClicks || 0")).intValue());
+        assertEquals(0, ((Number) page.evaluate("window.shipmentTabClicks || 0")).intValue());
     }
 
     @Test
@@ -123,6 +167,235 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
 
         assertTrue(result);
         assertEquals("198700002E", page.locator("#importer-uen").inputValue());
+    }
+
+    @Test
+    void resolvesImporterIdFieldFromNearestReadonlySiblingInsteadOfNextPartyRow() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="position: relative; padding: 12px; border: 1px solid #ccc; width: 960px; height: 180px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="position: absolute; left: 16px; top: 56px; font-weight: 600;">Importer</div>
+                    <input id="importer-name" type="text" value="GST DUMMY COMPANY GSTDUMMYCOMPANY"
+                           style="position: absolute; left: 220px; top: 50px; width: 280px; height: 28px;">
+                    <div style="position: absolute; left: 16px; top: 92px; font-weight: 600;">Inward Carrier</div>
+                    <input id="carrier-name" type="text" value="SINGAPORE AIRPORT TERMINAL SERVICES"
+                           style="position: absolute; left: 220px; top: 86px; width: 280px; height: 28px;">
+                    <input id="carrier-uen" type="text" value="197201770G"
+                           style="position: absolute; left: 540px; top: 86px; width: 220px; height: 28px;">
+                    <input id="importer-uen" type="text" value="20110715GST" readonly
+                           style="position: absolute; left: 540px; top: 50px; width: 220px; height: 28px;">
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "resolvePartyIdFieldOrNull",
+                String.class);
+        method.setAccessible(true);
+
+        Locator field = (Locator) method.invoke(declarationPage, "Importer");
+
+        assertNotNull(field);
+        assertEquals("importer-uen", field.getAttribute("id"));
+        assertEquals("20110715GST", field.inputValue());
+    }
+
+    @Test
+    void clickFirstVisibleSuggestionIgnoresUserProfileMenuAndUsesNearbyLookupMenu() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <div id="user-profile-menu" class="dropdown-menu" style="display:block; width:220px; border:1px solid #999; background:#fff; margin-bottom:24px;">
+                    <div id="profile-item" class="dropdown-item" style="padding:6px 8px; cursor:pointer;">
+                      Profile
+                    </div>
+                  </div>
+
+                  <section style="padding: 12px; border: 1px solid #ccc; width: 900px;">
+                    <h2>Shipment Info (S)</h2>
+                    <div>Declaration Info</div>
+                    <label>Cargo Type</label>
+                    <div id="cargo-type-shell" style="display:block; width:260px;">
+                      <input id="cargo-type-input" type="text">
+                    </div>
+                    <div id="cargo-type-options" class="dropdown-menu" style="display:block; width:260px; border:1px solid #999; background:#fff; margin-top:8px;">
+                      <div id="cargo-type-option" class="dropdown-item" style="padding:6px 8px; cursor:pointer;">
+                        5 - Other non-containerized
+                      </div>
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      const profileItem = document.getElementById('profile-item');
+                      const field = document.getElementById('cargo-type-input');
+                      const option = document.getElementById('cargo-type-option');
+                      profileItem.addEventListener('click', () => {
+                        window.profileClicks = (window.profileClicks || 0) + 1;
+                      });
+                      option.addEventListener('click', () => {
+                        window.lookupClicks = (window.lookupClicks || 0) + 1;
+                        field.value = option.textContent.trim();
+                        field.dispatchEvent(new Event('input', { bubbles: true }));
+                        field.dispatchEvent(new Event('change', { bubbles: true }));
+                      });
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        page.locator("#cargo-type-input").click();
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod("clickFirstVisibleSuggestion");
+        method.setAccessible(true);
+
+        boolean result = (Boolean) method.invoke(declarationPage);
+
+        assertTrue(result);
+        assertEquals(0, ((Number) page.evaluate("window.profileClicks || 0")).intValue());
+        assertEquals(1, ((Number) page.evaluate("window.lookupClicks || 0")).intValue());
+        assertEquals("5 - Other non-containerized", page.locator("#cargo-type-input").inputValue());
+    }
+
+    @Test
+    void clickFirstVisibleSuggestionDoesNothingWithoutActiveEditableField() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <div id="user-profile-menu" class="dropdown-menu" style="display:block; width:220px; border:1px solid #999; background:#fff; margin-bottom:24px;">
+                    <div id="profile-item" class="dropdown-item" style="padding:6px 8px; cursor:pointer;">
+                      Profile
+                    </div>
+                  </div>
+
+                  <section style="padding: 12px; border: 1px solid #ccc; width: 900px;">
+                    <h2>Shipment Info (S)</h2>
+                    <label>Cargo Type</label>
+                    <input id="cargo-type-input" type="text">
+                    <div id="cargo-type-options" class="dropdown-menu" style="display:block; width:260px; border:1px solid #999; background:#fff; margin-top:8px;">
+                      <div id="cargo-type-option" class="dropdown-item" style="padding:6px 8px; cursor:pointer;">
+                        5 - Other non-containerized
+                      </div>
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      document.getElementById('profile-item').addEventListener('click', () => {
+                        window.profileClicks = (window.profileClicks || 0) + 1;
+                      });
+                      document.getElementById('cargo-type-option').addEventListener('click', () => {
+                        window.lookupClicks = (window.lookupClicks || 0) + 1;
+                      });
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        page.locator("body").click();
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod("clickFirstVisibleSuggestion");
+        method.setAccessible(true);
+
+        boolean result = (Boolean) method.invoke(declarationPage);
+
+        assertFalse(result);
+        assertEquals(0, ((Number) page.evaluate("window.profileClicks || 0")).intValue());
+        assertEquals(0, ((Number) page.evaluate("window.lookupClicks || 0")).intValue());
+    }
+
+    @Test
+    void fillLookupFieldAfterScopeLabelSkipsNextAutoAmountFieldWhenLookupValueAlreadyMatches() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="item-values" style="padding: 12px; border: 1px solid #ccc; width: 420px;">
+                    <h2>Item Values</h2>
+                    <div style="display:grid; grid-template-columns: 120px 120px 80px; gap: 10px; align-items:center; margin-bottom: 18px;">
+                      <div>Item Value</div>
+                      <input id="item-value-amount" type="text" value="10000.00" style="width:120px;">
+                      <div id="item-value-currency" aria-haspopup="listbox" style="width:60px; height:28px; border:1px solid #999; display:flex; align-items:center; padding:0 8px;">
+                        SGD
+                      </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 120px 120px; gap: 10px; align-items:center;">
+                      <div>Unit Price (auto)</div>
+                      <input id="unit-price-auto" type="text" value="0.00" placeholder="0.00" style="width:120px;">
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      document.getElementById('item-value-currency').addEventListener('click', () => {
+                        window.lookupClicks = (window.lookupClicks || 0) + 1;
+                      });
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillLookupFieldAfterScopeLabelIfPresent",
+                Locator.class,
+                String.class,
+                int.class,
+                String.class,
+                String[].class);
+        method.setAccessible(true);
+
+        Locator scope = page.locator("#item-values");
+        method.invoke(declarationPage, scope, "Item Value", 1, "SGD", new String[] { "SGD" });
+
+        assertEquals("SGD", page.locator("#item-value-currency").innerText().trim());
+        assertEquals("0.00", page.locator("#unit-price-auto").inputValue());
+        assertEquals(0, ((Number) page.evaluate("window.lookupClicks || 0")).intValue());
+    }
+
+    @Test
+    void fillLookupFieldAfterScopeLabelUsesRenderedReadonlySameRowValueBeforeFallingToNextInput() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="item-values" style="padding: 12px; border: 1px solid #ccc; width: 420px;">
+                    <h2>Item Values</h2>
+                    <div style="display:grid; grid-template-columns: 120px 120px 80px; gap: 10px; align-items:center; margin-bottom: 18px;">
+                      <div>Item Value</div>
+                      <input id="item-value-amount" type="text" value="10000.00" style="width:120px;">
+                      <input id="item-value-currency" type="text" value="SGD" readonly style="width:60px;">
+                    </div>
+                    <div style="display:grid; grid-template-columns: 120px 120px; gap: 10px; align-items:center;">
+                      <div>Unit Price (auto)</div>
+                      <input id="unit-price-auto" type="text" value="0.00" placeholder="0.00" style="width:120px;">
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillLookupFieldAfterScopeLabelIfPresent",
+                Locator.class,
+                String.class,
+                int.class,
+                String.class,
+                String[].class);
+        method.setAccessible(true);
+
+        Locator scope = page.locator("#item-values");
+        method.invoke(declarationPage, scope, "Item Value", 1, "SGD", new String[] { "SGD" });
+
+        assertEquals("SGD", page.locator("#item-value-currency").inputValue());
+        assertEquals("0.00", page.locator("#unit-price-auto").inputValue());
     }
 
     @Test
@@ -438,6 +711,68 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
     }
 
     @Test
+    void refillsInwardCarrierUenAfterResolvedFieldRerendersDuringTyping() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 420px; gap: 16px; align-items: start;">
+                      <div id="carrier-label-shell" style="padding-top: 52px; padding-bottom: 52px; font-weight: 600;">
+                        <span>Inward</span>
+                        <span>Carrier</span>
+                      </div>
+                      <div id="carrier-row" style="display: grid; grid-template-columns: 320px 40px 220px; gap: 12px; align-items: center;">
+                        <app-inward-carrier-lookup formcontrolname="name" style="display: block;">
+                          <input id="carrier-name" type="text" value="CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD" style="width: 320px; height: 28px;">
+                        </app-inward-carrier-lookup>
+                        <div>🔍</div>
+                        <input id="carrier-uen-old" type="text" style="width: 220px; height: 28px;">
+                        <input id="carrier-uen-new" type="text" style="display: none; width: 220px; height: 28px;">
+                      </div>
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page) {
+            private boolean firstTypingAttempt = true;
+
+            @Override
+            protected void focusAndType(Locator field, String value, boolean selectSuggestion) {
+                if (firstTypingAttempt) {
+                    firstTypingAttempt = false;
+                    page.evaluate("""
+                            () => {
+                                document.getElementById('carrier-uen-old').style.display = 'none';
+                                document.getElementById('carrier-uen-new').style.display = 'block';
+                            }
+                            """);
+                    throw new PlaywrightException("Timeout 15000ms exceeded.");
+                }
+                super.focusAndType(field, value, selectSuggestion);
+            }
+        };
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyIdFieldIfPresent",
+                String.class,
+                String.class,
+                String.class);
+        method.setAccessible(true);
+
+        boolean result = (Boolean) method.invoke(
+                declarationPage,
+                "Inward Carrier",
+                "CHGI",
+                "197702772D");
+
+        assertTrue(result);
+        assertEquals("197702772D", page.locator("#carrier-uen-new").inputValue());
+        assertEquals("", page.locator("#carrier-uen-old").inputValue());
+    }
+
+    @Test
     void fillsInwardCarrierRowBySelectingVisibleSuggestionForLookupCode() throws Exception {
         page.setContent("""
                 <html>
@@ -506,7 +841,6 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
         assertEquals("197702772D", page.locator("#carrier-uen").inputValue());
     }
 
-    @Test
     void syncsInwardCarrierLookupComponentWhenUiSelectionDidNotPersistUen() throws Exception {
         page.setContent("""
                 <html>
@@ -577,6 +911,233 @@ public class IptDeclarationFieldResolverTest extends BaseTest {
         assertTrue(result);
         assertEquals("AB SHIPPING PTE LTD AB SHIPPING PTE LTD", page.locator("#carrier-name").inputValue());
         assertEquals("199201306R", page.locator("#carrier-uen").inputValue());
+    }
+
+    @Test
+    void fillsInwardCarrierBySyncingLookupComponentWhenVisualTextMatchesButSelectionDidNotCommit() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 420px; gap: 16px; align-items: start;">
+                      <div id="carrier-label-shell" style="padding-top: 52px; padding-bottom: 52px; font-weight: 600;">
+                        <span>Inward</span>
+                        <span>Carrier</span>
+                      </div>
+                      <div id="carrier-row" style="display: grid; grid-template-columns: 320px 40px 220px; gap: 12px; align-items: center;">
+                        <app-inward-carrier-lookup id="carrier-host" formcontrolname="name" style="display: block;">
+                          <input id="carrier-name" type="text" style="width: 320px; height: 28px;">
+                        </app-inward-carrier-lookup>
+                        <div>🔍</div>
+                        <input id="carrier-uen" type="text" style="width: 220px; height: 28px;">
+                        <input id="carrier-model" type="hidden">
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const host = document.getElementById('carrier-host');
+                      const nameField = document.getElementById('carrier-name');
+                      const uenField = document.getElementById('carrier-uen');
+                      const modelField = document.getElementById('carrier-model');
+                      const component = {
+                        allOptions: [
+                          { code: '197201770G', description: 'SINGAPORE AIRPORT' }
+                        ],
+                        selectOptionItem(option) {
+                          nameField.value = option.description;
+                        },
+                        selectOptionLabel(option) {
+                          nameField.value = option.description;
+                        },
+                        onChange(code) {
+                          modelField.value = code;
+                          uenField.value = code;
+                          uenField.dispatchEvent(new Event('input', { bubbles: true }));
+                          uenField.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      window.ng = {
+                        getComponent(target) {
+                          return target === host ? component : null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "197201770G" },
+                  "partyName": { "name": "SINGAPORE AIRPORT" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Inward Carrier", partyNode);
+
+        assertEquals("SINGAPORE AIRPORT", page.locator("#carrier-name").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-uen").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-model").inputValue());
+    }
+
+    @Test
+    void syncsInwardCarrierLookupComponentWhenComponentUsesOptionsCollection() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 420px; gap: 16px; align-items: start;">
+                      <div id="carrier-label-shell" style="padding-top: 52px; padding-bottom: 52px; font-weight: 600;">
+                        <span>Inward</span>
+                        <span>Carrier</span>
+                      </div>
+                      <div id="carrier-row" style="display: grid; grid-template-columns: 320px 40px 220px; gap: 12px; align-items: center;">
+                        <app-inward-carrier-lookup id="carrier-host" formcontrolname="name" style="display: block;">
+                          <input id="carrier-name" type="text" style="width: 320px; height: 28px;">
+                        </app-inward-carrier-lookup>
+                        <div>🔍</div>
+                        <input id="carrier-uen" type="text" style="width: 220px; height: 28px;">
+                        <input id="carrier-model" type="hidden">
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const host = document.getElementById('carrier-host');
+                      const nameField = document.getElementById('carrier-name');
+                      const uenField = document.getElementById('carrier-uen');
+                      const modelField = document.getElementById('carrier-model');
+                      const component = {
+                        options: [
+                          { code: '197201770G', description: 'SINGAPORE AIRPORT TERMINAL SERVICES' }
+                        ],
+                        inputElement: { nativeElement: nameField },
+                        selectOptionItem(option) {
+                          nameField.value = option.description;
+                        },
+                        selectOptionLabel(option) {
+                          nameField.value = option.description;
+                        },
+                        onChange(code) {
+                          modelField.value = code;
+                          uenField.value = code;
+                          uenField.dispatchEvent(new Event('input', { bubbles: true }));
+                          uenField.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      window.ng = {
+                        getComponent(target) {
+                          return target === host ? component : null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "197201770G" },
+                  "partyName": { "name": "SINGAPORE AIRPORT TERMINAL SERVICES" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Inward Carrier", partyNode);
+
+        assertEquals("SINGAPORE AIRPORT TERMINAL SERVICES", page.locator("#carrier-name").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-uen").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-model").inputValue());
+    }
+
+    @Test
+    void syncsInwardCarrierLookupComponentWithoutOptionsByPushingModelValue() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display: grid; grid-template-columns: 180px 420px; gap: 16px; align-items: start;">
+                      <div id="carrier-label-shell" style="padding-top: 52px; padding-bottom: 52px; font-weight: 600;">
+                        <span>Inward</span>
+                        <span>Carrier</span>
+                      </div>
+                      <div id="carrier-row" style="display: grid; grid-template-columns: 320px 40px 220px; gap: 12px; align-items: center;">
+                        <app-inward-carrier-lookup id="carrier-host" formcontrolname="name" style="display: block;">
+                          <input id="carrier-name" type="text" style="width: 320px; height: 28px;">
+                        </app-inward-carrier-lookup>
+                        <div>🔍</div>
+                        <input id="carrier-uen" type="text" style="width: 220px; height: 28px;">
+                        <input id="carrier-model" type="hidden">
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const host = document.getElementById('carrier-host');
+                      const nameField = document.getElementById('carrier-name');
+                      const uenField = document.getElementById('carrier-uen');
+                      const modelField = document.getElementById('carrier-model');
+                      const component = {
+                        inputElement: { nativeElement: nameField },
+                        onChange(code) {
+                          modelField.value = code;
+                          uenField.value = code;
+                          uenField.dispatchEvent(new Event('input', { bubbles: true }));
+                          uenField.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      window.ng = {
+                        getComponent(target) {
+                          return target === host ? component : null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        IptDeclarationPage declarationPage = new IptDeclarationPage(page);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "fillPartyRow",
+                String.class,
+                JsonNode.class);
+        method.setAccessible(true);
+
+        JsonNode partyNode = OBJECT_MAPPER.readTree("""
+                {
+                  "partyIdentification": { "id": "197201770G" },
+                  "partyName": { "name": "SINGAPORE AIRPORT TERMINAL SERVICES" }
+                }
+                """);
+
+        method.invoke(declarationPage, "Inward Carrier", partyNode);
+
+        assertEquals("SINGAPORE AIRPORT TERMINAL SERVICES", page.locator("#carrier-name").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-uen").inputValue());
+        assertEquals("197201770G", page.locator("#carrier-model").inputValue());
     }
 
     @Test

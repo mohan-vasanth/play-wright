@@ -184,6 +184,27 @@ class TestLauncherControllerTest {
                 .startsWith("Uploaded JSON file is invalid:"));
     }
 
+    @Test
+    void launcherCommandEnablesTradenixLiveTests() throws Exception {
+        Object config = resolveTypeConfig("ipt");
+        Method buildCommand = TestLauncherController.class.getDeclaredMethod(
+                "buildCommand",
+                config.getClass(),
+                String.class,
+                String.class);
+        buildCommand.setAccessible(true);
+
+        @SuppressWarnings("unchecked")
+        List<String> command = (List<String>) buildCommand.invoke(
+                controller,
+                config,
+                "D:\\Mohan\\play-wright\\mvnw.cmd",
+                "D:\\Mohan\\play-wright\\src\\test\\resources\\declaration-json\\IPT\\ipt-declaration-test-case-1.json");
+
+        assertTrue(command.contains("-Dtradenix.live.tests=true"));
+        assertTrue(command.contains("-Dtest=IptDeclarationTestCase1Test"));
+    }
+
     private Map<?, ?> jsonOptionsBody(String type) {
         ResponseEntity<?> response = controller.jsonOptions(type);
         assertEquals(200, response.getStatusCode().value());

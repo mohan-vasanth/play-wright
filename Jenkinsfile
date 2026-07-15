@@ -27,6 +27,7 @@ pipeline {
             steps {
                 bat '''
                     mvn test ^
+                      -Dtradenix.live.tests=true ^
                       -Dtest=com.automation.playwright_framework.LoginTest ^
                       -Dplaywright.headless=true ^
                       -Dtradenix.user.username=mohan ^

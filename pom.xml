@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>17</java.version>
+		<surefire.excludedGroups>tradenix-live</surefire.excludedGroups>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -104,6 +105,14 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludedGroups>${surefire.excludedGroups}</excludedGroups>
+				</configuration>
+			</plugin>
+
 			<!-- JMeter Maven Plugin -->
 			<plugin>
 				<groupId>com.lazerycode.jmeter</groupId>
@@ -180,5 +189,20 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>tradenix-live-tests</id>
+			<activation>
+				<property>
+					<name>tradenix.live.tests</name>
+					<value>true</value>
+				</property>
+			</activation>
+			<properties>
+				<surefire.excludedGroups></surefire.excludedGroups>
+			</properties>
+		</profile>
+	</profiles>
 
 </project>

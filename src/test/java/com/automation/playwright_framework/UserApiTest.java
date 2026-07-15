@@ -1,5 +1,6 @@
 package com.automation.playwright_framework;
 
+import base.TradenixLiveTest;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Assumptions;
@@ -19,6 +20,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
 
+@TradenixLiveTest
 public class UserApiTest {
 
     private static final Gson GSON = new Gson();

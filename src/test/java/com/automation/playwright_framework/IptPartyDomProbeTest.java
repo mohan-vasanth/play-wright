@@ -1,10 +1,12 @@
 package com.automation.playwright_framework;
 
 import base.BaseTest;
+import base.TradenixLiveTest;
 import com.automation.DeclarationsPage;
 import com.automation.LoginPage;
 import org.junit.jupiter.api.Test;
 
+@TradenixLiveTest
 public class IptPartyDomProbeTest extends BaseTest {
 
     @Test

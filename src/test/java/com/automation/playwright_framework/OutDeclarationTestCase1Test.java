@@ -1,6 +1,7 @@
 package com.automation.playwright_framework;
 
 import base.BaseTest;
+import base.TradenixLiveTest;
 import com.automation.DeclarationsPage;
 import com.automation.LoginPage;
 import com.automation.OutDeclarationPage;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 
+@TradenixLiveTest
 public class OutDeclarationTestCase1Test extends BaseTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -209,6 +211,15 @@ public class OutDeclarationTestCase1Test extends BaseTest {
         }
         try {
             Files.writeString(diagnosticsPath, outDeclarationPage.captureSubmitValidationDiagnostics());
+        } catch (Exception ignored) {
+        }
+        try {
+            String diagnosticsFileName = diagnosticsPath.getFileName().toString();
+            String auditFileName = diagnosticsFileName.endsWith(".json")
+                    ? diagnosticsFileName.substring(0, diagnosticsFileName.length() - 5) + "-audit.json"
+                    : diagnosticsFileName + "-audit.json";
+            Path auditPath = diagnosticsPath.resolveSibling(auditFileName);
+            Files.writeString(auditPath, outDeclarationPage.captureRenderedFormAuditSnapshot());
         } catch (Exception ignored) {
         }
     }

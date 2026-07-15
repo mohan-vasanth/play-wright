@@ -1,6 +1,7 @@
 package tests;
 
 import base.BaseTest;
+import base.TradenixLiveTest;
 import com.microsoft.playwright.Page;
 import org.junit.jupiter.api.Test;
 import utils.JMeterReportGenerator;
@@ -12,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
  * Full test flow:
  *   Playwright UI Test  →  Browser Close  →  JMeter Load Test  →  HTML Report
  */
+@TradenixLiveTest
 public class PerformanceTest extends BaseTest {
 
     private static final String LOGIN_URL =

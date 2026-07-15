@@ -351,7 +351,7 @@ public class InpDeclarationPage extends IptDeclarationPage {
         JsonNode identityNode = partyIdentityNode(partyNode);
         JsonNode addressNode = partyNode.path("address");
 
-        String name = normalize(text(identityNode.path("partyName"), "name"));
+        String name = partyName(partyNode);
         String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
         String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
         String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);

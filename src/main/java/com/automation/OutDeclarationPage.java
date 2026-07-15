@@ -54,6 +54,11 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillSummary(data);
     }
 
+    @Override
+    protected void completeSection(String sectionName) {
+        saveDraftAndAdvanceToNextSection();
+    }
+
     private void fillShipmentInfo(JsonNode data) {
         JsonNode header = data.path("header");
         JsonNode cargo = data.path("cargo");
@@ -553,6 +558,16 @@ public class OutDeclarationPage extends IptDeclarationPage {
     @Override
     protected void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
+        waitForAnyVisibleText(
+                "Importer",
+                "Inward Carrier",
+                "Freight Forwarder",
+                "Outward Carrier",
+                "Declaring Agent",
+                "Exporter",
+                "Consignee",
+                "End User",
+                "Manufacturer");
 
         fillPartyLookupRow("Importer", party.path("importerParty"));
         fillPartyLookupRow("Inward Carrier", party.path("inwardCarrierAgentParty"));
@@ -560,24 +575,14 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillPartyLookupRow("Outward Carrier", party.path("outwardCarrierAgentParty"));
         fillPartyLookupRow("Declaring Agent", party.path("declaringAgentParty"));
 
-        fillLookupPartyComponent("app-importer-lookup[formcontrolname='name']",
-                text(partyIdentityNode(party.path("importerParty")).path("partyName"), "name"),
-                text(partyIdentityNode(party.path("importerParty")).path("partyIdentification"), "id"));
-        fillLookupPartyComponent("app-inward-carrier-lookup[formcontrolname='name']",
-                text(partyIdentityNode(party.path("inwardCarrierAgentParty")).path("partyName"), "name"),
-                text(partyIdentityNode(party.path("inwardCarrierAgentParty")).path("partyIdentification"), "id"));
-        fillLookupPartyComponent("app-freight-forwarder-lookup[formcontrolname='name']",
-                text(partyIdentityNode(party.path("freightForwarderParty")).path("partyName"), "name"),
-                text(partyIdentityNode(party.path("freightForwarderParty")).path("partyIdentification"), "id"));
-        fillLookupPartyComponent("app-outward-carrier-agent-lookup[formcontrolname='name']",
-                text(partyIdentityNode(party.path("outwardCarrierAgentParty")).path("partyName"), "name"),
-                text(partyIdentityNode(party.path("outwardCarrierAgentParty")).path("partyIdentification"), "id"));
+        reconcileLookupPartyComponentIfNeeded("Importer", party.path("importerParty"));
+        reconcileLookupPartyComponentIfNeeded("Inward Carrier", party.path("inwardCarrierAgentParty"));
+        reconcileLookupPartyComponentIfNeeded("Freight Forwarder", party.path("freightForwarderParty"));
+        reconcileLookupPartyComponentIfNeeded("Outward Carrier", party.path("outwardCarrierAgentParty"));
+        reconcileLookupPartyComponentIfNeeded("Declaring Agent", party.path("declaringAgentParty"));
 
-        fillPartyCard(
-                "Exporter",
-                partyIdentityNode(party.path("exporterParty")).path("partyName").path("name"),
-                partyIdentityNode(party.path("exporterParty")).path("partyIdentification").path("id"),
-                party.path("exporterParty").path("address"));
+        fillExporterParty(party.path("exporterParty"));
+
         fillPartyCard(
                 "Consignee",
                 partyIdentityNode(party.path("consigneeParty")).path("partyName").path("name"),
@@ -595,12 +600,46 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 party.path("manufacturerParty").path("address"));
     }
 
+    private void fillExporterParty(JsonNode exporterParty) {
+        if (resolvePartyCard("Exporter") != null) {
+            fillPartyCard(
+                    "Exporter",
+                    partyIdentityNode(exporterParty).path("partyName").path("name"),
+                    partyIdentityNode(exporterParty).path("partyIdentification").path("id"),
+                    exporterParty.path("address"));
+            return;
+        }
+
+        fillPartyRowIfPresent("Exporter", exporterParty);
+    }
+
     private void fillPartyLookupRow(String rowLabel, JsonNode partyNode) {
         JsonNode identityNode = partyIdentityNode(partyNode);
         fillLookupPartyRow(
                 rowLabel,
                 text(identityNode.path("partyName"), "name"),
                 text(identityNode.path("partyIdentification"), "id"));
+    }
+
+    private void reconcileLookupPartyComponentIfNeeded(String rowLabel, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        String resolvedPartyName = partyName(partyNode);
+        String resolvedPartyId = text(identityNode.path("partyIdentification"), "id");
+        if ((resolvedPartyName == null || resolvedPartyName.isBlank())
+                && (resolvedPartyId == null || resolvedPartyId.isBlank())) {
+            return;
+        }
+
+        Locator row = resolvePartyTableRow(rowLabel);
+        if (row != null) {
+            Locator nameField = resolveVisibleEditableFieldInRowOrNull(row, 0);
+            Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
+            if (lookupPartyRowResolved(row, nameField, idField, resolvedPartyName, resolvedPartyId, 800)) {
+                return;
+            }
+        }
+
+        syncPartyLookupComponentSelection(rowLabel, resolvedPartyName, resolvedPartyId);
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {
@@ -623,8 +662,27 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (card == null) {
             return;
         }
+        try {
+            card.scrollIntoViewIfNeeded();
+        } catch (Exception ignored) {
+        }
+        page.waitForTimeout(250);
+        Locator visibleCardAfterScroll = resolvePartyCard(title);
+        if (visibleCardAfterScroll != null) {
+            card = visibleCardAfterScroll;
+        }
 
-        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
+        boolean synced = syncPartyLookupComponentSelectionInScope(card, name, id);
+        if (!synced) {
+            synced = syncPartyLookupComponentSelection(title, name, id);
+        }
+        if (!synced) {
+            fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
+        }
+        if (!synced) {
+            synced = syncPartyLookupComponentSelectionInScope(card, name, id);
+        }
+        ensurePartyCardNameValue(card, name);
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
@@ -634,14 +692,259 @@ public class OutDeclarationPage extends IptDeclarationPage {
         String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
         String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city);
 
-        fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, addressLine1);
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, addressLine2);
-        fillFieldAfterScopeLabelIfPresent(card, "City", 0, city);
-        fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0, postalCode);
-        fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0,
-                text(addressNode, "countryCode"),
-                text(addressNode, "countryCode"));
+        fillPartyCardFieldWithFallback(card, "Address", compactAddress);
+        fillPartyCardFieldWithFallback(card, "Address Line 1", addressLine1);
+        fillPartyCardFieldWithFallback(card, "Address Line 2", addressLine2);
+        fillPartyCardFieldWithFallback(card, "City", city);
+        fillPartyCardFieldWithFallback(card, "Postal Code", postalCode);
+        fillPartyCardFieldWithFallback(card, "Country Code", text(addressNode, "countryCode"));
+    }
+
+    private boolean syncPartyLookupComponentSelectionInScope(Locator scope, String partyName, String partyId) {
+        if (scope == null || (partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
+            return false;
+        }
+
+        try {
+            Object synced = scope.evaluate("""
+                    (card, args) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = element => !!element
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        if (typeof window.ng === 'undefined' || typeof window.ng.getComponent !== 'function') {
+                            return false;
+                        }
+
+                        const expectedName = normalize(args.partyName);
+                        const expectedId = normalize(args.partyId);
+                        const candidates = [card, ...Array.from(card.querySelectorAll('*'))]
+                            .filter(isVisible)
+                            .map(element => ({ element, component: window.ng.getComponent(element) }))
+                            .filter(entry => !!entry.component);
+                        if (candidates.length === 0) {
+                            return false;
+                        }
+
+                        const scoreOption = option => {
+                            const code = normalize(option?.code);
+                            const description = normalize(option?.description);
+                            const combined = normalize(`${option?.code || ''} ${option?.description || ''}`);
+                            let score = 0;
+                            if (expectedId && code === expectedId) {
+                                score += 1000;
+                            } else if (expectedId && combined.includes(expectedId)) {
+                                score += 500;
+                            }
+                            if (expectedName && description === expectedName) {
+                                score += 400;
+                            } else if (expectedName && (description.includes(expectedName) || expectedName.includes(description))) {
+                                score += 200;
+                            }
+                            return score;
+                        };
+
+                        let bestEntry = null;
+                        let bestOption = null;
+                        let bestScore = Number.NEGATIVE_INFINITY;
+                        for (const entry of candidates) {
+                            const component = entry.component;
+                            const field = component?.inputElement?.nativeElement
+                                || entry.element.querySelector?.("input, textarea, select, [role='combobox'], [role='textbox']");
+                            const allOptions = Array.isArray(component?.allOptions)
+                                ? component.allOptions
+                                : Array.isArray(component?.options)
+                                    ? component.options
+                                    : [];
+                            const ranked = allOptions
+                                .map(option => ({ option, score: scoreOption(option) }))
+                                .filter(candidate => candidate.score > 0)
+                                .sort((left, right) => right.score - left.score);
+                            const text = normalize(
+                                field?.value
+                                    || entry.element.innerText
+                                    || entry.element.textContent
+                                    || component?.inputDisplayValue
+                                    || component?.displayValue
+                                    || '');
+                            let score = ranked[0]?.score || 0;
+                            if (field && card.contains(field) && isVisible(field)) {
+                                score += 200;
+                            }
+                            if (expectedName && text && (text.includes(expectedName) || expectedName.includes(text))) {
+                                score += 100;
+                            }
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestEntry = entry;
+                                bestOption = ranked[0]?.option || null;
+                            }
+                        }
+
+                        if (!bestEntry) {
+                            return false;
+                        }
+
+                        const component = bestEntry.component;
+                        const selected = bestOption || {
+                            code: args.partyId || args.partyName || '',
+                            description: args.partyName || args.partyId || ''
+                        };
+                        const display = selected.description || selected.code || args.partyName || args.partyId || '';
+                        const value = selected.code || display;
+                        const field = component?.inputElement?.nativeElement
+                            || bestEntry.element.querySelector?.("input, textarea, select, [role='combobox'], [role='textbox']");
+
+                        if ('value' in component) {
+                            component.value = value;
+                        }
+                        if ('_value' in component) {
+                            component._value = value;
+                        }
+                        if (component.formControl && typeof component.formControl.setValue === 'function') {
+                            component.formControl.setValue(value);
+                        }
+                        if (component.control && typeof component.control.setValue === 'function') {
+                            component.control.setValue(value);
+                        }
+                        if (typeof component.writeValue === 'function') {
+                            component.writeValue(value);
+                        }
+                        if ('selectedItem' in component) {
+                            component.selectedItem = selected;
+                        }
+                        if ('selectedOption' in component) {
+                            component.selectedOption = selected;
+                        }
+                        if ('selectedLabel' in component) {
+                            component.selectedLabel = display;
+                        }
+                        if ('inputDisplayValue' in component) {
+                            component.inputDisplayValue = display;
+                        }
+                        if ('displayValue' in component) {
+                            component.displayValue = display;
+                        }
+                        if (field && 'value' in field) {
+                            field.value = display;
+                            field.setAttribute?.('value', display);
+                            field.dispatchEvent(new Event('input', { bubbles: true }));
+                            field.dispatchEvent(new Event('change', { bubbles: true }));
+                            field.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                        if (typeof component.selectOptionItem === 'function') {
+                            component.selectOptionItem(selected);
+                        }
+                        if (typeof component.selectOptionLabel === 'function') {
+                            component.selectOptionLabel(selected);
+                        }
+                        if (typeof component.onChange === 'function') {
+                            component.onChange(value);
+                        }
+                        if (typeof component.onTouched === 'function') {
+                            component.onTouched();
+                        }
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "partyName", firstNonBlank(partyName, ""),
+                    "partyId", firstNonBlank(partyId, "")));
+            return Boolean.TRUE.equals(synced);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private boolean hasVisiblePartyLookupHost(Locator scope) {
+        if (scope == null) {
+            return false;
+        }
+        Locator host = firstVisible(scope.locator(
+                "app-importer-lookup[formcontrolname='name'], "
+                        + "app-exporter-lookup[formcontrolname='name'], "
+                        + "app-inward-carrier-lookup[formcontrolname='name'], "
+                        + "app-outward-carrier-agent-lookup[formcontrolname='name'], "
+                        + "app-freight-forwarder-lookup[formcontrolname='name'], "
+                        + "app-declaring-agent-lookup[formcontrolname='name'], "
+                        + "app-consignee-lookup[formcontrolname='name'], "
+                        + "app-end-user-lookup[formcontrolname='name'], "
+                        + "app-manufacturer-lookup[formcontrolname='name']"));
+        return host != null;
+    }
+
+    private void ensurePartyCardNameValue(Locator card, String expectedName) {
+        if (card == null || expectedName == null || expectedName.isBlank()) {
+            return;
+        }
+
+        Locator field = firstVisible(card.locator(
+                "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']"));
+        if (field == null) {
+            return;
+        }
+
+        String currentValue = normalize(readRenderedFieldValue(field));
+        String normalizedExpected = normalize(expectedName);
+        if (!currentValue.isBlank()
+                && (currentValue.equalsIgnoreCase(normalizedExpected)
+                || currentValue.contains(normalizedExpected)
+                || normalizedExpected.contains(currentValue))) {
+            return;
+        }
+
+        ensureTextFieldValue(field, expectedName);
+    }
+
+    private void fillPartyCardFieldWithFallback(Locator card, String label, String value) {
+        if (card == null || value == null || value.isBlank()) {
+            return;
+        }
+
+        fillFieldAfterScopeLabelIfPresent(card, label, 0, value);
+        Locator field = resolvePartyCardFieldAfterLabelOrNull(card, label, 0);
+        if (field == null) {
+            return;
+        }
+
+        String currentValue = normalize(readRenderedFieldValue(field));
+        String normalizedExpected = normalize(value);
+        if (!currentValue.isBlank()
+                && (currentValue.equalsIgnoreCase(normalizedExpected)
+                || currentValue.contains(normalizedExpected)
+                || normalizedExpected.contains(currentValue))) {
+            return;
+        }
+
+        focusAndType(field, value, false);
+        ensureTextFieldValue(field, value);
+    }
+
+    private Locator resolvePartyCardFieldAfterLabelOrNull(Locator card, String label, int occurrence) {
+        if (card == null || label == null || label.isBlank()) {
+            return null;
+        }
+
+        String escapedLabel = toXpathLiteral(label);
+        Locator directField = card.locator(
+                "xpath=((.//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[" + (occurrence + 1) + "]"
+                        + "/following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox'][1])");
+        Locator visibleDirectField = firstVisible(directField);
+        if (visibleDirectField != null) {
+            return visibleDirectField;
+        }
+
+        int fallbackOccurrence = switch (normalize(label).toUpperCase()) {
+            case "ADDRESS", "ADDRESS LINE 1" -> 2;
+            case "COUNTRY CODE" -> 3;
+            default -> -1;
+        };
+        if (fallbackOccurrence < 0) {
+            return null;
+        }
+
+        Locator fallbackField = card.locator(
+                "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']")
+                .nth(fallbackOccurrence);
+        return firstVisible(fallbackField);
     }
 
     private void fillInvoiceInfo(JsonNode data) {
@@ -2010,11 +2313,30 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private Locator resolvePartyCard(String title) {
+        Locator partySection = resolvePartyInfoSectionOrNull();
+        if (partySection == null) {
+            return null;
+        }
+
         String escapedTitle = toXpathLiteral(title);
-        Locator locator = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+        Locator detailedCard = partySection.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[((.//*[normalize-space(translate(., '*', ''))='Address']"
+                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Country Code')])"
+                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']))][1]");
+        Locator visibleDetailedCard = firstVisible(detailedCard);
+        if (visibleDetailedCard != null) {
+            return visibleDetailedCard;
+        }
+
+        Locator locator = partySection.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
                         + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox']][1]");
         return firstVisible(locator);
+    }
+
+    private Locator resolvePartyInfoSectionOrNull() {
+        return resolveSectionOrNull("Party Info (P)");
     }
 
     @Override
@@ -2728,16 +3050,21 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private Locator resolvePartyTableRow(String rowLabel) {
+        Locator partySection = resolvePartyInfoSectionOrNull();
+        if (partySection == null) {
+            return null;
+        }
+
         String escaped = toXpathLiteral(rowLabel);
-        Locator tableRow = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escaped + "])[1]/ancestor::tr[1]");
+        Locator tableRow = partySection.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escaped + "])[1]/ancestor::tr[1]");
         Locator visibleTableRow = firstVisible(tableRow);
         if (visibleTableRow != null) {
             return visibleTableRow;
         }
 
-        Locator genericRow = page.locator(
-                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escaped + "])[1]"
+        Locator genericRow = partySection.locator(
+                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escaped + "])[1]"
                         + "/ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > 1][1]");
         return firstVisible(genericRow);
     }

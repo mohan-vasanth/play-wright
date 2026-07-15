@@ -1,0 +1,209 @@
+{
+    "type": "TNPDEC",
+    "previousPermitNumber": null,
+    "status": null,
+    "jobReferenceNumber": null,
+    
+        "type": "TNP",
+        "header": {
+            "messageReference": "TDX2607100108",
+            "uniqueReferenceNumber": {
+                "id": "202535359H",
+                "date": "20260710",
+                "sequenceNumeric": "1107"
+            },
+            "declarantId": "ADAT.ADAT001",
+            "commonAccessReference": "TNPDEC",
+            "declarationType": "71",
+            "declarationIndicator": true,
+            "remarks": {
+                "freeText": "TEST CASE  SET 3"
+            },
+            "customsProcedureCodeInformation": [
+                {
+                    "customsProcedureCode": "STS",
+                    "cpcProcessingCode": [
+                        {
+                            "processingCodeOne": "STS1"
+                        }
+                    ]
+                }
+            ]
+        },
+        "formMetaData": {
+            "additionalRecipientIdIsActive": false,
+            "licenceIsActive": true,
+            "supportingDocumentIsActive": false,
+            "transportEquipmentIsActive": false,
+            "itemPackingIsActive": false,
+            "shippingMarksIsActive": true,
+            "declarationIndicator": true
+        },
+        "cargo": {
+            "cargoPackingType": "5",
+            "releaseLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            },
+            "receiptLocation": {
+                "locationCode": "CZ",
+                "locationName": "CHANGI FTZ"
+            }
+        },
+        "transport": {
+            "inwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "2536E"
+                    }
+                },
+                "arrivalDate": "20260713",
+                "loadingPort": "AUMEL"
+            },
+            "outwardTransport": {
+                "transportMeans": {
+                    "transportMode": {
+                        "modeCode": "4",
+                        "conveyanceReferenceNumber": "2563S"
+                    }
+                },
+                "departureDate": "20260716",
+                "dischargePort": "NPKTM",
+                "finalDestinationCountry": "NP"
+            }
+        },
+        "party": {
+            "declarantParty": {
+                "personInformation": {
+                    "codeValue": "S8562791J",
+                    "name": "NAMASIVAYAM GUNESPARAN"
+                },
+                "telephone": "81189066"
+            },
+            "declaringAgentParty": {
+                "partyIdentification": {
+                    "id": "202535359H"
+                },
+                "partyName": {
+                    "name": "ADATA PVT LMT"
+                }
+            },
+            "handlingAgentParty": {
+                "partyIdentification": {
+                    "id": "198800784N"
+                },
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD CUSTOMER SERVICE CENTRE"
+                }
+            },
+            "inwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            },
+            "outwardCarrierAgentParty": {
+                "partyIdentification": {
+                    "id": "197702772D"
+                },
+                "partyName": {
+                    "name": "CHANGI INTERNATIONAL AIRPORT SERVICES PTE LTD"
+                }
+            },
+            "consigneeParty": {
+                "partyName": {
+                    "name": "CRIMSONLOGIC PTE LTD"
+                },
+                "address": {
+                    "addressLine": {
+                        "line": [
+                            "CRIMSONLOGIC PTE LTD "
+                        ]
+                    },
+                    "cityName": "CRIMSONLOGIC PTE LTD ",
+                    "countrySubentityCode": "56566",
+                    "countrySubentity": "CRIMSONLOGIC PTE LTD ",
+                    "postalZone": "198800784",
+                    "countryCode": "SG"
+                }
+            }
+        },
+        "licence": [
+            {
+                "referenceID": "AEB01"
+            }
+        ],
+        "item": [
+            {
+                "itemSequenceNumeric": "1",
+                "itemHarmonizedSystemCode": "87100000",
+                "goodsDescription": "TANKS & OTHER ARMOURED FIGHTING VEHICLES MOTORISED & PARTS OF SUCH VEHICLES (NMB)",
+                "brandName": "OXFORD",
+                "modelDescription": "OXFORD",
+                "dangerousGoodsIndicator": false,
+                "inMAWBOUCROBLNumber": "INMAWB12345",
+                "outMAWBOUCROBLNumber": "OUTMAWB12345",
+                "itemQuantity": {
+                    "harmonizedSystemQuantity": {
+                        "value": "6.000",
+                        "unitCode": "NMB"
+                    }
+                },
+                "originCountry": "AU",
+                "cascProduct": [
+                    {
+                        "cascProductCode": "ANECON008",
+                        "cascProductQuantity": {
+                            "value": "6.000",
+                            "unitCode": "NMB"
+                        },
+                        "endUseDescription": {
+                            "endUseLine": [
+                                "testing"
+                            ]
+                        }
+                    },
+                    {
+                        "cascProductCode": "ML6",
+                        "cascProductQuantity": {
+                            "value": "6.000",
+                            "unitCode": "NMB"
+                        },
+                        "endUseDescription": {
+                            "endUseLine": [
+                                "testing"
+                            ]
+                        },
+                        "additionalCascIdentification": [
+                            {
+                                "cascCodeOne": "MIL",
+                                "cascCodeTwo": "GOV",
+                                "cascCodeThree": "NMD"
+                            }
+                        ]
+                    }
+                ],
+                "shippingMarksInformation": [
+                    {
+                        "shippingMarks": [
+                            "NA"
+                        ]
+                    }
+                ]
+            }
+        ],
+        "summary": {
+            "numberOfItems": "1",
+            "totalOuterPack": {
+                "value": "6",
+                "unitCode": "NMB"
+            },
+            "totalGrossWeight": {
+                "value": "375000.000",
+                "unitCode": "KGM"
+            }
+        }
+    }

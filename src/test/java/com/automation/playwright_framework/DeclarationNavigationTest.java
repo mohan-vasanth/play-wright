@@ -1,6 +1,7 @@
 package com.automation.playwright_framework;
 
 import base.BaseTest;
+import base.TradenixLiveTest;
 import com.automation.DeclarationsPage;
 import com.automation.LoginPage;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@TradenixLiveTest
 public class DeclarationNavigationTest extends BaseTest {
 
     private static final String LOGIN_URL = System.getProperty(

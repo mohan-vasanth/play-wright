@@ -1,10 +1,12 @@
 package tests;
 
+import base.TradenixLiveTest;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
 import org.junit.jupiter.api.Test;
 import utils.JMeterRunner;
 
+@TradenixLiveTest
 public class LoginTest {
 
     private static final String LOGIN_URL =

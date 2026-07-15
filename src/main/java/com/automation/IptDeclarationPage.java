@@ -542,27 +542,26 @@ public class IptDeclarationPage {
                 throw new IllegalStateException("BG Indicator value was not rendered. Expected one of: "
                         + String.join(", ", selectionHints) + ", Actual: " + readRenderedFieldValue(field));
             }
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            finalizeFieldEntry(field);
             return;
         }
 
         clickDropdownActivator(field);
         pauseUi(UI_ACTION_PAUSE_MS);
 
-        boolean optionSelected = waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, exactSelectionHints)
-                && clickVisibleSuggestionExact(exactSelectionHints);
-        if (!optionSelected) {
+        boolean optionSelected = waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, field, exactSelectionHints)
+                && clickVisibleSuggestionExact(field, exactSelectionHints);
+        if (!optionSelected && focusFieldForKeyboardSelection(field)) {
             try {
                 page.keyboard().press("ArrowDown");
                 pauseUi(UI_ACTION_PAUSE_MS);
             } catch (PlaywrightException ignored) {
             }
-            optionSelected = clickVisibleSuggestionExact(exactSelectionHints);
+            optionSelected = clickVisibleSuggestionExact(field, exactSelectionHints);
         }
         if (!optionSelected) {
-            optionSelected = waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, selectionHints)
-                    && clickVisibleSuggestion(selectionHints);
+            optionSelected = waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, selectionHints)
+                    && clickVisibleSuggestion(field, selectionHints);
         }
         if (!optionSelected) {
             openLookupAndChooseOption(field, selectionHints);
@@ -572,10 +571,10 @@ public class IptDeclarationPage {
             closeTransientOverlays();
             clickDropdownActivator(field);
             pauseUi(UI_ACTION_PAUSE_MS);
-            if (waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, exactSelectionHints)) {
-                clickVisibleSuggestionExact(exactSelectionHints);
-            } else if (waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, selectionHints)) {
-                clickVisibleSuggestion(selectionHints);
+            if (waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, field, exactSelectionHints)) {
+                clickVisibleSuggestionExact(field, exactSelectionHints);
+            } else if (waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, selectionHints)) {
+                clickVisibleSuggestion(field, selectionHints);
             }
         }
 
@@ -1124,15 +1123,23 @@ public class IptDeclarationPage {
 
     protected void fillPartyInfo(JsonNode data) {
         JsonNode party = data.path("party");
-        fillPartyRow("Importer", party.path("importerParty"));
-        fillPartyRow("Inward Carrier", party.path("inwardCarrierAgentParty"));
-        fillPartyRow("Freight Forwarder", party.path("freightForwarderParty"));
+        JsonNode importerParty = party.path("importerParty");
+        JsonNode inwardCarrierAgentParty = party.path("inwardCarrierAgentParty");
+        JsonNode freightForwarderParty = party.path("freightForwarderParty");
+
+        fillPartyRow("Importer", importerParty);
+        fillPartyRow("Inward Carrier", inwardCarrierAgentParty);
+        fillPartyRow("Freight Forwarder", freightForwarderParty);
         fillDeclarationSpecificPartyInfo(data, party);
+
+        reconcilePartyRowIfNeeded("Importer", importerParty);
+        reconcilePartyRowIfNeeded("Inward Carrier", inwardCarrierAgentParty);
+        reconcilePartyRowIfNeeded("Freight Forwarder", freightForwarderParty);
     }
 
     private void fillPartyRow(String rowLabel, JsonNode partyNode) {
         JsonNode identityNode = partyIdentityNode(partyNode);
-        String partyName = normalize(text(identityNode.path("partyName"), "name"));
+        String partyName = partyName(partyNode);
         String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
         if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
             return;
@@ -1165,21 +1172,33 @@ public class IptDeclarationPage {
         boolean matched = false;
         for (String searchCandidate : searchCandidates) {
             clearAndTypePartyField(field, searchCandidate);
-            boolean suggestionSelected = attemptPartySuggestionSelection(selectionHints);
+            boolean suggestionSelected = attemptPartySuggestionSelection(field, selectionHints);
             if (!suggestionSelected) {
-                suggestionSelected = attemptLookupCodePartySuggestionFallback(partyName);
+                suggestionSelected = attemptLookupCodePartySuggestionFallback(field, partyName);
             }
-            try {
-                page.keyboard().press("Tab");
-            } catch (PlaywrightException ignored) {
-            }
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            finalizeFieldEntry(field);
             boolean committedSelection = waitForCommittedPartySelection(field, 2500);
             boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
             boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1500);
             boolean fieldValueMatches = lookupCodePartyName
                     ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 2500)
                     : waitForPartyFieldValue(field, partyName, 2500);
+
+            if (componentField != null
+                    && partyId != null
+                    && !partyId.isBlank()
+                    && (!committedSelection || !resolvedSelection)) {
+                if (syncPartyLookupComponentSelection(rowLabel, partyName, partyId)) {
+                    committedSelection = waitForCommittedPartySelection(field, 1200) || committedSelection;
+                    resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 1500)
+                            || resolvedSelection;
+                    rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1200) || rowValuesMatch;
+                    fieldValueMatches = lookupCodePartyName
+                            ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500) || fieldValueMatches
+                            : waitForPartyFieldValue(field, partyName, 1500) || fieldValueMatches;
+                }
+            }
+
             String finalFieldValue = readRenderedFieldValue(field);
             String finalRowValue = readPartyRowText(rowLabel);
             logPartyMappingAttempt(
@@ -1202,6 +1221,12 @@ public class IptDeclarationPage {
                     || partyId.isBlank()
                     || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
                     || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
+            if (!idResolved && partyId != null && !partyId.isBlank()) {
+                if (confirmVisibleSuggestionWithKeyboard(field, selectionHints)) {
+                    idResolved = waitForStablePartyIdFieldValue(idField, partyId, 600, 1500)
+                            || waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
+                }
+            }
             if (!idResolved && partyId != null && !partyId.isBlank()) {
                 idResolved = (componentField != null && syncPartyLookupComponentSelection(rowLabel, partyName, partyId))
                         || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
@@ -1231,7 +1256,7 @@ public class IptDeclarationPage {
 
     protected void fillPartyRowIfPresent(String rowLabel, JsonNode partyNode) {
         JsonNode identityNode = partyIdentityNode(partyNode);
-        String partyName = normalize(text(identityNode.path("partyName"), "name"));
+        String partyName = partyName(partyNode);
         String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
         if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
             return;
@@ -1277,7 +1302,7 @@ public class IptDeclarationPage {
 
     private void reconcilePartyRowIfNeeded(String rowLabel, JsonNode partyNode) {
         JsonNode identityNode = partyIdentityNode(partyNode);
-        String partyName = normalize(text(identityNode.path("partyName"), "name"));
+        String partyName = partyName(partyNode);
         String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
         if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
             return;
@@ -1310,6 +1335,19 @@ public class IptDeclarationPage {
     private JsonNode partyIdentityNode(JsonNode partyNode) {
         JsonNode partyDetail = partyNode.path("partyDetail");
         return isMissingOrEmpty(partyDetail) ? partyNode : partyDetail;
+    }
+
+    protected String partyName(JsonNode partyNode) {
+        if (partyNode == null || partyNode.isMissingNode() || partyNode.isNull()) {
+            return null;
+        }
+
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        return normalize(firstNonBlank(
+                text(identityNode.path("partyName"), "name"),
+                text(identityNode, "name"),
+                text(partyNode.path("partyName"), "name"),
+                text(partyNode, "name")));
     }
 
     private boolean waitForPartyFieldValue(Locator field, String expectedName, int timeoutMs) {
@@ -1479,7 +1517,28 @@ public class IptDeclarationPage {
 
         boolean idMatches = false;
         for (int attempt = 0; attempt < 2 && !idMatches; attempt++) {
-            focusAndType(idField, partyId, false);
+            idField = resolvePartyIdFieldOrNull(rowLabel);
+            if (idField == null) {
+                return false;
+            }
+
+            try {
+                focusAndType(idField, partyId, false);
+            } catch (PlaywrightException | IllegalStateException exception) {
+                logFieldMappingWarning("Party row '" + rowLabel
+                        + "' ID field became unstable during direct typing. Falling back to DOM value sync. Cause: "
+                        + exception.getMessage());
+                idField = resolvePartyIdFieldOrNull(rowLabel);
+                if (idField == null) {
+                    continue;
+                }
+                ensureTextFieldValue(idField, partyId);
+            }
+
+            idField = resolvePartyIdFieldOrNull(rowLabel);
+            if (idField == null) {
+                return false;
+            }
             if (!waitForStablePartyIdFieldValue(idField, partyId, 600, 1800)) {
                 ensureTextFieldValue(idField, partyId);
                 idMatches = waitForStablePartyIdFieldValue(idField, partyId, 600, 1200);
@@ -1539,7 +1598,7 @@ public class IptDeclarationPage {
         return idField != null && idField.isVisible();
     }
 
-    private boolean syncPartyLookupComponentSelection(String rowLabel, String partyName, String partyId) {
+    protected boolean syncPartyLookupComponentSelection(String rowLabel, String partyName, String partyId) {
         String selector = partyNameComponentSelector(rowLabel);
         if (selector == null || selector.isBlank()) {
             return false;
@@ -1557,7 +1616,12 @@ public class IptDeclarationPage {
                         }
 
                         const component = window.ng.getComponent(host);
-                        if (!component || !Array.isArray(component.allOptions) || component.allOptions.length === 0) {
+                        const allOptions = Array.isArray(component?.allOptions)
+                            ? component.allOptions
+                            : Array.isArray(component?.options)
+                                ? component.options
+                                : [];
+                        if (!component) {
                             return false;
                         }
 
@@ -1581,17 +1645,43 @@ public class IptDeclarationPage {
                             return score;
                         };
 
-                        const ranked = component.allOptions
-                            .map(option => ({ option, score: scoreOption(option) }))
-                            .filter(entry => entry.score > 0)
-                            .sort((left, right) => right.score - left.score);
-                        const selected = ranked[0]?.option;
+                        const ranked = allOptions.length === 0
+                            ? []
+                            : allOptions
+                                .map(option => ({ option, score: scoreOption(option) }))
+                                .filter(entry => entry.score > 0)
+                                .sort((left, right) => right.score - left.score);
+                        const selected = ranked[0]?.option || {
+                            code: args.partyId || args.partyName || '',
+                            description: args.partyName || args.partyId || ''
+                        };
                         if (!selected) {
                             return false;
                         }
 
                         const display = selected.description || selected.code || args.partyName || args.partyId || '';
+                        if ('value' in component) {
+                            component.value = selected.code || component.value;
+                        }
                         component._value = selected.code || component._value;
+                        if (component.formControl && typeof component.formControl.setValue === 'function') {
+                            component.formControl.setValue(selected.code || display);
+                        }
+                        if (component.control && typeof component.control.setValue === 'function') {
+                            component.control.setValue(selected.code || display);
+                        }
+                        if (typeof component.writeValue === 'function') {
+                            component.writeValue(selected.code || display);
+                        }
+                        if ('selectedItem' in component) {
+                            component.selectedItem = selected;
+                        }
+                        if ('selectedOption' in component) {
+                            component.selectedOption = selected;
+                        }
+                        if ('selectedLabel' in component) {
+                            component.selectedLabel = display;
+                        }
                         if ('inputDisplayValue' in component) {
                             component.inputDisplayValue = display;
                         }
@@ -1599,9 +1689,11 @@ public class IptDeclarationPage {
                             component.displayValue = display;
                         }
 
-                        const field = host.querySelector('input, textarea, select');
+                        const field = component.inputElement?.nativeElement
+                            || host.querySelector('input, textarea, select');
                         if (field && 'value' in field) {
                             field.value = display;
+                            field.setAttribute?.('value', display);
                             field.dispatchEvent(new Event('input', { bubbles: true }));
                             field.dispatchEvent(new Event('change', { bubbles: true }));
                             field.dispatchEvent(new Event('blur', { bubbles: true }));
@@ -1622,8 +1714,8 @@ public class IptDeclarationPage {
                     }
                     """, java.util.Map.of(
                     "selector", selector,
-                    "partyName", firstNonBlank(partyName, ""),
-                    "partyId", firstNonBlank(partyId, "")));
+                    "partyName", partyName == null ? "" : partyName,
+                    "partyId", partyId == null ? "" : partyId));
 
             if (!Boolean.TRUE.equals(synced)) {
                 return false;
@@ -2566,7 +2658,7 @@ public class IptDeclarationPage {
                             declarationType,
                             permitType,
                             compactValues("25 - IM Permit", "IM Permit"),
-                            compactValues("25 - IM Permit", "IM Permit", "25 - IM", "IM", "25"));
+                            compactValues("25 - IM Permit", "IM Permit", "25 - IM"));
                     return;
                 }
                 if (permitTypeMatches(permitType, "IT")) {
@@ -2575,7 +2667,7 @@ public class IptDeclarationPage {
                             declarationType,
                             permitType,
                             compactValues("25 - IT Permit", "IT Permit"),
-                            compactValues("25 - IT Permit", "IT Permit", "25 - IT", "IT", "25"));
+                            compactValues("25 - IT Permit", "IT Permit", "25 - IT"));
                     return;
                 }
                 logFieldMappingWarning("Declaration Type 25 is ambiguous for the current payload. Falling back to generic lookup hints.");
@@ -2659,7 +2751,23 @@ public class IptDeclarationPage {
             String permitType,
             String[] exactHints,
             String[] selectionHints) {
-        String[] expectedValues = compactValues(
+        String preferredDisplayValue = firstNonBlank(
+                exactHints.length > 0 ? exactHints[0] : null,
+                selectionHints.length > 0 ? selectionHints[0] : null,
+                permitType,
+                declarationType);
+        boolean permitSpecificSelection = exactHints.length > 0;
+        String[] expectedValues = permitSpecificSelection
+                ? compactValues(
+                firstNonBlank(permitType),
+                exactHints.length > 0 ? exactHints[0] : null,
+                exactHints.length > 1 ? exactHints[1] : null,
+                selectionHints.length > 0 ? selectionHints[0] : null,
+                selectionHints.length > 1 ? selectionHints[1] : null,
+                selectionHints.length > 2 ? selectionHints[2] : null,
+                selectionHints.length > 3 ? selectionHints[3] : null,
+                selectionHints.length > 4 ? selectionHints[4] : null)
+                : compactValues(
                 firstNonBlank(permitType),
                 declarationType,
                 exactHints.length > 0 ? exactHints[0] : null,
@@ -2674,7 +2782,10 @@ public class IptDeclarationPage {
         field.scrollIntoViewIfNeeded();
 
         boolean optionSelected = false;
-        if (trySelectNativeDropdown(field, declarationType, expectedValues)) {
+        String selectionValue = preferredDisplayValue != null && !preferredDisplayValue.isBlank()
+                ? preferredDisplayValue
+                : declarationType;
+        if (trySelectNativeDropdown(field, selectionValue, expectedValues)) {
             optionSelected = waitForAnyRenderedFieldValue(field, 1500, expectedValues);
         }
 
@@ -2683,27 +2794,26 @@ public class IptDeclarationPage {
             pauseUi(UI_ACTION_PAUSE_MS);
 
             optionSelected = exactHints.length > 0
-                    && waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, exactHints)
-                    && clickVisibleSuggestionExact(exactHints);
-            if (!optionSelected) {
+                    && waitForVisibleSuggestionExact(UI_LOOKUP_WAIT_MS, field, exactHints)
+                    && clickVisibleSuggestionExact(field, exactHints);
+            if (!optionSelected && focusFieldForKeyboardSelection(field)) {
                 try {
                     page.keyboard().press("ArrowDown");
                     pauseUi(UI_ACTION_PAUSE_MS);
                 } catch (PlaywrightException ignored) {
                 }
-                optionSelected = exactHints.length > 0 && clickVisibleSuggestionExact(exactHints);
+                optionSelected = exactHints.length > 0 && clickVisibleSuggestionExact(field, exactHints);
             }
             if (!optionSelected && selectionHints.length > 0) {
-                optionSelected = waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, selectionHints)
-                        && clickVisibleSuggestion(selectionHints);
+                optionSelected = waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, selectionHints)
+                        && clickVisibleSuggestion(field, selectionHints);
             }
             if (!optionSelected) {
                 openLookupAndChooseOption(
                         field,
                         selectionHints.length > 0 ? selectionHints : expectedValues);
             } else {
-                page.keyboard().press("Tab");
-                pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+                finalizeFieldEntry(field);
             }
         }
 
@@ -2713,11 +2823,6 @@ public class IptDeclarationPage {
                 logDeclarationTypeRenderedValue(field, declarationType, permitType);
                 return;
             }
-            String preferredDisplayValue = firstNonBlank(
-                    exactHints.length > 0 ? exactHints[0] : null,
-                    selectionHints.length > 0 ? selectionHints[0] : null,
-                    permitType,
-                    declarationType);
             if (preferredDisplayValue != null && !preferredDisplayValue.isBlank()) {
                 ensureTextFieldValue(field, preferredDisplayValue);
                 if (waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
@@ -2725,7 +2830,7 @@ public class IptDeclarationPage {
                     return;
                 }
             }
-            if (syncLookupComponentSelection(field, declarationType, expectedValues)
+            if (syncLookupComponentSelection(field, selectionValue, expectedValues)
                     && waitForAnyRenderedFieldValue(field, 1800, expectedValues)) {
                 logDeclarationTypeRenderedValue(field, declarationType, permitType);
                 return;
@@ -2855,12 +2960,18 @@ public class IptDeclarationPage {
     }
 
     private boolean permitTypeMatches(String permitType, String permitCode) {
-        String normalizedPermitType = normalize(permitType);
-        String normalizedPermitCode = normalize(permitCode);
+        String normalizedPermitType = normalizePermitToken(permitType);
+        String normalizedPermitCode = normalizePermitToken(permitCode);
         return !normalizedPermitCode.isBlank()
                 && (normalizedPermitType.equals(normalizedPermitCode)
                 || normalizedPermitType.equals(normalizedPermitCode + "PERMIT")
                 || normalizedPermitType.startsWith(normalizedPermitCode + "PERMIT"));
+    }
+
+    private String normalizePermitToken(String value) {
+        return value == null
+                ? ""
+                : value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "");
     }
 
     protected void fillSectionAndAdvance(String sectionName, Runnable filler) {
@@ -3335,7 +3446,7 @@ public class IptDeclarationPage {
         page.keyboard().press("Control+A");
         page.keyboard().press("Backspace");
         page.keyboard().type(value);
-        page.keyboard().press("Tab");
+        blurActiveEditableElement();
         pauseUi(UI_NEXT_FIELD_PAUSE_MS);
     }
 
@@ -3611,10 +3722,30 @@ public class IptDeclarationPage {
         if (value == null || value.isBlank()) {
             return;
         }
-        Locator field = resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+        Locator field = resolveLookupFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        if (field != null && waitForAnyRenderedFieldValue(field, 150, expectedValues.toArray(String[]::new))) {
+            return;
+        }
+
+        Locator sameRowField = resolveEditableFieldInScopeRowOrNull(scope, rowLabel, occurrence);
+        if (sameRowField != null
+                && waitForAnyRenderedFieldValue(sameRowField, 150, expectedValues.toArray(String[]::new))) {
+            return;
+        }
+        if (scopeRowRendersExpectedValue(scope, rowLabel, occurrence, expectedValues.toArray(String[]::new))) {
+            return;
+        }
+
+        if (field == null) {
+            field = resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        }
         if (field == null) {
             logFieldMappingWarning("Scoped lookup UI field not found for row label '" + rowLabel
                     + "' while JSON value was '" + value + "'.");
+            return;
+        }
+        if (waitForAnyRenderedFieldValue(field, 150, expectedValues.toArray(String[]::new))) {
             return;
         }
         focusAndType(field, value, true, suggestionHints);
@@ -3701,8 +3832,7 @@ public class IptDeclarationPage {
 
         if (trySelectNativeDropdown(field, value, suggestionHints)) {
             ensureFieldEntryCommitted(field, value, selectSuggestion, expectedValues);
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            finalizeFieldEntry(field);
             return;
         }
 
@@ -3716,8 +3846,7 @@ public class IptDeclarationPage {
         } else {
             ensureFieldEntryCommitted(field, value, false, expectedValues);
         }
-        page.keyboard().press("Tab");
-        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+        finalizeFieldEntry(field);
     }
 
     protected void focusAndTypeByClickOnly(Locator field, String value, String... suggestionHints) {
@@ -3731,8 +3860,7 @@ public class IptDeclarationPage {
 
         if (trySelectNativeDropdown(field, value, suggestionHints)) {
             ensureFieldEntryCommitted(field, value, true, expectedValues);
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            finalizeFieldEntry(field);
             return;
         }
 
@@ -3742,8 +3870,7 @@ public class IptDeclarationPage {
         page.keyboard().type(value);
         pauseUi(UI_ACTION_PAUSE_MS);
         commitSuggestionSelectionByClickOnly(field, value, suggestionHints, expectedValues);
-        page.keyboard().press("Tab");
-        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+        finalizeFieldEntry(field);
     }
 
     protected void fillVerifiedTextField(Locator field, String value, String fieldLabel) {
@@ -3774,8 +3901,7 @@ public class IptDeclarationPage {
                     value), exception);
         }
         if (moveToNextField) {
-            page.keyboard().press("Tab");
-            pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+            finalizeFieldEntry(field);
         }
     }
 
@@ -3795,24 +3921,34 @@ public class IptDeclarationPage {
             String value,
             String[] suggestionHints,
             List<String> expectedValues) {
-        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, suggestionHints);
-        boolean suggestionClicked = clickVisibleSuggestion(suggestionHints);
+        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
+        boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
         if (!suggestionClicked) {
-            try {
-                page.keyboard().press("ArrowDown");
-                pauseUi(UI_ACTION_PAUSE_MS);
-                suggestionClicked = clickVisibleSuggestion(suggestionHints);
-                if (!suggestionClicked) {
-                    suggestionClicked = clickFirstVisibleSuggestion();
+            if (focusFieldForKeyboardSelection(field)) {
+                try {
+                    page.keyboard().press("ArrowDown");
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                    suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
                     if (!suggestionClicked) {
-                        page.keyboard().press("Enter");
-                        pauseUi(UI_ACTION_PAUSE_MS);
+                        suggestionClicked = clickFirstVisibleSuggestion(field);
+                        if (!suggestionClicked) {
+                            page.keyboard().press("Enter");
+                            pauseUi(UI_ACTION_PAUSE_MS);
+                        }
                     }
+                } catch (PlaywrightException ignored) {
                 }
-            } catch (PlaywrightException ignored) {
             }
         }
         pauseUi(UI_ACTION_PAUSE_MS);
+        boolean componentSynced = false;
+        String[] renderedCandidates = expectedValues.toArray(String[]::new);
+        if (!suggestionClicked || !waitForAnyRenderedFieldValue(field, 600, renderedCandidates)) {
+            componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
+        }
+        if (componentSynced) {
+            pauseUi(UI_ACTION_PAUSE_MS);
+        }
         ensureLookupValue(field, value);
         ensureFieldEntryCommitted(field, value, true, expectedValues);
     }
@@ -3822,18 +3958,18 @@ public class IptDeclarationPage {
             String value,
             String[] suggestionHints,
             List<String> expectedValues) {
-        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, suggestionHints);
-        boolean suggestionClicked = clickVisibleSuggestion(suggestionHints);
-        if (!suggestionClicked) {
+        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
+        boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
+        if (!suggestionClicked && focusFieldForKeyboardSelection(field)) {
             try {
                 page.keyboard().press("ArrowDown");
                 pauseUi(UI_ACTION_PAUSE_MS);
-                suggestionClicked = clickVisibleSuggestion(suggestionHints);
+                suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
             } catch (PlaywrightException ignored) {
             }
         }
         if (!suggestionClicked) {
-            suggestionClicked = clickFirstVisibleSuggestion();
+            suggestionClicked = clickFirstVisibleSuggestion(field);
         }
         pauseUi(UI_ACTION_PAUSE_MS);
 
@@ -3914,21 +4050,22 @@ public class IptDeclarationPage {
         page.keyboard().type(value);
         pauseUi(UI_ACTION_PAUSE_MS);
 
-        if (!clickVisibleSuggestion(suggestionHints)) {
-            try {
-                page.keyboard().press("ArrowDown");
-                pauseUi(UI_ACTION_PAUSE_MS);
-                if (!clickVisibleSuggestion(suggestionHints)) {
-                    page.keyboard().press("Enter");
+        if (!clickVisibleSuggestion(field, suggestionHints)) {
+            if (focusFieldForKeyboardSelection(field)) {
+                try {
+                    page.keyboard().press("ArrowDown");
                     pauseUi(UI_ACTION_PAUSE_MS);
+                    if (!clickVisibleSuggestion(field, suggestionHints)) {
+                        page.keyboard().press("Enter");
+                        pauseUi(UI_ACTION_PAUSE_MS);
+                    }
+                } catch (PlaywrightException ignored) {
                 }
-            } catch (PlaywrightException ignored) {
             }
         }
 
         ensureLookupValue(field, value);
-        page.keyboard().press("Tab");
-        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+        finalizeFieldEntry(field);
 
         if (!waitForAnyRenderedFieldValue(field, 1500, expectedValues)) {
             throw new IllegalStateException(buildFieldVerificationFailure(
@@ -3945,27 +4082,28 @@ public class IptDeclarationPage {
         clickDropdownActivator(field);
         page.waitForTimeout(250);
 
-        boolean optionClicked = clickVisibleSuggestion(optionHints);
-        if (!optionClicked) {
+        boolean optionClicked = clickVisibleSuggestion(field, optionHints);
+        if (!optionClicked && focusFieldForKeyboardSelection(field)) {
             try {
                 page.keyboard().press("ArrowDown");
                 page.waitForTimeout(100);
-                optionClicked = clickVisibleSuggestion(optionHints);
+                optionClicked = clickVisibleSuggestion(field, optionHints);
             } catch (PlaywrightException ignored) {
             }
         }
 
         if (!optionClicked) {
-            optionClicked = clickFirstVisibleSuggestion();
+            optionClicked = clickFirstVisibleSuggestion(field);
         }
 
         if (!optionClicked) {
-            page.keyboard().press("Enter");
-            page.waitForTimeout(150);
+            if (focusFieldForKeyboardSelection(field)) {
+                page.keyboard().press("Enter");
+                page.waitForTimeout(150);
+            }
         }
 
-        page.keyboard().press("Tab");
-        page.waitForTimeout(150);
+        finalizeFieldEntry(field);
     }
 
     private void clickDropdownActivator(Locator field) {
@@ -4731,10 +4869,17 @@ public class IptDeclarationPage {
     }
 
     private boolean clickVisibleSuggestion(String... values) {
+        return clickVisibleSuggestion(null, values);
+    }
+
+    private boolean clickVisibleSuggestion(Locator field, String... values) {
         return Boolean.TRUE.equals(page.evaluate("""
-                expectedValues => {
+                args => {
                     const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const expectedValues = Array.isArray(args?.expectedValues) ? args.expectedValues : [];
+                    const explicitAnchor = args?.anchorRect;
                     const expectedList = expectedValues.map(normalize).filter(Boolean);
+                    const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
                     const matchScore = candidateText => expectedList.reduce((best, expected) => {
                         if (candidateText === expected) {
                             return Math.max(best, 10000 + expected.length);
@@ -4745,26 +4890,72 @@ public class IptDeclarationPage {
                         return best;
                     }, 0);
                     const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    const activeAnchor = (() => {
+                        if (explicitAnchor
+                                && Number.isFinite(explicitAnchor.left)
+                                && Number.isFinite(explicitAnchor.right)
+                                && Number.isFinite(explicitAnchor.top)
+                                && Number.isFinite(explicitAnchor.bottom)) {
+                            return explicitAnchor;
+                        }
+                        const active = document.activeElement;
+                        const anchor = active?.matches?.(editableSelector)
+                                ? active
+                                : active?.closest?.(editableSelector);
+                        if (!isVisible(anchor)) {
+                            return null;
+                        }
+                        const rect = anchor.getBoundingClientRect();
+                        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                    })();
+                    if (!activeAnchor) {
+                        return false;
+                    }
                     const overlayRoots = [
                         ...document.querySelectorAll(
                             '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                     ].filter(element => isVisible(element));
+                    const overlayScore = root => {
+                        if (!activeAnchor || root === document.body) {
+                            return 0;
+                        }
+                        const rect = root.getBoundingClientRect();
+                        const horizontalGap = rect.right < activeAnchor.left
+                            ? activeAnchor.left - rect.right
+                            : rect.left > activeAnchor.right
+                                ? rect.left - activeAnchor.right
+                                : 0;
+                        const verticalGap = rect.bottom < activeAnchor.top - 80
+                            ? activeAnchor.top - rect.bottom
+                            : rect.top > activeAnchor.bottom + 320
+                                ? rect.top - activeAnchor.bottom
+                                : 0;
+                        return horizontalGap + (verticalGap * 2);
+                    };
+                    const scopedRoots = overlayRoots
+                        .map(root => ({ root, score: overlayScore(root) }))
+                        .filter(entry => !activeAnchor || entry.score <= 900)
+                        .sort((left, right) => left.score - right.score);
+                    const rootsToSearch = scopedRoots;
                     const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                    const optionLikeCandidates = (overlayRoots.length > 0
-                            ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                            : Array.from(document.querySelectorAll(optionQuery)))
-                        .filter(element => isVisible(element))
-                        .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
-                        .map(element => ({
-                            element,
-                            text: normalize(element.innerText || element.textContent)
+                    const optionLikeCandidates = rootsToSearch
+                        .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery))
+                            .map(element => ({ element, rootScore: entry.score })))
+                        .filter(candidate => isVisible(candidate.element))
+                        .filter(candidate => !['INPUT', 'TEXTAREA', 'SELECT'].includes(candidate.element.tagName))
+                        .map(candidate => ({
+                            element: candidate.element,
+                            rootScore: candidate.rootScore,
+                            text: normalize(candidate.element.innerText || candidate.element.textContent)
                         }))
                         .filter(candidate => expectedList.some(expected =>
                             candidate.text === expected
                             || candidate.text.includes(expected)
                             || expected.includes(candidate.text)))
                         .sort((left, right) => {
-                            return matchScore(right.text) - matchScore(left.text) || right.text.length - left.text.length;
+                            return left.rootScore - right.rootScore
+                                || matchScore(right.text) - matchScore(left.text)
+                                || right.text.length - left.text.length;
                         });
 
                     if (optionLikeCandidates.length === 0) {
@@ -4775,30 +4966,82 @@ public class IptDeclarationPage {
                     optionLikeCandidates[0].element.click();
                     return true;
                 }
-                """, values));
+                """, suggestionQueryArgs(field, values)));
     }
 
     private boolean clickVisibleSuggestionExact(String... values) {
+        return clickVisibleSuggestionExact(null, values);
+    }
+
+    private boolean clickVisibleSuggestionExact(Locator field, String... values) {
         return Boolean.TRUE.equals(page.evaluate("""
-                expectedValues => {
+                args => {
                     const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                    const expectedValues = Array.isArray(args?.expectedValues) ? args.expectedValues : [];
+                    const explicitAnchor = args?.anchorRect;
                     const expectedList = expectedValues.map(normalize).filter(Boolean);
                     const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
+                    const activeAnchor = (() => {
+                        if (explicitAnchor
+                                && Number.isFinite(explicitAnchor.left)
+                                && Number.isFinite(explicitAnchor.right)
+                                && Number.isFinite(explicitAnchor.top)
+                                && Number.isFinite(explicitAnchor.bottom)) {
+                            return explicitAnchor;
+                        }
+                        const active = document.activeElement;
+                        const anchor = active?.matches?.(editableSelector)
+                                ? active
+                                : active?.closest?.(editableSelector);
+                        if (!isVisible(anchor)) {
+                            return null;
+                        }
+                        const rect = anchor.getBoundingClientRect();
+                        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                    })();
+                    if (!activeAnchor) {
+                        return false;
+                    }
                     const overlayRoots = [
                         ...document.querySelectorAll(
                             '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                     ].filter(element => isVisible(element));
+                    const overlayScore = root => {
+                        if (!activeAnchor || root === document.body) {
+                            return 0;
+                        }
+                        const rect = root.getBoundingClientRect();
+                        const horizontalGap = rect.right < activeAnchor.left
+                            ? activeAnchor.left - rect.right
+                            : rect.left > activeAnchor.right
+                                ? rect.left - activeAnchor.right
+                                : 0;
+                        const verticalGap = rect.bottom < activeAnchor.top - 80
+                            ? activeAnchor.top - rect.bottom
+                            : rect.top > activeAnchor.bottom + 320
+                                ? rect.top - activeAnchor.bottom
+                                : 0;
+                        return horizontalGap + (verticalGap * 2);
+                    };
+                    const scopedRoots = overlayRoots
+                        .map(root => ({ root, score: overlayScore(root) }))
+                        .filter(entry => !activeAnchor || entry.score <= 900)
+                        .sort((left, right) => left.score - right.score);
+                    const rootsToSearch = scopedRoots;
                     const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                    const optionLikeCandidates = (overlayRoots.length > 0
-                            ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                            : Array.from(document.querySelectorAll(optionQuery)))
-                        .filter(element => isVisible(element))
-                        .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
+                    const optionLikeCandidates = rootsToSearch
+                        .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery))
+                            .map(element => ({ element, rootScore: entry.score })))
+                        .filter(candidate => isVisible(candidate.element))
+                        .filter(candidate => !['INPUT', 'TEXTAREA', 'SELECT'].includes(candidate.element.tagName))
                         .map(element => ({
-                            element,
-                            text: normalize(element.innerText || element.textContent)
+                            element: element.element,
+                            rootScore: element.rootScore,
+                            text: normalize(element.element.innerText || element.element.textContent)
                         }))
-                        .filter(candidate => expectedList.some(expected => candidate.text === expected));
+                        .filter(candidate => expectedList.some(expected => candidate.text === expected))
+                        .sort((left, right) => left.rootScore - right.rootScore);
 
                     if (optionLikeCandidates.length === 0) {
                         return false;
@@ -4808,10 +5051,14 @@ public class IptDeclarationPage {
                     optionLikeCandidates[0].element.click();
                     return true;
                 }
-                """, values));
+                """, suggestionQueryArgs(field, values)));
     }
 
     private boolean waitForVisibleSuggestion(int timeoutMs, String... values) {
+        return waitForVisibleSuggestion(timeoutMs, null, values);
+    }
+
+    private boolean waitForVisibleSuggestion(int timeoutMs, Locator field, String... values) {
         List<String> candidates = new ArrayList<>();
         if (values != null) {
             for (String value : values) {
@@ -4825,28 +5072,74 @@ public class IptDeclarationPage {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
             Boolean visible = (Boolean) page.evaluate("""
-                    expectedValues => {
+                    args => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const expectedValues = Array.isArray(args?.expectedValues) ? args.expectedValues : [];
+                        const explicitAnchor = args?.anchorRect;
                         const expectedList = expectedValues.map(normalize).filter(Boolean);
                         const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
+                        const activeAnchor = (() => {
+                            if (explicitAnchor
+                                    && Number.isFinite(explicitAnchor.left)
+                                    && Number.isFinite(explicitAnchor.right)
+                                    && Number.isFinite(explicitAnchor.top)
+                                    && Number.isFinite(explicitAnchor.bottom)) {
+                                return explicitAnchor;
+                            }
+                            const active = document.activeElement;
+                            const anchor = active?.matches?.(editableSelector)
+                                    ? active
+                                    : active?.closest?.(editableSelector);
+                            if (!isVisible(anchor)) {
+                                return null;
+                            }
+                            const rect = anchor.getBoundingClientRect();
+                            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                        })();
+                        if (!activeAnchor) {
+                            return false;
+                        }
                         const overlayRoots = [
                             ...document.querySelectorAll(
                                 '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                         ].filter(element => isVisible(element));
+                        const overlayScore = root => {
+                            if (!activeAnchor || root === document.body) {
+                                return 0;
+                            }
+                            const rect = root.getBoundingClientRect();
+                            const horizontalGap = rect.right < activeAnchor.left
+                                ? activeAnchor.left - rect.right
+                                : rect.left > activeAnchor.right
+                                    ? rect.left - activeAnchor.right
+                                    : 0;
+                            const verticalGap = rect.bottom < activeAnchor.top - 80
+                                ? activeAnchor.top - rect.bottom
+                                : rect.top > activeAnchor.bottom + 320
+                                    ? rect.top - activeAnchor.bottom
+                                    : 0;
+                            return horizontalGap + (verticalGap * 2);
+                        };
+                        const scopedRoots = overlayRoots
+                            .map(root => ({ root, score: overlayScore(root) }))
+                            .filter(entry => !activeAnchor || entry.score <= 900)
+                            .sort((left, right) => left.score - right.score);
+                        const rootsToSearch = scopedRoots;
                         const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                        const candidates = (overlayRoots.length > 0
-                                ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                                : Array.from(document.querySelectorAll(optionQuery)))
-                            .filter(element => isVisible(element))
-                            .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
-                            .map(element => normalize(element.innerText || element.textContent));
+                        const candidates = rootsToSearch
+                            .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery))
+                                .map(element => ({ element, rootScore: entry.score })))
+                            .filter(candidate => isVisible(candidate.element))
+                            .filter(candidate => !['INPUT', 'TEXTAREA', 'SELECT'].includes(candidate.element.tagName))
+                            .map(candidate => normalize(candidate.element.innerText || candidate.element.textContent));
                         return candidates.some(candidate =>
                             expectedList.some(expected =>
                                 candidate === expected
                                 || candidate.includes(expected)
                                 || expected.includes(candidate)));
                     }
-                    """, candidates);
+                    """, suggestionQueryArgs(field, candidates.toArray(String[]::new)));
             if (Boolean.TRUE.equals(visible)) {
                 return true;
             }
@@ -4856,29 +5149,79 @@ public class IptDeclarationPage {
     }
 
     private boolean clickFirstVisibleSuggestion() {
+        return clickFirstVisibleSuggestion(null);
+    }
+
+    private boolean clickFirstVisibleSuggestion(Locator field) {
         return Boolean.TRUE.equals(page.evaluate("""
-                () => {
+                args => {
                     const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                    const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
+                    const explicitAnchor = args?.anchorRect;
+                    const activeAnchor = (() => {
+                        if (explicitAnchor
+                                && Number.isFinite(explicitAnchor.left)
+                                && Number.isFinite(explicitAnchor.right)
+                                && Number.isFinite(explicitAnchor.top)
+                                && Number.isFinite(explicitAnchor.bottom)) {
+                            return explicitAnchor;
+                        }
+                        const active = document.activeElement;
+                        const anchor = active?.matches?.(editableSelector)
+                                ? active
+                                : active?.closest?.(editableSelector);
+                        if (!isVisible(anchor)) {
+                            return null;
+                        }
+                        const rect = anchor.getBoundingClientRect();
+                        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                    })();
+                    if (!activeAnchor) {
+                        return false;
+                    }
                     const overlayRoots = [
                         ...document.querySelectorAll(
                             '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                     ].filter(element => isVisible(element));
+                    const overlayScore = root => {
+                        if (!activeAnchor || root === document.body) {
+                            return 0;
+                        }
+                        const rect = root.getBoundingClientRect();
+                        const horizontalGap = rect.right < activeAnchor.left
+                            ? activeAnchor.left - rect.right
+                            : rect.left > activeAnchor.right
+                                ? rect.left - activeAnchor.right
+                                : 0;
+                        const verticalGap = rect.bottom < activeAnchor.top - 80
+                            ? activeAnchor.top - rect.bottom
+                            : rect.top > activeAnchor.bottom + 320
+                                ? rect.top - activeAnchor.bottom
+                                : 0;
+                        return horizontalGap + (verticalGap * 2);
+                    };
+                    const scopedRoots = overlayRoots
+                        .map(root => ({ root, score: overlayScore(root) }))
+                        .filter(entry => !activeAnchor || entry.score <= 900)
+                        .sort((left, right) => left.score - right.score);
+                    const rootsToSearch = scopedRoots;
                     const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                    const candidates = (overlayRoots.length > 0
-                            ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                            : Array.from(document.querySelectorAll(optionQuery)))
-                        .filter(element => isVisible(element))
-                        .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName));
+                    const candidates = rootsToSearch
+                        .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery))
+                            .map(element => ({ element, rootScore: entry.score })))
+                        .filter(candidate => isVisible(candidate.element))
+                        .filter(candidate => !['INPUT', 'TEXTAREA', 'SELECT'].includes(candidate.element.tagName))
+                        .sort((left, right) => left.rootScore - right.rootScore);
 
                     if (candidates.length === 0) {
                         return false;
                     }
 
-                    candidates[0].scrollIntoView({ block: 'center' });
-                    candidates[0].click();
+                    candidates[0].element.scrollIntoView({ block: 'center' });
+                    candidates[0].element.click();
                     return true;
                 }
-                """));
+                """, suggestionQueryArgs(field)));
     }
 
     private void focusNextPartyRow(String nextRowLabel) {
@@ -4910,23 +5253,34 @@ public class IptDeclarationPage {
         page.waitForTimeout(500);
     }
 
-    private boolean attemptPartySuggestionSelection(String... selectionHints) {
-        if (waitForVisibleSuggestion(2000, selectionHints) && clickVisibleSuggestion(selectionHints)) {
-            page.waitForTimeout(1000);
-            return true;
+    private boolean attemptPartySuggestionSelection(Locator field, String... selectionHints) {
+        if (waitForVisibleSuggestion(2000, field, selectionHints) && clickVisibleSuggestion(field, selectionHints)) {
+            page.waitForTimeout(400);
+            if (!waitForVisibleSuggestion(400, field, selectionHints)) {
+                page.waitForTimeout(600);
+                return true;
+            }
         }
 
-        if (waitForAnyVisibleSuggestion(2500)
-                && clickVisibleSuggestion(selectionHints)) {
-            page.waitForTimeout(1000);
-            return true;
+        if (waitForAnyVisibleSuggestion(2500, field)
+                && clickVisibleSuggestion(field, selectionHints)) {
+            page.waitForTimeout(400);
+            if (!waitForVisibleSuggestion(400, field, selectionHints)) {
+                page.waitForTimeout(600);
+                return true;
+            }
         }
 
         try {
             page.keyboard().press("ArrowDown");
             page.waitForTimeout(300);
-            if (waitForAnyVisibleSuggestion(1500)
-                    && clickVisibleSuggestion(selectionHints)) {
+            if (waitForVisibleSuggestion(1500, field, selectionHints)) {
+                page.keyboard().press("Enter");
+                page.waitForTimeout(1000);
+                return true;
+            }
+            if (waitForAnyVisibleSuggestion(1500, field)
+                    && clickVisibleSuggestion(field, selectionHints)) {
                 page.waitForTimeout(1000);
                 return true;
             }
@@ -4937,14 +5291,139 @@ public class IptDeclarationPage {
         return false;
     }
 
-    private boolean attemptLookupCodePartySuggestionFallback(String partyName) {
+    private boolean confirmVisibleSuggestionWithKeyboard(Locator field, String... selectionHints) {
+        if (!waitForVisibleSuggestion(1500, field, selectionHints)) {
+            return false;
+        }
+
+        try {
+            page.keyboard().press("ArrowDown");
+            page.waitForTimeout(300);
+            page.keyboard().press("Enter");
+            page.waitForTimeout(1000);
+            return true;
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private void finalizeFieldEntry(Locator field) {
+        blurEditableField(field);
+        pauseUi(UI_NEXT_FIELD_PAUSE_MS);
+    }
+
+    private void blurEditableField(Locator field) {
+        if (field == null) {
+            return;
+        }
+
+        try {
+            Boolean blurred = (Boolean) field.evaluate("""
+                    element => {
+                        const editableSelector = "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], [contenteditable='true']";
+                        const isEditable = candidate => !!candidate
+                            && (candidate.matches?.(editableSelector) || candidate.isContentEditable);
+                        const active = document.activeElement;
+                        let target = null;
+
+                        if (isEditable(active)
+                                && (active === element
+                                || element.contains?.(active)
+                                || active.contains?.(element))) {
+                            target = active;
+                        }
+
+                        if (!target) {
+                            target = element.matches?.(editableSelector)
+                                ? element
+                                : element.querySelector?.(editableSelector)
+                                    || element.closest?.(editableSelector)
+                                    || element;
+                        }
+
+                        target.dispatchEvent?.(new Event('change', { bubbles: true }));
+                        target.dispatchEvent?.(new Event('blur', { bubbles: true }));
+                        target.blur?.();
+                        return true;
+                    }
+                    """);
+            if (Boolean.TRUE.equals(blurred)) {
+                return;
+            }
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            field.evaluate("element => element.blur?.()");
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private void blurActiveEditableElement() {
+        try {
+            page.evaluate("""
+                    () => {
+                        const active = document.activeElement;
+                        active?.dispatchEvent?.(new Event('change', { bubbles: true }));
+                        active?.dispatchEvent?.(new Event('blur', { bubbles: true }));
+                        active?.blur?.();
+                    }
+                    """);
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private boolean focusFieldForKeyboardSelection(Locator field) {
+        if (field == null) {
+            return false;
+        }
+
+        try {
+            return Boolean.TRUE.equals(field.evaluate("""
+                    element => {
+                        const editableSelector = "input:not([type='hidden']):not([disabled]), textarea:not([disabled]), select:not([disabled]), [role='combobox'], [role='textbox'], [contenteditable='true']";
+                        const isVisible = candidate => !!candidate
+                            && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        const target = element.matches?.(editableSelector)
+                            ? element
+                            : element.querySelector?.(editableSelector)
+                                || element.closest?.(editableSelector)
+                                || element;
+                        if (!isVisible(target)) {
+                            return false;
+                        }
+                        target.scrollIntoView?.({ block: 'center' });
+                        target.focus?.();
+                        const activeAfterFocus = document.activeElement;
+                        if (activeAfterFocus !== target
+                                && !target.contains?.(activeAfterFocus)
+                                && !activeAfterFocus?.contains?.(target)) {
+                            target.click?.();
+                        }
+                        const active = document.activeElement;
+                        return active === target
+                            || target.contains?.(active)
+                            || active?.contains?.(target);
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            try {
+                field.click(new Locator.ClickOptions().setForce(true));
+                return true;
+            } catch (PlaywrightException ignoredAgain) {
+                return false;
+            }
+        }
+    }
+
+    private boolean attemptLookupCodePartySuggestionFallback(Locator field, String partyName) {
         if (!looksLikePartyLookupCode(partyName)) {
             return false;
         }
-        if (!waitForAnyVisibleSuggestion(1500)) {
+        if (!waitForAnyVisibleSuggestion(1500, field)) {
             return false;
         }
-        if (!clickFirstVisibleSuggestion()) {
+        if (!clickFirstVisibleSuggestion(field)) {
             return false;
         }
         page.waitForTimeout(1000);
@@ -5291,6 +5770,9 @@ public class IptDeclarationPage {
             case "INWARD CARRIER" -> "app-inward-carrier-lookup[formcontrolname='name']";
             case "OUTWARD CARRIER" -> "app-outward-carrier-agent-lookup[formcontrolname='name']";
             case "FREIGHT FORWARDER" -> "app-freight-forwarder-lookup[formcontrolname='name']";
+            case "CONSIGNEE" -> "app-consignee-lookup[formcontrolname='name']";
+            case "END USER" -> "app-end-user-lookup[formcontrolname='name']";
+            case "MANUFACTURER" -> "app-manufacturer-lookup[formcontrolname='name']";
             case "HANDLING AGENT" ->
                     "app-handling-agent-lookup[formcontrolname='name'], app-handling-agent-party-lookup[formcontrolname='name']";
             case "DECLARING AGENT" -> "app-declaring-agent-lookup[formcontrolname='name']";
@@ -5300,7 +5782,7 @@ public class IptDeclarationPage {
     }
 
     private Locator resolvePartyIdFieldOrNull(String rowLabel) {
-        Locator nameField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+        Locator nameField = resolvePartyNameField(rowLabel);
         Locator componentField = resolvePartyIdFieldFromComponentOrNull(rowLabel);
         if (componentField != null && !sameEditableField(componentField, nameField)) {
             return componentField;
@@ -5311,12 +5793,23 @@ public class IptDeclarationPage {
             return directRowField;
         }
 
-        Locator exactRowField = resolveEditableFieldInRowByExactText(rowLabel, 1);
+        Locator siblingField = resolveNearestPartySiblingFieldOrNull(
+                rowLabel,
+                nameField,
+                partyNameComponentSelector(rowLabel),
+                visibleFormFieldSelector());
+        if (siblingField != null && !sameEditableField(siblingField, nameField)) {
+            return siblingField;
+        }
+
+        Locator exactRowField = alignPartyFieldWithAnchor(nameField, resolveEditableFieldInRowByExactText(rowLabel, 1));
         if (exactRowField != null && !sameEditableField(exactRowField, nameField)) {
             return exactRowField;
         }
 
-        return resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, partyNameComponentSelector(rowLabel));
+        return alignPartyFieldWithAnchor(
+                nameField,
+                resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, partyNameComponentSelector(rowLabel)));
     }
 
     private Locator resolvePartyLookupComponentOrNull(String rowLabel) {
@@ -5371,21 +5864,36 @@ public class IptDeclarationPage {
     }
 
     private Locator resolveNearestPartySiblingFieldOrNull(String rowLabel, Locator nameField, String selector) {
+        return resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, selector, combinedEditableSelector());
+    }
+
+    private Locator resolveNearestPartySiblingFieldOrNull(
+            String rowLabel,
+            Locator nameField,
+            String selector,
+            String fieldSelector) {
         if (nameField == null) {
             return null;
         }
 
-        Locator section = resolveSection("Party Info (P)");
-        Locator sectionSibling = resolveNearestEditableFieldToRightOrNull(section, nameField, selector);
-        if (sectionSibling != null) {
-            return sectionSibling;
+        Locator rowScope = resolvePartyRowContainerOrNull(rowLabel);
+        Locator rowSibling = resolveNearestFieldToRightOrNull(rowScope, nameField, selector, fieldSelector);
+        if (rowSibling != null) {
+            return rowSibling;
         }
 
-        Locator rowScope = resolvePartyRowContainerOrNull(rowLabel);
-        return resolveNearestEditableFieldToRightOrNull(rowScope, nameField, selector);
+        return null;
     }
 
     private Locator resolveNearestEditableFieldToRightOrNull(Locator scope, Locator anchorField, String excludedSelector) {
+        return resolveNearestFieldToRightOrNull(scope, anchorField, excludedSelector, combinedEditableSelector());
+    }
+
+    private Locator resolveNearestFieldToRightOrNull(
+            Locator scope,
+            Locator anchorField,
+            String excludedSelector,
+            String fieldSelector) {
         if (scope == null || anchorField == null) {
             return null;
         }
@@ -5405,7 +5913,7 @@ public class IptDeclarationPage {
             return null;
         }
 
-        Locator fields = visibleScope.locator(combinedEditableSelector());
+        Locator fields = visibleScope.locator(fieldSelector);
         List<PositionedElement> positionedFields = collectDistinctVisibleEditableElements(fields);
         if (positionedFields.isEmpty()) {
             return null;
@@ -5451,6 +5959,26 @@ public class IptDeclarationPage {
         return bestField;
     }
 
+    private Locator alignPartyFieldWithAnchor(Locator anchorField, Locator candidate) {
+        if (candidate == null || anchorField == null) {
+            return candidate;
+        }
+
+        try {
+            BoundingBox anchorBox = anchorField.boundingBox();
+            BoundingBox candidateBox = candidate.boundingBox();
+            if (anchorBox == null || candidateBox == null) {
+                return candidate;
+            }
+
+            double anchorMidY = anchorBox.y + (anchorBox.height / 2.0d);
+            double candidateMidY = candidateBox.y + (candidateBox.height / 2.0d);
+            return Math.abs(candidateMidY - anchorMidY) <= 28.0d ? candidate : null;
+        } catch (PlaywrightException ignored) {
+            return candidate;
+        }
+    }
+
     private boolean isFieldInsideSelector(Locator field, String selector) {
         if (selector == null || selector.isBlank()) {
             return false;
@@ -5469,8 +5997,8 @@ public class IptDeclarationPage {
             return false;
         }
 
-        String leftId = normalize(left.getAttribute("id"));
-        String rightId = normalize(right.getAttribute("id"));
+        String leftId = safeLocatorAttribute(left, "id");
+        String rightId = safeLocatorAttribute(right, "id");
         if (!leftId.isBlank() && !rightId.isBlank()) {
             return leftId.equalsIgnoreCase(rightId);
         }
@@ -5951,7 +6479,7 @@ public class IptDeclarationPage {
             return concreteField;
         }
 
-        Locator wrapperField = visibleScope.locator("[role='combobox'], [role='textbox']");
+        Locator wrapperField = visibleScope.locator("[role='combobox'], [role='textbox'], " + lookupHostSelector());
         return firstVisible(wrapperField);
     }
 
@@ -5972,6 +6500,23 @@ public class IptDeclarationPage {
         return resolveConcreteEditableFieldOrNull(fields.nth(orderedElements.get(occurrence).index()));
     }
 
+    private Locator resolveFirstVisibleLookupFieldInScopeOrNull(Locator scope) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator fields = visibleScope.locator(lookupFieldSelector());
+        List<PositionedElement> positionedElements = collectDistinctVisibleEditableElements(fields);
+        if (positionedElements.isEmpty()) {
+            return null;
+        }
+        List<PositionedElement> orderedElements = positionedElements.stream()
+                .sorted(Comparator.comparingDouble(PositionedElement::y).thenComparingDouble(PositionedElement::x))
+                .toList();
+        return resolveConcreteEditableFieldOrNull(fields.nth(orderedElements.get(0).index()));
+    }
+
     private String concreteEditableSelector() {
         return "input:not([type='checkbox']):not([readonly]):not([disabled]), "
                 + "textarea:not([readonly]):not([disabled]), "
@@ -5980,7 +6525,22 @@ public class IptDeclarationPage {
     }
 
     private String combinedEditableSelector() {
-        return concreteEditableSelector() + ", [role='combobox'], [role='textbox']";
+        return concreteEditableSelector() + ", [role='combobox'], [role='textbox'], " + lookupHostSelector();
+    }
+
+    private String lookupFieldSelector() {
+        return "[role='combobox'], " + lookupHostSelector();
+    }
+
+    private String lookupHostSelector() {
+        return "app-lookup, app-dropdown, ng-select, mat-select, "
+                + "[aria-haspopup='listbox'], [aria-haspopup='menu'], "
+                + ".ng-select, .ng-select-container, .mat-mdc-select-trigger, .mat-select-trigger, "
+                + "[class*='select-trigger'], [class*='dropdown-toggle'], [class*='lookup']";
+    }
+
+    private String visibleFormFieldSelector() {
+        return "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']";
     }
 
     private Locator resolveConcreteEditableFieldOrNull(Locator candidate) {
@@ -6006,7 +6566,36 @@ public class IptDeclarationPage {
     }
 
     private int editableCandidatePriority(Locator candidate) {
-        return isConcreteEditableField(candidate) ? 2 : 1;
+        if (isConcreteEditableField(candidate)) {
+            return 3;
+        }
+        if (isLookupHostField(candidate)) {
+            return 2;
+        }
+        return 1;
+    }
+
+    private boolean isLookupHostField(Locator candidate) {
+        try {
+            return Boolean.TRUE.equals(candidate.evaluate("""
+                    element => element.matches?.(
+                        "app-lookup, app-dropdown, ng-select, mat-select, [aria-haspopup='listbox'], [aria-haspopup='menu'], .ng-select, .ng-select-container, .mat-mdc-select-trigger, .mat-select-trigger, [class*='select-trigger'], [class*='dropdown-toggle'], [class*='lookup']")
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private String safeLocatorAttribute(Locator locator, String attributeName) {
+        if (locator == null || attributeName == null || attributeName.isBlank()) {
+            return "";
+        }
+
+        try {
+            return normalize(locator.getAttribute(attributeName));
+        } catch (PlaywrightException ignored) {
+            return "";
+        }
     }
 
     private boolean isConcreteEditableField(Locator field) {
@@ -6046,13 +6635,87 @@ public class IptDeclarationPage {
         return resolveEditableFieldInScopeRowByContainsOrNull(visibleScope, rowLabel, occurrence);
     }
 
+    private boolean scopeRowRendersExpectedValue(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String... expectedValues) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return false;
+        }
+
+        if (scopeRowRendersExpectedValueByMatch(visibleScope, rowLabel, occurrence, false, expectedValues)) {
+            return true;
+        }
+        return scopeRowRendersExpectedValueByMatch(visibleScope, rowLabel, occurrence, true, expectedValues);
+    }
+
+    private boolean scopeRowRendersExpectedValueByMatch(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch,
+            String... expectedValues) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return false;
+        }
+
+        String visibleFieldQuery = "self::input or self::textarea or self::select or @role='combobox' or @role='textbox'";
+        Locator row = label.locator(
+                "xpath=(ancestor::*[count(.//*[" + visibleFieldQuery + "]) > " + occurrence + "][1])");
+        Locator visibleRow = firstVisible(row);
+        if (visibleRow == null) {
+            return false;
+        }
+
+        try {
+            return Boolean.TRUE.equals(visibleRow.evaluate("""
+                    (element, expectedValues) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const candidates = Array.isArray(expectedValues)
+                            ? expectedValues.map(normalize).filter(Boolean)
+                            : [];
+                        if (candidates.length === 0) {
+                            return false;
+                        }
+
+                        const renderedValues = [
+                            element.innerText || element.textContent || '',
+                            ...Array.from(element.querySelectorAll('input, textarea, select, [role="combobox"], [role="textbox"]'))
+                                .flatMap(field => [
+                                    field.value,
+                                    field.getAttribute?.('value'),
+                                    field.getAttribute?.('aria-label'),
+                                    field.textContent
+                                ])
+                        ].map(normalize).filter(Boolean);
+
+                        return renderedValues.some(rendered =>
+                            candidates.some(expected =>
+                                rendered === expected
+                                    || rendered.includes(expected)
+                                    || expected.includes(rendered)));
+                    }
+                    """, List.of(expectedValues)));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
     private Locator resolveEditableFieldAfterScopeLabelOrNull(Locator scope, String rowLabel, int occurrence) {
         Locator visibleScope = firstVisible(scope);
         if (visibleScope == null) {
             return null;
         }
 
-        Locator visibleField = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        Locator visibleField = resolveEditableFieldInScopeRowOrNull(visibleScope, rowLabel, occurrence);
+        if (visibleField != null) {
+            return visibleField;
+        }
+
+        visibleField = resolveEditableFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
         if (visibleField != null) {
             return visibleField;
         }
@@ -6062,7 +6725,21 @@ public class IptDeclarationPage {
             return visibleField;
         }
 
-        return resolveEditableFieldInScopeRowOrNull(scope, rowLabel, occurrence);
+        return null;
+    }
+
+    private Locator resolveLookupFieldAfterScopeLabelOrNull(Locator scope, String rowLabel, int occurrence) {
+        Locator visibleScope = firstVisible(scope);
+        if (visibleScope == null) {
+            return null;
+        }
+
+        Locator exactLookup = resolveLookupFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, false);
+        if (exactLookup != null) {
+            return exactLookup;
+        }
+
+        return resolveLookupFieldAfterScopeLabelByMatchOrNull(visibleScope, rowLabel, occurrence, true);
     }
 
     private Locator resolveEditableFieldInScopeRowByLabelOrNull(
@@ -6075,9 +6752,9 @@ public class IptDeclarationPage {
             return null;
         }
 
+        String editableFieldQuery = xpathEditableFieldQuery();
         Locator row = label.locator(
-                "xpath=(ancestor::*[count(.//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']) > "
-                        + occurrence + "][1])");
+                "xpath=(ancestor::*[count(.//*[" + editableFieldQuery + "]) > " + occurrence + "][1])");
         return resolveVisibleEditableFieldInRowOrNull(row, occurrence);
     }
 
@@ -6095,10 +6772,57 @@ public class IptDeclarationPage {
             return null;
         }
 
+        String editableFieldQuery = xpathEditableFieldQuery();
         Locator field = label.locator(
-                "xpath=(following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox']["
-                        + (occurrence + 1) + "])[1]");
+                "xpath=(following::*[" + editableFieldQuery + "][" + (occurrence + 1) + "])[1]");
         return resolveConcreteEditableFieldOrNull(field);
+    }
+
+    private Locator resolveLookupFieldAfterScopeLabelByMatchOrNull(
+            Locator visibleScope,
+            String rowLabel,
+            int occurrence,
+            boolean containsMatch) {
+        Locator label = resolveScopeLabelOrNull(visibleScope, rowLabel, containsMatch);
+        if (label == null) {
+            return null;
+        }
+
+        String lookupFieldQuery = xpathLookupFieldQuery();
+        Locator row = label.locator("xpath=(ancestor::*[.//*[" + lookupFieldQuery + "]][1])");
+        Locator lookupFieldInRow = resolveFirstVisibleLookupFieldInScopeOrNull(row);
+        if (lookupFieldInRow != null) {
+            return lookupFieldInRow;
+        }
+
+        if (occurrence > 0) {
+            Locator followingLookup = label.locator(
+                    "xpath=(following::*[" + lookupFieldQuery + "][1])[1]");
+            Locator visibleFollowingLookup = resolveConcreteEditableFieldOrNull(followingLookup);
+            if (visibleFollowingLookup != null) {
+                return visibleFollowingLookup;
+            }
+        }
+
+        return null;
+    }
+
+    private String xpathEditableFieldQuery() {
+        return "self::input or self::textarea or self::select or @role='combobox' or @role='textbox'"
+                + " or local-name()='app-lookup' or local-name()='app-dropdown'"
+                + " or local-name()='ng-select' or local-name()='mat-select'"
+                + " or @aria-haspopup='listbox' or @aria-haspopup='menu'"
+                + " or contains(@class, 'ng-select') or contains(@class, 'select-trigger')"
+                + " or contains(@class, 'dropdown-toggle') or contains(@class, 'lookup')";
+    }
+
+    private String xpathLookupFieldQuery() {
+        return "@role='combobox'"
+                + " or local-name()='app-lookup' or local-name()='app-dropdown'"
+                + " or local-name()='ng-select' or local-name()='mat-select'"
+                + " or @aria-haspopup='listbox' or @aria-haspopup='menu'"
+                + " or contains(@class, 'ng-select') or contains(@class, 'select-trigger')"
+                + " or contains(@class, 'dropdown-toggle') or contains(@class, 'lookup')";
     }
 
     private Locator resolveScopeLabelOrNull(Locator visibleScope, String rowLabel, boolean containsMatch) {
@@ -6659,6 +7383,10 @@ public class IptDeclarationPage {
     }
 
     private boolean waitForVisibleSuggestionExact(int timeoutMs, String... values) {
+        return waitForVisibleSuggestionExact(timeoutMs, null, values);
+    }
+
+    private boolean waitForVisibleSuggestionExact(int timeoutMs, Locator field, String... values) {
         List<String> candidates = new ArrayList<>();
         if (values != null) {
             for (String value : values) {
@@ -6672,24 +7400,70 @@ public class IptDeclarationPage {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
             Boolean visible = (Boolean) page.evaluate("""
-                    expectedValues => {
+                    args => {
                         const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const expectedValues = Array.isArray(args?.expectedValues) ? args.expectedValues : [];
+                        const explicitAnchor = args?.anchorRect;
                         const expectedList = expectedValues.map(normalize).filter(Boolean);
                         const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
+                        const activeAnchor = (() => {
+                            if (explicitAnchor
+                                    && Number.isFinite(explicitAnchor.left)
+                                    && Number.isFinite(explicitAnchor.right)
+                                    && Number.isFinite(explicitAnchor.top)
+                                    && Number.isFinite(explicitAnchor.bottom)) {
+                                return explicitAnchor;
+                            }
+                            const active = document.activeElement;
+                            const anchor = active?.matches?.(editableSelector)
+                                    ? active
+                                    : active?.closest?.(editableSelector);
+                            if (!isVisible(anchor)) {
+                                return null;
+                            }
+                            const rect = anchor.getBoundingClientRect();
+                            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                        })();
+                        if (!activeAnchor) {
+                            return false;
+                        }
                         const overlayRoots = [
                             ...document.querySelectorAll(
                                 '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                         ].filter(element => isVisible(element));
+                        const overlayScore = root => {
+                            if (!activeAnchor || root === document.body) {
+                                return 0;
+                            }
+                            const rect = root.getBoundingClientRect();
+                            const horizontalGap = rect.right < activeAnchor.left
+                                ? activeAnchor.left - rect.right
+                                : rect.left > activeAnchor.right
+                                    ? rect.left - activeAnchor.right
+                                    : 0;
+                            const verticalGap = rect.bottom < activeAnchor.top - 80
+                                ? activeAnchor.top - rect.bottom
+                                : rect.top > activeAnchor.bottom + 320
+                                    ? rect.top - activeAnchor.bottom
+                                    : 0;
+                            return horizontalGap + (verticalGap * 2);
+                        };
+                        const scopedRoots = overlayRoots
+                            .map(root => ({ root, score: overlayScore(root) }))
+                            .filter(entry => !activeAnchor || entry.score <= 900)
+                            .sort((left, right) => left.score - right.score);
+                        const rootsToSearch = scopedRoots;
                         const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                        const candidates = (overlayRoots.length > 0
-                                ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                                : Array.from(document.querySelectorAll(optionQuery)))
-                            .filter(element => isVisible(element))
-                            .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName))
-                            .map(element => normalize(element.innerText || element.textContent));
+                        const candidates = rootsToSearch
+                            .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery))
+                                .map(element => ({ element, rootScore: entry.score })))
+                            .filter(candidate => isVisible(candidate.element))
+                            .filter(candidate => !['INPUT', 'TEXTAREA', 'SELECT'].includes(candidate.element.tagName))
+                            .map(candidate => normalize(candidate.element.innerText || candidate.element.textContent));
                         return candidates.some(candidate => expectedList.some(expected => candidate === expected));
                     }
-                    """, candidates);
+                    """, suggestionQueryArgs(field, candidates.toArray(String[]::new)));
             if (Boolean.TRUE.equals(visible)) {
                 return true;
             }
@@ -6699,30 +7473,112 @@ public class IptDeclarationPage {
     }
 
     private boolean waitForAnyVisibleSuggestion(int timeoutMs) {
+        return waitForAnyVisibleSuggestion(timeoutMs, null);
+    }
+
+    private boolean waitForAnyVisibleSuggestion(int timeoutMs, Locator field) {
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
             Boolean visible = (Boolean) page.evaluate("""
-                    () => {
+                    args => {
                         const isVisible = element => element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const editableSelector = 'input:not([type="hidden"]), textarea, select, [role="combobox"], [role="textbox"]';
+                        const explicitAnchor = args?.anchorRect;
+                        const activeAnchor = (() => {
+                            if (explicitAnchor
+                                    && Number.isFinite(explicitAnchor.left)
+                                    && Number.isFinite(explicitAnchor.right)
+                                    && Number.isFinite(explicitAnchor.top)
+                                    && Number.isFinite(explicitAnchor.bottom)) {
+                                return explicitAnchor;
+                            }
+                            const active = document.activeElement;
+                            const anchor = active?.matches?.(editableSelector)
+                                    ? active
+                                    : active?.closest?.(editableSelector);
+                            if (!isVisible(anchor)) {
+                                return null;
+                            }
+                            const rect = anchor.getBoundingClientRect();
+                            return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+                        })();
                         const overlayRoots = [
                             ...document.querySelectorAll(
                                 '[role="listbox"], [role="menu"], .ng-dropdown-panel, .cdk-overlay-pane, .cdk-overlay-container, .mat-mdc-autocomplete-panel, .mat-mdc-select-panel, .ui-autocomplete-panel, .dropdown-menu')
                         ].filter(element => isVisible(element));
+                        const overlayScore = root => {
+                            if (!activeAnchor || root === document.body) {
+                                return 0;
+                            }
+                            const rect = root.getBoundingClientRect();
+                            const horizontalGap = rect.right < activeAnchor.left
+                                ? activeAnchor.left - rect.right
+                                : rect.left > activeAnchor.right
+                                    ? rect.left - activeAnchor.right
+                                    : 0;
+                            const verticalGap = rect.bottom < activeAnchor.top - 80
+                                ? activeAnchor.top - rect.bottom
+                                : rect.top > activeAnchor.bottom + 320
+                                    ? rect.top - activeAnchor.bottom
+                                    : 0;
+                            return horizontalGap + (verticalGap * 2);
+                        };
+                        const scopedRoots = overlayRoots
+                            .map(root => ({ root, score: overlayScore(root) }))
+                            .filter(entry => !activeAnchor || entry.score <= 900);
                         const optionQuery = '[role="option"], .ng-option, .mat-mdc-option, li, [class*="option"], [class*="menu-item"], [class*="dropdown-item"]';
-                        const candidates = (overlayRoots.length > 0
-                                ? overlayRoots.flatMap(root => Array.from(root.querySelectorAll(optionQuery)))
-                                : Array.from(document.querySelectorAll(optionQuery)))
+                        const candidates = scopedRoots
+                            .flatMap(entry => Array.from(entry.root.querySelectorAll(optionQuery)))
                             .filter(element => isVisible(element))
                             .filter(element => !['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName));
                         return candidates.length > 0;
                     }
-                    """);
+                    """, suggestionQueryArgs(field));
             if (Boolean.TRUE.equals(visible)) {
                 return true;
             }
             page.waitForTimeout(100);
         }
         return false;
+    }
+
+    private java.util.Map<String, Object> suggestionQueryArgs(Locator field, String... values) {
+        java.util.Map<String, Object> args = new java.util.HashMap<>();
+        args.put("expectedValues", values == null ? new String[0] : values);
+        java.util.Map<String, Double> anchorRect = suggestionAnchorRectOrNull(field);
+        if (anchorRect != null) {
+            args.put("anchorRect", anchorRect);
+        }
+        return args;
+    }
+
+    private java.util.Map<String, Object> suggestionQueryArgs(Locator field) {
+        java.util.Map<String, Object> args = new java.util.HashMap<>();
+        java.util.Map<String, Double> anchorRect = suggestionAnchorRectOrNull(field);
+        if (anchorRect != null) {
+            args.put("anchorRect", anchorRect);
+        }
+        return args;
+    }
+
+    private java.util.Map<String, Double> suggestionAnchorRectOrNull(Locator field) {
+        if (field == null) {
+            return null;
+        }
+        try {
+            BoundingBox box = field.boundingBox();
+            if (box == null) {
+                return null;
+            }
+            java.util.Map<String, Double> rect = new java.util.HashMap<>();
+            rect.put("left", box.x);
+            rect.put("right", box.x + box.width);
+            rect.put("top", box.y);
+            rect.put("bottom", box.y + box.height);
+            return rect;
+        } catch (PlaywrightException ignored) {
+            return null;
+        }
     }
 
     protected Locator resolveFieldByLabelOrNull(String label, int occurrence) {
@@ -7088,41 +7944,140 @@ public class IptDeclarationPage {
 
     protected void openSection(String sectionName) {
         closeTransientOverlays();
-        Locator tabs = page.locator(
-                "[role='tab'], button, a, span, div");
-        String normalizedSection = normalize(sectionName);
-        List<String> visibleTabs = new ArrayList<>();
-        List<Locator> fallbackMatches = new ArrayList<>();
-        int count = tabs.count();
-        for (int index = 0; index < count; index++) {
-            Locator tab = tabs.nth(index);
-            if (!tab.isVisible()) {
-                continue;
-            }
-            String text = normalize(tab.innerText());
-            if (text.isBlank()) {
-                continue;
-            }
-            visibleTabs.add(text);
-            if (normalizedSection.equals(text)) {
-                tab.scrollIntoViewIfNeeded();
-                tab.click(new Locator.ClickOptions().setForce(true));
-                page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-                return;
-            }
-            if (sectionTabMatches(normalizedSection, text)) {
-                fallbackMatches.add(tab);
-            }
-        }
-        for (Locator fallbackMatch : fallbackMatches) {
-            fallbackMatch.scrollIntoViewIfNeeded();
-            fallbackMatch.click(new Locator.ClickOptions().setForce(true));
+        Locator tab = resolveSectionTabOrNull(sectionName);
+        if (tab != null) {
+            tab.scrollIntoViewIfNeeded();
+            tab.click(new Locator.ClickOptions().setForce(true));
             page.waitForLoadState(LoadState.DOMCONTENTLOADED);
             return;
         }
+
         logFieldMappingWarning("Section tab lookup failed for '" + sectionName
-                + "'. Visible tabs: " + String.join(" | ", visibleTabs));
+                + "'. Visible tab candidates: " + String.join(" | ", collectVisibleSectionTabTexts()));
         throw new IllegalStateException("Section tab was not visible: " + sectionName);
+    }
+
+    private Locator resolveSectionTabOrNull(String sectionName) {
+        String escapedSectionName = toXpathLiteral(sectionName);
+        Locator exactCandidates = page.locator(
+                "xpath=//*[self::button or self::a or @role='tab' or @role='button' or self::span or self::div]"
+                        + "[normalize-space(translate(., '*', ''))=" + escapedSectionName + "]");
+        Locator exactMatch = firstMatchingSectionTab(exactCandidates, sectionName, true);
+        if (exactMatch != null) {
+            return exactMatch;
+        }
+
+        String normalizedSection = normalize(sectionName);
+        String expectedWithoutShortcut = stripSectionShortcut(normalizedSection);
+        if (expectedWithoutShortcut.isBlank()) {
+            return null;
+        }
+
+        Locator fallbackCandidates = page.locator(
+                "xpath=//*[self::button or self::a or @role='tab' or @role='button' or self::span or self::div]"
+                        + "[contains(normalize-space(translate(., '*', '')), " + toXpathLiteral(expectedWithoutShortcut) + ")]");
+        return firstMatchingSectionTab(fallbackCandidates, sectionName, false);
+    }
+
+    private Locator firstMatchingSectionTab(Locator candidates, String expectedSectionName, boolean requireExactText) {
+        int count = candidates.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = candidates.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+
+            String text = normalize(candidate.innerText());
+            if (text.isBlank()) {
+                continue;
+            }
+            if (requireExactText ? !normalize(expectedSectionName).equals(text) : !sectionTabMatches(expectedSectionName, text)) {
+                continue;
+            }
+            if (!isLikelySectionTabCandidate(candidate)) {
+                continue;
+            }
+
+            Locator clickTarget = resolveSectionTabClickTargetOrSelf(candidate);
+            if (clickTarget != null) {
+                return clickTarget;
+            }
+        }
+        return null;
+    }
+
+    private Locator resolveSectionTabClickTargetOrSelf(Locator candidate) {
+        Locator clickableAncestor = firstVisible(candidate.locator(
+                "xpath=ancestor-or-self::*[self::button or self::a or @role='tab' or @role='button'][1]"));
+        return clickableAncestor != null ? clickableAncestor : candidate;
+    }
+
+    private boolean isLikelySectionTabCandidate(Locator candidate) {
+        try {
+            return Boolean.TRUE.equals(candidate.evaluate("""
+                    element => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const isVisible = node => node && (node.offsetWidth || node.offsetHeight || node.getClientRects().length);
+                        const knownLabels = [
+                            'JOB INFO',
+                            'SHIPMENT INFO',
+                            'TRANSPORT INFO',
+                            'PARTY INFO',
+                            'INVOICE',
+                            'ITEMS',
+                            'CPC',
+                            'SUMMARY',
+                            'CHECKS',
+                            'HEADER & CERTIFICATE'
+                        ];
+
+                        let current = element;
+                        for (let depth = 0; current && depth < 6; depth++, current = current.parentElement) {
+                            if (!isVisible(current)) {
+                                continue;
+                            }
+                            if (current.tagName === 'BODY' || current.tagName === 'HTML') {
+                                continue;
+                            }
+                            const rect = current.getBoundingClientRect();
+                            if (rect.height > 220) {
+                                continue;
+                            }
+                            const text = normalize(current.innerText || current.textContent);
+                            const labelHits = knownLabels.filter(label =>
+                                text === label
+                                || text.includes(label)
+                                || label.includes(text)).length;
+                            if (labelHits >= 2) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
+    }
+
+    private List<String> collectVisibleSectionTabTexts() {
+        List<String> texts = new ArrayList<>();
+        Locator candidates = page.locator("[role='tab'], button, a, span, div");
+        int count = candidates.count();
+        for (int index = 0; index < count; index++) {
+            Locator candidate = candidates.nth(index);
+            if (!candidate.isVisible()) {
+                continue;
+            }
+            if (!isLikelySectionTabCandidate(candidate)) {
+                continue;
+            }
+            String text = normalize(candidate.innerText());
+            if (!text.isBlank() && !texts.contains(text)) {
+                texts.add(text);
+            }
+        }
+        return texts;
     }
 
     private boolean sectionTabMatches(String expectedSection, String actualTab) {

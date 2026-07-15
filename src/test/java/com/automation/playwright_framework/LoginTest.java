@@ -2,11 +2,13 @@ package com.automation.playwright_framework;
 
 import com.automation.LoginPage;
 import base.BaseTest;
+import base.TradenixLiveTest;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@TradenixLiveTest
 public class LoginTest extends BaseTest {
 
     private static final String LOGIN_URL = System.getProperty(

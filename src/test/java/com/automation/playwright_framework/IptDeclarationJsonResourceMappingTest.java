@@ -1,11 +1,13 @@
 package com.automation.playwright_framework;
 
 import com.automation.DeclarationPayloads;
+import com.automation.IptDeclarationPage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.InputStream;
+import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -71,6 +73,18 @@ class IptDeclarationJsonResourceMappingTest {
 
         assertEquals("IT Permit", DeclarationPayloads.resolvePermitType(root, null));
         assertEquals("IT Permit", root.path("permitType").asText());
+    }
+
+    @Test
+    void itPermitTokenMatchesItDeclarationTypeBranch() throws Exception {
+        IptDeclarationPage page = new IptDeclarationPage(null);
+        Method method = IptDeclarationPage.class.getDeclaredMethod(
+                "permitTypeMatches",
+                String.class,
+                String.class);
+        method.setAccessible(true);
+
+        assertTrue((Boolean) method.invoke(page, "IT Permit", "IT"));
     }
 
     @Test

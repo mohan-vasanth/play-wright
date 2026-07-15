@@ -516,6 +516,7 @@ public class TestLauncherController {
         command.add("cmd.exe");
         command.add("/c");
         command.add(mvnwPath);
+        command.add("-Dtradenix.live.tests=true");
         command.add("-Dtest=" + config.testClass());
         command.add("-D" + config.testDataProperty() + "=" + resolvedJsonPath);
         command.addAll(config.extraArgs());

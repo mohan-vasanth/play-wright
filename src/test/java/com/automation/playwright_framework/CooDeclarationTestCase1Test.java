@@ -1,6 +1,7 @@
 package com.automation.playwright_framework;
 
 import base.BaseTest;
+import base.TradenixLiveTest;
 import com.automation.CooDeclarationPage;
 import com.automation.DeclarationsPage;
 import com.automation.LoginPage;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
 
+@TradenixLiveTest
 public class CooDeclarationTestCase1Test extends BaseTest {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
