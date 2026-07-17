@@ -1291,6 +1291,38 @@
         throw lastError || new Error(launcherApiConnectionMessage());
     }
 
+    async function fetchJsonOptionsMeta(type) {
+        const normalizedType = String(type || '').trim().toLowerCase();
+        try {
+            const resp = await fetchFromApi('/api/launcher/json-options?type=' + encodeURIComponent(normalizedType));
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new Error(data.error || 'Unable to load JSON options.');
+            }
+            return {
+                data,
+                launcherApiAvailable: true
+            };
+        } catch (launcherError) {
+            const resp = await fetchFromApi('/api/load-dashboard/json-options?type=' + encodeURIComponent(normalizedType));
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new Error(data.error || launcherError.message || 'Unable to load JSON options.');
+            }
+            return {
+                data: {
+                    ...data,
+                    configuredFolder: data.configuredFolder
+                        || (data.resourceFolder ? 'src/main/resources/' + data.resourceFolder : ''),
+                    executable: false,
+                    launcherApiUnavailable: true,
+                    loadError: launcherError.message || ''
+                },
+                launcherApiAvailable: false
+            };
+        }
+    }
+
     function apiUrl(path) {
         return apiUrlForBase(apiBase, path);
     }
@@ -1465,11 +1497,7 @@
         const requestId = ++configRequestSequence;
 
         try {
-            const resp = await fetchFromApi('/api/launcher/json-options?type=' + encodeURIComponent(normalizedType));
-            const data = await resp.json();
-            if (!resp.ok) {
-                throw new Error(data.error || 'Unable to load JSON options.');
-            }
+            const { data } = await fetchJsonOptionsMeta(normalizedType);
             if (requestId !== configRequestSequence || normalizedType !== currentConfigType) {
                 return;
             }
@@ -1513,9 +1541,12 @@
         const folderFound = Boolean(data.folderFound);
         const files = Array.isArray(data.files) ? data.files : [];
         const loadError = String(data.loadError || '').trim();
+        const launcherApiUnavailable = Boolean(data.launcherApiUnavailable);
 
         document.getElementById('configTitle').textContent = (data.moduleLabel || moduleLabelForType(data.type)) + ' Configuration';
-        document.getElementById('configSubtext').textContent = loadError
+        document.getElementById('configSubtext').textContent = launcherApiUnavailable
+            ? 'Repository JSON was loaded from the dashboard API, but the launcher execution API is not available on the server currently running on this port.'
+            : loadError
             ? launcherApiConnectionMessage()
             : executable
             ? 'Select a JSON from ' + (configuredFolder || ('src/main/resources/' + resourceFolder)) + ' or upload one manually before running the declaration.'
@@ -1545,15 +1576,22 @@
         }
 
         const runButton = document.getElementById('btnRunConfiguredTest');
-        runButton.textContent = loadError
+        runButton.textContent = launcherApiUnavailable
+            ? 'Launcher API Missing'
+            : loadError
             ? 'Server Unreachable'
             : executable
             ? 'Run Test'
             : 'Automation Not Available';
-        runButton.disabled = Boolean(loadError) || !executable || isRunning;
+        runButton.disabled = Boolean(loadError) || launcherApiUnavailable || !executable || isRunning;
 
         if (loadError) {
             showConfigValidation(loadError);
+            return;
+        }
+
+        if (launcherApiUnavailable) {
+            showConfigValidation('JSON files are available, but this running server instance does not expose /api/launcher. Restart the Spring Boot launcher instance on port 8081 to enable execution.');
             return;
         }
 

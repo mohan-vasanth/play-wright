@@ -583,30 +583,27 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         fillExporterParty(party.path("exporterParty"));
 
-        fillPartyCard(
-                "Consignee",
-                partyIdentityNode(party.path("consigneeParty")).path("partyName").path("name"),
-                partyIdentityNode(party.path("consigneeParty")).path("partyIdentification").path("id"),
-                party.path("consigneeParty").path("address"));
-        fillPartyCard(
-                "End User",
-                partyIdentityNode(party.path("endUserParty")).path("partyName").path("name"),
-                partyIdentityNode(party.path("endUserParty")).path("partyIdentification").path("id"),
-                party.path("endUserParty").path("address"));
-        fillPartyCard(
-                "Manufacturer",
-                partyIdentityNode(party.path("manufacturerParty")).path("partyName").path("name"),
-                partyIdentityNode(party.path("manufacturerParty")).path("partyIdentification").path("id"),
-                party.path("manufacturerParty").path("address"));
+        // Exporter's own address fields (e.g. "Other address details") can toggle open right before this point,
+        // reflowing the cards below it; give Angular a moment to settle so Consignee/End User/Manufacturer
+        // resolve against the final layout instead of a mid-reflow DOM snapshot.
+        waitForPartyCardsSectionSettled();
+
+        fillPartyCard("Consignee", party.path("consigneeParty"));
+        fillPartyCard("End User", party.path("endUserParty"));
+        fillPartyCard("Manufacturer", party.path("manufacturerParty"));
+    }
+
+    private void waitForPartyCardsSectionSettled() {
+        try {
+            waitForAnyVisibleText("Consignee", "End User", "Manufacturer");
+        } catch (Exception ignored) {
+        }
+        page.waitForTimeout(400);
     }
 
     private void fillExporterParty(JsonNode exporterParty) {
         if (resolvePartyCard("Exporter") != null) {
-            fillPartyCard(
-                    "Exporter",
-                    partyIdentityNode(exporterParty).path("partyName").path("name"),
-                    partyIdentityNode(exporterParty).path("partyIdentification").path("id"),
-                    exporterParty.path("address"));
+            fillPartyCard("Exporter", exporterParty);
             return;
         }
 
@@ -650,16 +647,59 @@ public class OutDeclarationPage extends IptDeclarationPage {
         return partyNode;
     }
 
-    private void fillPartyCard(String title, JsonNode nameNode, JsonNode idNode, JsonNode addressNode) {
-        String name = normalize(nodeText(nameNode));
-        String id = normalize(nodeText(idNode));
-        if ((name == null || name.isBlank()) && (addressNode == null || addressNode.isMissingNode())) {
+    private JsonNode partyAddressNode(JsonNode partyNode) {
+        JsonNode addressNode = partyNode.path("address");
+        if (!isMissingOrEmpty(addressNode)) {
+            return addressNode;
+        }
+        return partyNode;
+    }
+
+    private void fillPartyCard(String title, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        JsonNode addressNode = partyAddressNode(partyNode);
+
+        String name = partyName(partyNode);
+        String id = normalize(firstNonBlank(
+                text(identityNode.path("partyIdentification"), "id"),
+                text(identityNode, "id"),
+                text(partyNode.path("partyIdentification"), "id"),
+                text(partyNode, "id")));
+        if ((name == null || name.isBlank())
+                && (id == null || id.isBlank())
+                && isMissingOrEmpty(addressNode)) {
             return;
         }
 
-        ensureAccordionExpanded(title, "Country Code");
+        logFieldMappingInfo("OUT party card '" + title + "' JSON value -> name='"
+                + firstNonBlank(name, "N/A")
+                + "', id='" + firstNonBlank(id, "N/A")
+                + "', hasAddress=" + !isMissingOrEmpty(addressNode));
+
+        ensureAccordionExpanded(title, "Country Code", "Address");
         Locator card = resolvePartyCard(title);
+        for (int attempt = 0; card == null && attempt < 4; attempt++) {
+            // Retry unconditionally: the container can be momentarily missing from the DOM snapshot
+            // while Angular is still settling a layout reflow triggered by the previous card/row, not
+            // just when the Angular-injection sync path below happens to succeed.
+            page.waitForTimeout(300L * (attempt + 1));
+            ensureAccordionExpanded(title, "Country Code", "Address");
+            card = resolvePartyCard(title);
+        }
         if (card == null) {
+            boolean globalSync = syncPartyLookupComponentSelection(title, name, id);
+            if (globalSync) {
+                logFieldMappingInfo("OUT party card '" + title
+                        + "' lookup host resolved before card container discovery.");
+                page.waitForTimeout(250);
+                ensureAccordionExpanded(title, "Country Code", "Address");
+                card = resolvePartyCard(title);
+            }
+        }
+        if (card == null) {
+            logFieldMappingWarning("OUT party card container was not found for '" + title
+                    + "' while JSON value was '" + firstNonBlank(name, id, "N/A")
+                    + "'. Party Info section text -> " + describePartyInfoSectionTextOrNull() + ".");
             return;
         }
         try {
@@ -671,18 +711,27 @@ public class OutDeclarationPage extends IptDeclarationPage {
         if (visibleCardAfterScroll != null) {
             card = visibleCardAfterScroll;
         }
+        try {
+            logFieldMappingInfo("OUT party card '" + title + "' scope text -> " + normalize(card.innerText()));
+        } catch (Exception ignored) {
+        }
 
-        boolean synced = syncPartyLookupComponentSelectionInScope(card, name, id);
+        boolean synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
         if (!synced) {
             synced = syncPartyLookupComponentSelection(title, name, id);
         }
         if (!synced) {
+            // CooDeclarationPage's (working) party cards fill the lookup/name field positionally;
+            // fall back to that same approach when OUT's own Angular-injection sync helpers can't
+            // resolve a named lookup host for this card.
             fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
         }
         if (!synced) {
-            synced = syncPartyLookupComponentSelectionInScope(card, name, id);
+            synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
         }
-        ensurePartyCardNameValue(card, name);
+        logFieldMappingInfo("OUT party card '" + title + "' lookup sync -> resolved=" + synced
+                + ", cardScopeFound=" + (card != null));
+        ensurePartyCardNameValue(card, title, name);
         fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
 
         JsonNode addressLines = addressNode.path("addressLine").path("line");
@@ -700,9 +749,14 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillPartyCardFieldWithFallback(card, "Country Code", text(addressNode, "countryCode"));
     }
 
-    private boolean syncPartyLookupComponentSelectionInScope(Locator scope, String partyName, String partyId) {
+    private boolean syncPartyLookupComponentSelectionInScope(Locator scope, String title, String partyName, String partyId) {
         if (scope == null || (partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
             return false;
+        }
+
+        Locator preferredHost = resolvePartyCardNameLookupHost(scope, title);
+        if (preferredHost != null && syncPartyLookupComponentValue(preferredHost, partyName, partyId)) {
+            return true;
         }
 
         try {
@@ -854,6 +908,118 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
     }
 
+    private boolean syncPartyLookupComponentValue(Locator host, String partyName, String partyId) {
+        try {
+            Object synced = host.evaluate("""
+                    (element, args) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        if (typeof window.ng === 'undefined' || typeof window.ng.getComponent !== 'function') {
+                            return false;
+                        }
+
+                        const component = window.ng.getComponent(element);
+                        if (!component) {
+                            return false;
+                        }
+
+                        const expectedName = normalize(args.partyName);
+                        const expectedId = normalize(args.partyId);
+                        const allOptions = Array.isArray(component?.allOptions)
+                            ? component.allOptions
+                            : Array.isArray(component?.options)
+                                ? component.options
+                                : [];
+                        const scoreOption = option => {
+                            const code = normalize(option?.code);
+                            const description = normalize(option?.description);
+                            const combined = normalize(`${option?.code || ''} ${option?.description || ''}`);
+                            let score = 0;
+                            if (expectedId && code === expectedId) {
+                                score += 1000;
+                            } else if (expectedId && combined.includes(expectedId)) {
+                                score += 500;
+                            }
+                            if (expectedName && description === expectedName) {
+                                score += 400;
+                            } else if (expectedName && (description.includes(expectedName) || expectedName.includes(description))) {
+                                score += 200;
+                            }
+                            return score;
+                        };
+
+                        const ranked = allOptions
+                            .map(option => ({ option, score: scoreOption(option) }))
+                            .filter(entry => entry.score > 0)
+                            .sort((left, right) => right.score - left.score);
+                        const selected = ranked[0]?.option || {
+                            code: args.partyId || args.partyName || '',
+                            description: args.partyName || args.partyId || ''
+                        };
+                        const display = selected.description || selected.code || args.partyName || args.partyId || '';
+                        const value = selected.code || display;
+                        const field = component?.inputElement?.nativeElement
+                            || element.querySelector?.("input, textarea, select, [role='combobox'], [role='textbox']");
+
+                        if ('value' in component) {
+                            component.value = value;
+                        }
+                        if ('_value' in component) {
+                            component._value = value;
+                        }
+                        if (component.formControl && typeof component.formControl.setValue === 'function') {
+                            component.formControl.setValue(value);
+                        }
+                        if (component.control && typeof component.control.setValue === 'function') {
+                            component.control.setValue(value);
+                        }
+                        if (typeof component.writeValue === 'function') {
+                            component.writeValue(value);
+                        }
+                        if ('selectedItem' in component) {
+                            component.selectedItem = selected;
+                        }
+                        if ('selectedOption' in component) {
+                            component.selectedOption = selected;
+                        }
+                        if ('selectedLabel' in component) {
+                            component.selectedLabel = display;
+                        }
+                        if ('inputDisplayValue' in component) {
+                            component.inputDisplayValue = display;
+                        }
+                        if ('displayValue' in component) {
+                            component.displayValue = display;
+                        }
+                        if (field && 'value' in field) {
+                            field.value = display;
+                            field.setAttribute?.('value', display);
+                            field.dispatchEvent(new Event('input', { bubbles: true }));
+                            field.dispatchEvent(new Event('change', { bubbles: true }));
+                            field.dispatchEvent(new Event('blur', { bubbles: true }));
+                        }
+                        if (typeof component.selectOptionItem === 'function') {
+                            component.selectOptionItem(selected);
+                        }
+                        if (typeof component.selectOptionLabel === 'function') {
+                            component.selectOptionLabel(selected);
+                        }
+                        if (typeof component.onChange === 'function') {
+                            component.onChange(value);
+                        }
+                        if (typeof component.onTouched === 'function') {
+                            component.onTouched();
+                        }
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "partyName", firstNonBlank(partyName, ""),
+                    "partyId", firstNonBlank(partyId, "")));
+            return Boolean.TRUE.equals(synced);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private boolean hasVisiblePartyLookupHost(Locator scope) {
         if (scope == null) {
             return false;
@@ -871,13 +1037,12 @@ public class OutDeclarationPage extends IptDeclarationPage {
         return host != null;
     }
 
-    private void ensurePartyCardNameValue(Locator card, String expectedName) {
+    private void ensurePartyCardNameValue(Locator card, String title, String expectedName) {
         if (card == null || expectedName == null || expectedName.isBlank()) {
             return;
         }
 
-        Locator field = firstVisible(card.locator(
-                "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']"));
+        Locator field = resolvePartyCardNameField(card, title);
         if (field == null) {
             return;
         }
@@ -892,6 +1057,39 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         ensureTextFieldValue(field, expectedName);
+    }
+
+    private Locator resolvePartyCardNameField(Locator card, String title) {
+        Locator preferredHost = resolvePartyCardNameLookupHost(card, title);
+        if (preferredHost != null) {
+            Locator preferredField = firstVisible(preferredHost.locator(
+                    "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']"));
+            if (preferredField != null) {
+                return preferredField;
+            }
+        }
+
+        return firstVisible(card.locator(
+                "input:not([type='checkbox']), textarea, select, [role='combobox'], [role='textbox']"));
+    }
+
+    private Locator resolvePartyCardNameLookupHost(Locator scope, String title) {
+        if (scope == null || title == null || title.isBlank()) {
+            return null;
+        }
+
+        String selector = switch (normalize(title).toUpperCase()) {
+            case "EXPORTER" -> "app-exporter-lookup[formcontrolname='name']";
+            case "CONSIGNEE" -> "app-consignee-lookup[formcontrolname='name']";
+            case "END USER" -> "app-end-user-lookup[formcontrolname='name']";
+            case "MANUFACTURER" -> "app-manufacturer-lookup[formcontrolname='name']";
+            default -> null;
+        };
+        if (selector == null) {
+            return null;
+        }
+
+        return firstVisible(scope.locator(selector));
     }
 
     private void fillPartyCardFieldWithFallback(Locator card, String label, String value) {
@@ -924,6 +1122,23 @@ public class OutDeclarationPage extends IptDeclarationPage {
         }
 
         String escapedLabel = toXpathLiteral(label);
+        Locator inlineField = card.locator(
+                "xpath=((.//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[" + (occurrence + 1) + "]"
+                        + "//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox'][1])");
+        Locator visibleInlineField = firstVisible(inlineField);
+        if (visibleInlineField != null) {
+            return visibleInlineField;
+        }
+
+        Locator scopedField = card.locator(
+                "xpath=((.//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[" + (occurrence + 1) + "]"
+                        + "/parent::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]"
+                        + "//*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox'][1])");
+        Locator visibleScopedField = firstVisible(scopedField);
+        if (visibleScopedField != null) {
+            return visibleScopedField;
+        }
+
         Locator directField = card.locator(
                 "xpath=((.//*[normalize-space(translate(., '*', ''))=" + escapedLabel + "])[" + (occurrence + 1) + "]"
                         + "/following::*[self::input or self::textarea or self::select or @role='combobox' or @role='textbox'][1])");
@@ -1020,15 +1235,11 @@ public class OutDeclarationPage extends IptDeclarationPage {
         JsonNode shippingMarksInformation = firstArrayItem(item.path("shippingMarksInformation"));
         JsonNode cascProduct = item.path("cascProduct");
         JsonNode itemCertificate = item.path("itemCertificate");
+        String itemInvoiceNumber = firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber"));
 
-        fillLookupFieldIfPresent("Invoice Number",
-                firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")),
-                firstNonBlank(text(item, "itemInvoiceNumber"), text(invoice, "invoiceNumber")));
+        fillSelectLikeLookupFieldIfPresentByLabels(itemInvoiceNumber, "Item Invoice Number", "Invoice Number");
         fillFieldIfPresent("Inward HAWB", text(item, "inHawbHucrHblNumber"));
         fillFieldIfPresent("Outward HAWB", text(item, "outHawbHucrHblNumber"));
-        fillLookupFieldIfPresent("Currency",
-                text(unitPriceValue.path("amount"), "currencyID"),
-                text(unitPriceValue.path("amount"), "currencyID"));
         fillFieldIfPresent("Exchange Rate", normalizeNumericForEntry(text(unitPriceValue, "exchangeRate")));
         fillItemHsCode(text(item, "itemHarmonizedSystemCode"));
         fillFirstPresentField(text(item, "goodsDescription"), "Goods Description", "Description");
@@ -1054,8 +1265,6 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         fillItemQuantityDetails(itemQuantity);
 
-        fillFieldIfPresent("Item Unit Value",
-                normalizeNumericForEntry(text(unitPriceValue.path("amount"), "value")));
         fillItemValues(transactionValue);
         fillLotIdentification(item, lotIdentification);
         fillShippingMarks(shippingMarksInformation);
@@ -2313,30 +2522,163 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private Locator resolvePartyCard(String title) {
+        Locator scoredCard = resolvePartyCardByScoredContainerMatch(title);
+        if (scoredCard != null) {
+            return scoredCard;
+        }
+        // Fall back to the simple ancestor-match strategy CooDeclarationPage's (working) party cards
+        // use, for cases the scored container match can't resolve.
+        return resolvePartyCardBySimpleAncestorMatch(title);
+    }
+
+    private Locator resolvePartyCardBySimpleAncestorMatch(String title) {
+        String escapedTitle = toXpathLiteral(title);
+        Locator locator = page.locator(
+                "xpath=(//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox']][1]");
+        return firstVisible(locator);
+    }
+
+    private Locator resolvePartyCardByScoredContainerMatch(String title) {
         Locator partySection = resolvePartyInfoSectionOrNull();
         if (partySection == null) {
             return null;
         }
 
-        String escapedTitle = toXpathLiteral(title);
-        Locator detailedCard = partySection.locator(
-                "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
-                        + "/ancestor::*[((.//*[normalize-space(translate(., '*', ''))='Address']"
-                        + " or .//*[contains(normalize-space(translate(., '*', '')), 'Country Code')])"
-                        + " and (.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']))][1]");
-        Locator visibleDetailedCard = firstVisible(detailedCard);
-        if (visibleDetailedCard != null) {
-            return visibleDetailedCard;
+        String marker = "out-party-card-" + normalize(title).toLowerCase().replaceAll("[^a-z0-9]+", "-");
+        try {
+            Object found = partySection.evaluate("""
+                    (section, args) => {
+                        const normalize = value => (value || '')
+                            .replace(/\\*/g, ' ')
+                            .replace(/\\s+/g, ' ')
+                            .trim()
+                            .toUpperCase();
+                        const knownPartyTitles = new Set([
+                            'IMPORTER',
+                            'INWARD CARRIER',
+                            'FREIGHT FORWARDER',
+                            'OUTWARD CARRIER',
+                            'DECLARING AGENT',
+                            'EXPORTER',
+                            'CONSIGNEE',
+                            'END USER',
+                            'MANUFACTURER'
+                        ]);
+                        const isVisible = element => !!element
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const ownText = element => normalize(Array.from(element.childNodes || [])
+                            .filter(node => node.nodeType === Node.TEXT_NODE)
+                            .map(node => node.textContent || '')
+                            .join(' '));
+                        const hasLabel = (element, expected, contains = false) =>
+                            Array.from(element.querySelectorAll('*'))
+                                .filter(isVisible)
+                                .some(node => {
+                                    const text = normalize(node.innerText || node.textContent);
+                                    return contains ? text.includes(expected) : text === expected;
+                                });
+
+                        section.querySelectorAll(`[data-out-party-card="${args.marker}"]`)
+                            .forEach(node => node.removeAttribute('data-out-party-card'));
+
+                        const expectedTitle = normalize(args.title);
+                        const titleNodes = [section, ...Array.from(section.querySelectorAll('*'))]
+                            .filter(isVisible)
+                            .filter(node => {
+                                const text = normalize(node.innerText || node.textContent);
+                                return text === expectedTitle || ownText(node) === expectedTitle;
+                            });
+                        if (titleNodes.length === 0) {
+                            return false;
+                        }
+
+                        let best = null;
+                        let bestScore = Number.NEGATIVE_INFINITY;
+                        let bestDepth = Number.POSITIVE_INFINITY;
+                        for (const titleNode of titleNodes) {
+                            let depth = 0;
+                            for (let candidate = titleNode; candidate && candidate !== section.parentElement; candidate = candidate.parentElement) {
+                                if (!isVisible(candidate)) {
+                                    depth += 1;
+                                    continue;
+                                }
+                                const inputs = candidate.querySelectorAll(
+                                    "input, textarea, select, [role='combobox'], [role='textbox']").length;
+                                if (inputs === 0) {
+                                    depth += 1;
+                                    if (candidate === section) {
+                                        break;
+                                    }
+                                    continue;
+                                }
+
+                                const partyTitleCount = [candidate, ...Array.from(candidate.querySelectorAll('*'))]
+                                    .filter(isVisible)
+                                    .reduce((count, node) => {
+                                        const text = normalize(node.innerText || node.textContent);
+                                        const directText = ownText(node);
+                                        return count + ((knownPartyTitles.has(text) || knownPartyTitles.has(directText)) ? 1 : 0);
+                                    }, 0);
+                                const score = (hasLabel(candidate, 'ADDRESS') ? 1000 : 0)
+                                        + (hasLabel(candidate, 'COUNTRY CODE', true) ? 500 : 0)
+                                        + (hasLabel(candidate, 'UEN') ? 250 : 0)
+                                        + (partyTitleCount <= 1 ? 250 : 0)
+                                        - Math.max(0, partyTitleCount - 1) * 400
+                                        + Math.min(inputs, 12)
+                                        - Math.max(0, inputs - 12) * 10;
+                                if (score > bestScore || (score === bestScore && depth < bestDepth)) {
+                                    best = candidate;
+                                    bestScore = score;
+                                    bestDepth = depth;
+                                }
+                                if (candidate === section) {
+                                    break;
+                                }
+                                depth += 1;
+                            }
+                        }
+
+                        if (!best) {
+                            return false;
+                        }
+                        best.setAttribute('data-out-party-card', args.marker);
+                        return true;
+                    }
+                    """, java.util.Map.of(
+                    "title", title,
+                    "marker", marker));
+            if (Boolean.TRUE.equals(found)) {
+                Locator marked = page.locator("[data-out-party-card='" + marker + "']");
+                Locator visibleMarked = firstVisible(marked);
+                if (visibleMarked != null) {
+                    return visibleMarked;
+                }
+            }
+        } catch (Exception ignored) {
         }
 
-        Locator locator = partySection.locator(
+        String escapedTitle = toXpathLiteral(title);
+        Locator fallback = partySection.locator(
                 "xpath=(.//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
-                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox']][1]");
-        return firstVisible(locator);
+                        + "/ancestor::*[.//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox']][1]");
+        return firstVisible(fallback);
     }
 
     private Locator resolvePartyInfoSectionOrNull() {
         return resolveSectionOrNull("Party Info (P)");
+    }
+
+    private String describePartyInfoSectionTextOrNull() {
+        try {
+            Locator partySection = resolvePartyInfoSectionOrNull();
+            if (partySection == null) {
+                return "N/A (Party Info section not resolved)";
+            }
+            return normalize(partySection.innerText());
+        } catch (Exception ignored) {
+            return "N/A (failed to read section text)";
+        }
     }
 
     @Override
@@ -3115,7 +3457,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillLookupFieldIfPresentByLabels(String value, String... labels) {
-        if (value == null || value.isBlank()) {
+        if (isPlaceholderLookupValue(value)) {
             return;
         }
         for (String label : labels) {
@@ -3125,6 +3467,29 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 return;
             }
         }
+    }
+
+    private void fillSelectLikeLookupFieldIfPresentByLabels(String value, String... labels) {
+        if (isPlaceholderLookupValue(value)) {
+            return;
+        }
+        for (String label : labels) {
+            Locator field = resolveSelectLikeFieldByLabelOrNull(label, 0);
+            if (field != null) {
+                focusAndType(field, value, true, value);
+                return;
+            }
+        }
+        fillLookupFieldIfPresentByLabels(value, labels);
+    }
+
+    private boolean isPlaceholderLookupValue(String value) {
+        String normalizedValue = normalize(value);
+        return normalizedValue == null
+                || normalizedValue.isBlank()
+                || "-".equals(normalizedValue)
+                || "-NA-".equalsIgnoreCase(normalizedValue)
+                || "N/A".equalsIgnoreCase(normalizedValue);
     }
 
     private String joinNonBlank(String delimiter, String... values) {

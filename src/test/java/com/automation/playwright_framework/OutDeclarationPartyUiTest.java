@@ -442,6 +442,77 @@ class OutDeclarationPartyUiTest extends BaseTest {
     }
 
     @Test
+    void fillPartyInfoNormalizesFlatManufacturerCardJsonShape() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div id="manufacturer-card" style="border:1px solid #ddd; padding:16px; margin-top:16px;">
+                      <div style="display:grid; grid-template-columns:160px 360px 220px; gap:12px; align-items:center;">
+                        <div>Manufacturer</div>
+                        <div>
+                          <input id="manufacturer-name" type="text" style="width:320px; height:28px;">
+                        </div>
+                        <div>
+                          <div>UEN</div>
+                          <input id="manufacturer-uen" type="text" style="width:220px; height:28px;">
+                        </div>
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Address</div>
+                        <input id="manufacturer-address" type="text" style="width:520px; height:28px;">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>City</div>
+                        <input id="manufacturer-city" type="text" style="width:220px; height:28px;">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Postal Code</div>
+                        <input id="manufacturer-postal" type="text" style="width:140px; height:28px;">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Country Code</div>
+                        <input id="manufacturer-country" type="text" style="width:140px; height:28px;">
+                      </div>
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "manufacturerParty": {
+                              "name": "ARMSTRONG INDUSTRIAL CORP",
+                              "id": "198003808K",
+                              "addressLine": {
+                                "line": [ "TOLLGATE LALGUDI", "TRICHY" ]
+                              },
+                              "cityName": "TIRUCHIRAPPALLI",
+                              "postalZone": "620009",
+                              "countryCode": "IN"
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("ARMSTRONG INDUSTRIAL CORP", page.locator("#manufacturer-name").inputValue());
+        assertEquals("198003808K", page.locator("#manufacturer-uen").inputValue());
+        assertEquals("TOLLGATE LALGUDI, TRICHY, TIRUCHIRAPPALLI", page.locator("#manufacturer-address").inputValue());
+        assertEquals("TIRUCHIRAPPALLI", page.locator("#manufacturer-city").inputValue());
+        assertEquals("620009", page.locator("#manufacturer-postal").inputValue());
+        assertEquals("IN", page.locator("#manufacturer-country").inputValue());
+    }
+
+    @Test
     void fillPartyInfoCommitsConsigneeLookupComponentModelInsideCard() throws Exception {
         page.setContent("""
                 <html>
@@ -796,5 +867,188 @@ class OutDeclarationPartyUiTest extends BaseTest {
         assertEquals("ENDNAME1", page.locator("#end-user-model").inputValue());
         assertEquals("ARMSTRONG INDUSTRIAL CORP", page.locator("#manufacturer-name").inputValue());
         assertEquals("ARMSTRONG INDUSTRIAL CORP", page.locator("#manufacturer-model").inputValue());
+    }
+
+    @Test
+    void fillPartyInfoPrefersConsigneeNameLookupOverCountryCodeLookupWhenNoUenExists() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div id="consignee-card" style="border:1px solid #ddd; padding:16px; margin-top:16px;">
+                      <div style="display:grid; grid-template-columns:160px 360px 220px; gap:12px; align-items:center;">
+                        <div>Consignee</div>
+                        <app-consignee-lookup id="consignee-host" formcontrolname="name" style="display:block;">
+                          <input id="consignee-name" type="text" style="width:320px; height:28px;">
+                        </app-consignee-lookup>
+                        <input id="consignee-uen" type="text" style="width:220px; height:28px;" value="-NA-">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Address</div>
+                        <input id="consignee-address" type="text" style="width:520px; height:28px;">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <label><input id="other-address-details" type="checkbox"> Other address details</label>
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Country Code</div>
+                        <app-country-code-lookup id="consignee-country-host" formcontrolname="countryCode" style="display:block;">
+                          <input id="consignee-country" type="text" style="width:140px; height:28px;">
+                        </app-country-code-lookup>
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const consigneeHost = document.getElementById('consignee-host');
+                      const consigneeInput = document.getElementById('consignee-name');
+                      const countryHost = document.getElementById('consignee-country-host');
+                      const countryInput = document.getElementById('consignee-country');
+                      const consigneeComponent = {
+                        allOptions: [],
+                        inputElement: { nativeElement: consigneeInput },
+                        onChange(value) {
+                          consigneeInput.value = value;
+                          consigneeInput.dispatchEvent(new Event('input', { bubbles: true }));
+                          consigneeInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      const countryComponent = {
+                        allOptions: [
+                          { code: 'SG', description: 'SINGAPORE' }
+                        ],
+                        inputElement: { nativeElement: countryInput },
+                        onChange(value) {
+                          countryInput.value = value;
+                          countryInput.dispatchEvent(new Event('input', { bubbles: true }));
+                          countryInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      window.ng = {
+                        getComponent(target) {
+                          if (target === consigneeHost) {
+                            return consigneeComponent;
+                          }
+                          if (target === countryHost) {
+                            return countryComponent;
+                          }
+                          return null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "consigneeParty": {
+                              "partyName": {
+                                "name": "TESTING FOR CONSIGNEE"
+                              },
+                              "address": {
+                                "addressLine": {
+                                  "line": [ "ADD1 ADD2 SAMPLECITY" ]
+                                },
+                                "countryCode": "SG"
+                              }
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("TESTING FOR CONSIGNEE", page.locator("#consignee-name").inputValue());
+        assertEquals("SG", page.locator("#consignee-country").inputValue());
+        assertEquals("ADD1 ADD2 SAMPLECITY", page.locator("#consignee-address").inputValue());
+    }
+
+    @Test
+    void fillPartyInfoResolvesCardWhenTitleIsRenderedOnContainerText() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding: 12px; border: 1px solid #ccc; width: 1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div id="consignee-card" style="border:1px solid #ddd; padding:16px; margin-top:16px;">
+                      Consignee
+                      <div style="display:grid; grid-template-columns:360px 220px; gap:12px; align-items:center; margin-top:12px;">
+                        <app-consignee-lookup id="consignee-host" formcontrolname="name" style="display:block;">
+                          <input id="consignee-name" type="text" style="width:320px; height:28px;">
+                        </app-consignee-lookup>
+                        <input id="consignee-uen" type="text" style="width:220px; height:28px;" value="-NA-">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Address</div>
+                        <input id="consignee-address" type="text" style="width:520px; height:28px;">
+                      </div>
+                      <div style="margin-top:12px;">
+                        <div>Country Code</div>
+                        <input id="consignee-country" type="text" style="width:140px; height:28px;">
+                      </div>
+                    </div>
+                  </section>
+                  <script>
+                    (() => {
+                      const host = document.getElementById('consignee-host');
+                      const input = document.getElementById('consignee-name');
+                      const component = {
+                        allOptions: [],
+                        inputElement: { nativeElement: input },
+                        onChange(value) {
+                          input.value = value;
+                          input.dispatchEvent(new Event('input', { bubbles: true }));
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+                      window.ng = {
+                        getComponent(target) {
+                          return target === host ? component : null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "consigneeParty": {
+                              "partyName": {
+                                "name": "TESTING FOR CONSIGNEE"
+                              },
+                              "address": {
+                                "addressLine": {
+                                  "line": [ "ADD1 ADD2 SAMPLECITY" ]
+                                },
+                                "countryCode": "SG"
+                              }
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("TESTING FOR CONSIGNEE", page.locator("#consignee-name").inputValue());
+        assertEquals("ADD1 ADD2 SAMPLECITY", page.locator("#consignee-address").inputValue());
+        assertEquals("SG", page.locator("#consignee-country").inputValue());
     }
 }
