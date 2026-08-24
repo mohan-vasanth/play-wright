@@ -22,7 +22,7 @@ public class IptPartyDomProbeTest extends BaseTest {
         loginPage.loginAsUser(
                 System.getProperty("tradenix.user.username", "mohan"),
                 System.getProperty("tradenix.user.password", "12345678"),
-                System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD"),
+                System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE. LTD."),
                 System.getProperty("tradenix.user.department", "IMPORT"));
         loginPage.waitForAuthenticatedState();
 

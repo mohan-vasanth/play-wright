@@ -1070,26 +1070,73 @@ public class CooDeclarationPage extends IptDeclarationPage {
         String itemCurrency = firstNonBlank(
                 arrayText(formMetaData.path("unitPriceCurrencies"), index),
                 text(certificate, "currencyCode"));
+        String itemValue = firstNonBlank(
+                arrayText(formMetaData.path("itemValues"), index),
+                text(item.path("itemCertificate"), "itemValue"));
+        String itemCifFobValue = normalizeNumericForEntry(text(item, "itemCIFFOBValue"));
 
         Locator itemQuantitySection = resolveItemQuantitySection();
         fillScopedQuantityRowInScope(itemQuantitySection, "HS Quantity", item.path("harmonizedSystemQuantity"));
 
-        fillVerifiedLookupFieldInSectionIfPresent("Item Details", "Currency", itemCurrency, itemCurrency);
+        fillItemDetailsCurrencyWithFallback(itemDetailsSection, item, itemCurrency);
 
         Locator itemValuesSection = resolveItemValuesSection();
-        String itemValue = firstNonBlank(
-                arrayText(formMetaData.path("itemValues"), index),
-                text(item.path("itemCertificate"), "itemValue"));
-        fillScopedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
-        fillScopedValidatedFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 0, normalizeNumericForEntry(itemValue));
-        fillScopedValidatedFieldAfterScopeLabelIfPresent(
+        fillItemQuantityValuesWithFallback(
                 itemValuesSection,
-                "Item CIF/FOB Value (SGD)",
-                0,
-                normalizeNumericForEntry(text(item, "itemCIFFOBValue")));
+                item.path("harmonizedSystemQuantity"),
+                itemValue,
+                itemCurrency,
+                itemCifFobValue);
 
         fillShippingMarks(firstArrayItem(item.path("shippingMarksInformation")));
         fillItemCertificate(item.path("itemCertificate"), formMetaData);
+    }
+
+    private void fillItemDetailsCurrencyWithFallback(Locator itemDetailsSection, JsonNode item, String itemCurrency) {
+        if (itemCurrency == null || itemCurrency.isBlank()) {
+            return;
+        }
+
+        Locator currencyField = resolveScopedFieldNearLabelOrNull(itemDetailsSection, "Currency", 0);
+        if (currencyField != null) {
+            try {
+                fillVerifiedLookupField(currencyField, itemCurrency, "Currency", itemCurrency);
+                return;
+            } catch (IllegalStateException ignored) {
+            }
+        }
+
+        fillItemDetailsByLayoutFallback(itemDetailsSection, item, itemCurrency);
+    }
+
+    private void fillItemQuantityValuesWithFallback(
+            Locator itemValuesSection,
+            JsonNode quantityNode,
+            String itemValue,
+            String itemCurrency,
+            String itemCifFobValue) {
+        try {
+            fillScopedValidatedFieldAfterScopeLabelIfPresent(
+                    itemValuesSection,
+                    "Item Value",
+                    0,
+                    normalizeNumericForEntry(itemValue));
+            fillScopedLookupFieldAfterScopeLabelIfPresent(itemValuesSection, "Item Value", 1, itemCurrency, itemCurrency);
+            fillScopedValidatedFieldAfterScopeLabelIfPresent(
+                    itemValuesSection,
+                    "Item CIF/FOB Value (SGD)",
+                    0,
+                    itemCifFobValue);
+            return;
+        } catch (IllegalStateException ignored) {
+        }
+
+        fillItemQuantityValuesByLayoutFallback(
+                itemValuesSection,
+                quantityNode,
+                itemValue,
+                itemCurrency,
+                itemCifFobValue);
     }
 
     private void fillItemDetailsByLayoutFallback(Locator section, JsonNode item, String itemCurrency) {

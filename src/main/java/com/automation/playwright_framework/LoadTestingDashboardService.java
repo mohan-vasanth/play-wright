@@ -60,7 +60,7 @@ public class LoadTestingDashboardService {
     private static final int MAX_SCREENSHOTS = 24;
     private static final int LOGIN_RETRY_COUNT = Integer.getInteger("tradenix.login.retry.count", 3);
     private static final long LOGIN_RETRY_DELAY_MS = Long.getLong("tradenix.login.retry.delay.ms", 1500L);
-    private static final String DEFAULT_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
+    private static final String DEFAULT_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE. LTD.");
     private static final String DEFAULT_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
     private static final String DEFAULT_BG_INDICATOR = System.getProperty("tradenix.default.bg.indicator", "D");
     private static final int LOGIN_PARALLELISM = Integer.getInteger("tradenix.login.parallelism", 1);

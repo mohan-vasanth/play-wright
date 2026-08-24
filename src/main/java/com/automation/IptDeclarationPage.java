@@ -1319,17 +1319,23 @@ public class IptDeclarationPage {
     private boolean isPartyRowResolved(String rowLabel, String partyName, String partyId) {
         Locator nameField = resolvePartyNameField(rowLabel);
         Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+        String normalizedPartyId = normalize(partyId);
 
-        boolean nameResolved = partyName == null
-                || partyName.isBlank()
-                || waitForResolvedPartyNameFieldValue(nameField, partyName, partyId, 500)
-                || waitForPartyFieldValue(nameField, partyName, 500)
-                || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
-        boolean idResolved = partyId == null
-                || partyId.isBlank()
-                || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
-                || waitForPartyRowValues(rowLabel, partyName, partyId, 800);
-        return nameResolved && idResolved;
+        long deadline = System.currentTimeMillis() + 800;
+        while (System.currentTimeMillis() <= deadline) {
+            boolean nameMatches = partyName == null
+                    || partyName.isBlank()
+                    || waitForAnyRenderedFieldValue(nameField, 150, partyName, partyId)
+                    || waitForPartyRowValues(rowLabel, partyName, null, 150);
+            boolean idMatches = normalizedPartyId.isBlank()
+                    || (idField != null && waitForAnyRenderedFieldValue(idField, 150, partyId))
+                    || waitForPartyRowValues(rowLabel, partyName, partyId, 150);
+            if (nameMatches && idMatches) {
+                return true;
+            }
+            page.waitForTimeout(100);
+        }
+        return false;
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {
@@ -2982,11 +2988,20 @@ public class IptDeclarationPage {
 
     protected void completeSection(String sectionName) {
         if (sectionTabMatches("Party Info (P)", sectionName)) {
-            saveDraftAndAdvanceToNextSection();
+            if (shouldUseImmediatePartyAdvanceAfterSave()) {
+                saveDraftAndAdvanceToNextSectionWhenReady("NEXT");
+            } else {
+                saveDraftAndAdvanceToNextSection();
+            }
             return;
         }
         saveDraft();
         goToNextSection();
+    }
+
+    protected boolean shouldUseImmediatePartyAdvanceAfterSave() {
+        String flowLabel = normalize(declarationFlowLabel());
+        return "IPT".equals(flowLabel) || "INP".equals(flowLabel);
     }
 
     protected void validateDeclarationPayload(JsonNode data) {
@@ -8158,9 +8173,13 @@ public class IptDeclarationPage {
     }
 
     protected void saveDraftAndAdvanceToNextSection() {
+        saveDraftAndAdvanceToNextSectionWhenReady("SAVE DRAFT", "NEXT");
+    }
+
+    protected void saveDraftAndAdvanceToNextSectionWhenReady(String... readyButtonTexts) {
         waitForActionButtonEnabled("SAVE DRAFT", 15000);
         clickActionButtonExactWithRetry("SAVE DRAFT", 3);
-        waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, "SAVE DRAFT", "NEXT");
+        waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, readyButtonTexts);
         clickActionButtonExactWithRetry("NEXT", 3);
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
         closeTransientOverlays();

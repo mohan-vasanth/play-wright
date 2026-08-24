@@ -26,7 +26,7 @@ public class OutDeclarationTestCase1Test extends BaseTest {
             "http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard");
     private static final String USER_USERNAME = System.getProperty("tradenix.user.username", "mohan");
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "12345678");
-    private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
+    private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE. LTD.");
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
     private static final String OUT_ROUTE = System.getProperty("tradenix.declaration.route", "/declarations/out");
     private static final String OUT_MENU_LABEL = System.getProperty("tradenix.declaration.menu.label", "Out Payment (OUT)");

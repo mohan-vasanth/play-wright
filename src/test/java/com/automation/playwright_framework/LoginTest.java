@@ -18,7 +18,7 @@ public class LoginTest extends BaseTest {
     private static final String ADMIN_PASSWORD = System.getProperty("tradenix.admin.password");
     private static final String USER_USERNAME = System.getProperty("tradenix.user.username", "mohan");
     private static final String USER_PASSWORD = System.getProperty("tradenix.user.password", "12345678");
-    private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE.LTD");
+    private static final String USER_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE. LTD.");
     private static final String USER_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
 
     @Test
