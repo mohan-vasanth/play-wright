@@ -1,0 +1,61 @@
+[
+  {
+    "id": "missing-mandatory-message-reference",
+    "category": "MISSING_MANDATORY_FIELD",
+    "description": "Removes a primary identifier to verify graceful validation handling.",
+    "jsonPaths": ["header.messageReference"],
+    "removeValue": true
+  },
+  {
+    "id": "large-payload-party-name",
+    "category": "LARGE_PAYLOAD",
+    "description": "Uses an oversized party name to verify length validation.",
+    "jsonPaths": ["party.importerParty.name", "party.exporterParty.name"],
+    "replacementValue": "LARGE_PAYLOAD_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ_ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  },
+  {
+    "id": "special-characters-invoice",
+    "category": "SPECIAL_CHARACTERS",
+    "description": "Injects special characters into invoice identifiers.",
+    "jsonPaths": ["invoice[0].invoiceNumber", "summary.invoiceNumber"],
+    "replacementValue": "!@#$%^&*()_+=[]{}|;:'\",.<>/?`~"
+  },
+  {
+    "id": "sql-injection-party-name",
+    "category": "SQL_INJECTION",
+    "description": "Injects a SQL payload into party names.",
+    "jsonPaths": ["party.importerParty.name", "party.exporterParty.name", "party.declaringAgentParty.name"],
+    "replacementValue": "' OR 1=1 --"
+  },
+  {
+    "id": "xss-message-reference",
+    "category": "XSS",
+    "description": "Injects an XSS-style payload into a text field.",
+    "jsonPaths": ["header.messageReference", "summary.remarks"],
+    "replacementValue": "<script>alert('xss')</script>"
+  },
+  {
+    "id": "html-injection-description",
+    "category": "HTML_INJECTION",
+    "description": "Injects raw HTML into descriptive fields.",
+    "jsonPaths": ["summary.remarks", "cargo.goodsDescription"],
+    "replacementValue": "<div onclick=\"alert('html')\">Injected HTML</div>"
+  },
+  {
+    "id": "script-injection-remarks",
+    "category": "SCRIPT_INJECTION",
+    "description": "Injects a javascript URL payload.",
+    "jsonPaths": ["summary.remarks"],
+    "replacementValue": "javascript:alert('script')"
+  },
+  {
+    "id": "invalid-dropdown-mode-code",
+    "category": "INVALID_DROPDOWN_VALUE",
+    "description": "Uses an invalid transport mode lookup value.",
+    "jsonPaths": [
+      "transport.inwardTransport.transportMeans.transportMode.modeCode",
+      "transport.outwardTransport.transportMeans.transportMode.modeCode"
+    ],
+    "replacementValue": "ZZZ_INVALID_OPTION"
+  }
+]

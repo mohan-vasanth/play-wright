@@ -28,9 +28,9 @@ public class InpDeclarationPage extends IptDeclarationPage {
 
     @Override
     protected void fillDeclarationSpecificPartyInfo(JsonNode data, JsonNode party) {
-        fillPartyRowIfPresent("Exporter", party.path("exporterParty"));
-        fillPartyRowIfPresent("Outward Carrier", party.path("outwardCarrierAgentParty"));
-        fillPartyRowIfPresent("Declaring Agent", party.path("declaringAgentParty"));
+        fillStrictPartyRow("Exporter", party.path("exporterParty"));
+        fillStrictPartyRow("Outward Carrier", party.path("outwardCarrierAgentParty"));
+        fillStrictPartyRow("Declaring Agent", party.path("declaringAgentParty"));
         fillInpPartyCardIfPresent("Consignee", party.path("consigneeParty"));
         fillClaimantPartyIfPresent(party.path("claimantParty"));
     }
@@ -336,48 +336,52 @@ public class InpDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillClaimantPartyIfPresent(JsonNode claimantParty) {
-        if (isMissingOrEmpty(claimantParty)) {
-            return;
-        }
+        recordPartyOperation("party_card", "fill-claimant-party", "Claimant Party", () -> {
+            if (isMissingOrEmpty(claimantParty)) {
+                return;
+            }
 
-        fillPartyRowIfPresent("Claimant Party", claimantParty);
+            fillPartyRowIfPresent("Claimant Party", claimantParty);
 
-        JsonNode claimantInformation = claimantParty.path("claimantInformation");
-        fillFieldIfPresent("Claimant Id", text(claimantInformation, "codeValue"));
-        fillFieldIfPresent("Claimant Name", text(claimantInformation, "name"));
+            JsonNode claimantInformation = claimantParty.path("claimantInformation");
+            fillFieldIfPresent("Claimant Id", text(claimantInformation, "codeValue"));
+            fillFieldIfPresent("Claimant Name", text(claimantInformation, "name"));
+        });
     }
 
     private void fillInpPartyCardIfPresent(String title, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        JsonNode addressNode = partyNode.path("address");
+        recordPartyOperation("party_card", "fill-inp-party-card", title, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            JsonNode addressNode = partyNode.path("address");
 
-        String name = partyName(partyNode);
-        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
-        String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
-        String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
-        String city = text(addressNode, "cityName");
-        String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
-        String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city, postalCode);
-        String countryCode = text(addressNode, "countryCode");
+            String name = partyName(partyNode);
+            String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+            String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
+            String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
+            String city = text(addressNode, "cityName");
+            String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
+            String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city, postalCode);
+            String countryCode = text(addressNode, "countryCode");
 
-        if ((name == null || name.isBlank())
-                && (partyId == null || partyId.isBlank())
-                && compactAddress.isBlank()
-                && (countryCode == null || countryCode.isBlank())) {
-            return;
-        }
+            if ((name == null || name.isBlank())
+                    && (partyId == null || partyId.isBlank())
+                    && compactAddress.isBlank()
+                    && (countryCode == null || countryCode.isBlank())) {
+                return;
+            }
 
-        Locator card = resolveInpPartyCard(title);
-        if (card == null) {
-            logFieldMappingWarning("INP party card '" + title + "' was not visible while JSON value was '"
-                    + firstNonBlank(name, compactAddress, countryCode, "N/A") + "'.");
-            return;
-        }
+            Locator card = resolveInpPartyCard(title);
+            if (card == null) {
+                logFieldMappingWarning("INP party card '" + title + "' was not visible while JSON value was '"
+                        + firstNonBlank(name, compactAddress, countryCode, "N/A") + "'.");
+                return;
+            }
 
-        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, partyId);
-        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, partyId);
-        fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
-        fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+            fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, partyId);
+            fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, partyId);
+            fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
+            fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+        });
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {

@@ -727,6 +727,63 @@
             font-weight: 700;
         }
 
+        .json-preview-card {
+            margin-top: 18px;
+            padding: 18px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background:
+                radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 30%),
+                rgba(255, 255, 255, 0.9);
+        }
+
+        .json-preview-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .json-preview-source {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+
+        .json-preview-status {
+            display: inline-flex;
+            align-items: center;
+            min-height: 30px;
+            padding: 0 12px;
+            border-radius: 999px;
+            background: rgba(37, 99, 235, 0.08);
+            color: var(--primary);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .json-preview-body {
+            min-height: 220px;
+            max-height: 360px;
+            margin: 0;
+            padding: 16px;
+            overflow: auto;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 16px;
+            background: #0f172a;
+            color: #dbeafe;
+            font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
         .terminal-shell {
             overflow: hidden;
         }
@@ -1085,6 +1142,17 @@
 
                 <div class="inline-error" id="configValidationMsg"></div>
 
+                <div class="json-preview-card">
+                    <div class="json-preview-head">
+                        <div>
+                            <label class="field-label" for="configJsonPreview">Selected JSON Content</label>
+                            <div class="json-preview-source" id="configPreviewSource">No JSON selected.</div>
+                        </div>
+                        <div class="json-preview-status" id="configPreviewStatus">Awaiting Selection</div>
+                    </div>
+                    <pre id="configJsonPreview" class="json-preview-body">Select a repository JSON or upload one manually to preview its content.</pre>
+                </div>
+
                 <div class="config-footer">
                     <div class="config-meta">
                         <div id="configFolderHint">Folder source: -</div>
@@ -1156,6 +1224,7 @@
     let statusPollHandle = null;
     let configRefreshHandle = null;
     let configRequestSequence = 0;
+    let jsonPreviewRequestSequence = 0;
     let currentConfigType = '';
     let currentConfigMeta = null;
     let terminalLines = [];
@@ -1607,6 +1676,9 @@
                 : 'No JSON Files Found.');
             return;
         }
+        if (!resourceSelect.value && !document.getElementById('configJsonFile').files[0]) {
+            resetJsonPreview();
+        }
         clearConfigValidation();
     }
 
@@ -1646,6 +1718,7 @@
         document.getElementById('configJsonResource').value = '';
         document.getElementById('configJsonFile').value = '';
         document.getElementById('configFileName').textContent = 'No manual JSON file selected.';
+        resetJsonPreview();
     }
 
     function updateConfigFileName() {
@@ -1667,8 +1740,113 @@
         } catch (_) {
             return;
         }
+        document.getElementById('configJsonResource').value = '';
         clearConfigValidation();
         updateConfigFileName();
+        previewSelectedJson();
+    }
+
+    function resetJsonPreview(message = 'Select a repository JSON or upload one manually to preview its content.') {
+        document.getElementById('configPreviewSource').textContent = 'No JSON selected.';
+        document.getElementById('configPreviewStatus').textContent = 'Awaiting Selection';
+        document.getElementById('configJsonPreview').textContent = message;
+    }
+
+    function setJsonPreview(source, content, status) {
+        document.getElementById('configPreviewSource').textContent = source || 'No JSON selected.';
+        document.getElementById('configPreviewStatus').textContent = status || 'Preview Ready';
+        document.getElementById('configJsonPreview').textContent = content || '';
+    }
+
+    function formatJsonPreviewContent(rawContent) {
+        const text = String(rawContent || '');
+        if (!text.trim()) {
+            return '';
+        }
+        try {
+            return JSON.stringify(JSON.parse(text), null, 2);
+        } catch (_) {
+            return text;
+        }
+    }
+
+    async function previewRepositoryJson() {
+        const jsonResource = document.getElementById('configJsonResource').value;
+        if (!jsonResource) {
+            resetJsonPreview();
+            return;
+        }
+
+        const previewRequestId = ++jsonPreviewRequestSequence;
+        setJsonPreview(jsonResource, 'Loading repository JSON preview...', 'Loading Preview');
+
+        try {
+            const resp = await fetchFromApi(
+                '/api/launcher/json-content?type=' + encodeURIComponent(currentConfigType)
+                + '&jsonResource=' + encodeURIComponent(jsonResource));
+            const data = await resp.json();
+            if (!resp.ok) {
+                throw new Error(data.error || 'Unable to load selected JSON content.');
+            }
+            if (previewRequestId !== jsonPreviewRequestSequence) {
+                return;
+            }
+            setJsonPreview(
+                data.resourcePath || jsonResource,
+                formatJsonPreviewContent(data.content),
+                'Repository Preview');
+        } catch (error) {
+            if (previewRequestId !== jsonPreviewRequestSequence) {
+                return;
+            }
+            setJsonPreview(
+                jsonResource,
+                error.message || 'Unable to load selected JSON content.',
+                'Preview Unavailable');
+        }
+    }
+
+    async function previewManualJson(file) {
+        if (!file) {
+            resetJsonPreview();
+            return;
+        }
+
+        const previewRequestId = ++jsonPreviewRequestSequence;
+        setJsonPreview(file.name || 'Manual JSON upload', 'Reading manual JSON file...', 'Loading Preview');
+
+        try {
+            const content = await file.text();
+            if (previewRequestId !== jsonPreviewRequestSequence) {
+                return;
+            }
+            setJsonPreview(
+                file.name || 'Manual JSON upload',
+                formatJsonPreviewContent(content),
+                'Manual Preview');
+        } catch (error) {
+            if (previewRequestId !== jsonPreviewRequestSequence) {
+                return;
+            }
+            setJsonPreview(
+                file.name || 'Manual JSON upload',
+                error.message || 'Unable to read the selected JSON file.',
+                'Preview Unavailable');
+        }
+    }
+
+    function previewSelectedJson() {
+        const jsonFile = document.getElementById('configJsonFile').files[0];
+        if (jsonFile) {
+            void previewManualJson(jsonFile);
+            return;
+        }
+        const jsonResource = document.getElementById('configJsonResource').value;
+        if (jsonResource) {
+            void previewRepositoryJson();
+            return;
+        }
+        resetJsonPreview();
     }
 
     function startConfiguredTest() {
@@ -2321,10 +2499,21 @@
         resetFinalSummary();
         setReportLinks('', {});
 
-        document.getElementById('configJsonResource').addEventListener('change', clearConfigValidation);
+        document.getElementById('configJsonResource').addEventListener('change', function() {
+            clearConfigValidation();
+            if (this.value) {
+                document.getElementById('configJsonFile').value = '';
+                updateConfigFileName();
+            }
+            previewSelectedJson();
+        });
         document.getElementById('configJsonFile').addEventListener('change', function() {
+            if (this.files && this.files.length) {
+                document.getElementById('configJsonResource').value = '';
+            }
             clearConfigValidation();
             updateConfigFileName();
+            previewSelectedJson();
         });
         document.getElementById('terminalSearch').addEventListener('input', function() {
             renderTerminal(false);

@@ -63,8 +63,8 @@ public class LoadTestingDashboardService {
     private static final String DEFAULT_FORWARDER = System.getProperty("tradenix.user.forwarder", "ADATACOMPANY PTE. LTD.");
     private static final String DEFAULT_DEPARTMENT = System.getProperty("tradenix.user.department", "IMPORT");
     private static final String DEFAULT_BG_INDICATOR = System.getProperty("tradenix.default.bg.indicator", "D");
-    private static final int LOGIN_PARALLELISM = Integer.getInteger("tradenix.login.parallelism", 1);
-    private static final int BROWSER_LAUNCH_PARALLELISM = Integer.getInteger("tradenix.browser.launch.parallelism", 8);
+    private static final int LOGIN_PARALLELISM = Integer.getInteger("tradenix.login.parallelism", 100);
+    private static final int BROWSER_LAUNCH_PARALLELISM = Integer.getInteger("tradenix.browser.launch.parallelism", 100);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final DateTimeFormatter MESSAGE_REFERENCE_DATE = DateTimeFormatter.ofPattern("yyMMdd");
     private static final DateTimeFormatter ARTIFACT_TIMESTAMP_FORMAT =
@@ -162,7 +162,9 @@ public class LoadTestingDashboardService {
         this.running = true;
         this.stopRequested = false;
         this.status = "RUNNING";
-        this.message = "Starting " + normalizedRequest.browserTabs() + " concurrent browser worker(s) for " + normalizedRequest.totalUsers() + " job(s). Optional JMeter HTTP load signal will run in parallel.";
+        this.message = "Starting " + normalizedRequest.totalUsers() + " isolated user session(s) with "
+                + normalizedRequest.tabsPerUser() + " tab execution(s) per user ("
+                + normalizedRequest.totalTabRuns() + " total). Optional JMeter HTTP load signal will run in parallel.";
         this.runningUsers = 0;
         this.openTabsCount = 0;
         this.totalTabsOpened = 0;
@@ -178,12 +180,15 @@ public class LoadTestingDashboardService {
         this.recentLogs.clear();
         this.screenshots.clear();
         this.userJobResults.clear();
-        appendLog("Run requested for " + normalizedRequest.totalUsers() + " users with concurrency cap " + normalizedRequest.browserTabs() + " tabs.");
+        appendLog("Run requested for " + normalizedRequest.totalUsers() + " concurrent users with "
+                + normalizedRequest.tabsPerUser() + " tab execution(s) per user.");
+        appendLog("Concurrent worker slot cap: " + normalizedRequest.browserTabs() + ".");
+        appendLog("Total planned tab executions: " + normalizedRequest.totalTabRuns() + ".");
         appendLog("Declaration type selected: " + definition.moduleLabel() + ".");
         appendLog("Declaration JSON selected: " + normalizedRequest.selectedJson() + ".");
         appendLog("Loaded " + preparedPayloads.size() + " declaration payload(s) for cyclic execution.");
         appendLog("Browser execution is forced to headed mode so UI actions remain visible.");
-        appendLog("All worker tabs attach to one shared browser window while each worker keeps its own Playwright connection.");
+        appendLog("Each concurrent user keeps an isolated browser, context, session, and personalized payload state.");
 
         Path jmxPath = runReportsDirectory.resolve("dynamic-load-test.jmx");
         boolean jmeterPlanReady = false;
@@ -229,7 +234,7 @@ public class LoadTestingDashboardService {
         coordinatorThread.setDaemon(true);
         coordinatorThread.start();
 
-        return new StartResponse(true, runId, "Browser workflow run started. Optional JMeter HTTP load signal starts only when available.");
+        return new StartResponse(true, runId, "Browser workflow run started with isolated per-user sessions. Optional JMeter HTTP load signal starts only when available.");
     }
 
     public synchronized StopResponse stop() {
@@ -266,6 +271,8 @@ public class LoadTestingDashboardService {
                 startedAt != null ? startedAt.toString() : null,
                 finishedAt != null ? finishedAt.toString() : null,
                 currentRequest != null ? currentRequest.totalUsers() : 0,
+                currentRequest != null ? currentRequest.tabsPerUser() : 1,
+                currentRequest != null ? currentRequest.totalTabRuns() : 0,
                 runningUsers,
                 completedUsers,
                 executedUsers,
@@ -306,40 +313,17 @@ public class LoadTestingDashboardService {
         boolean coordinatorFailed = false;
         String coordinatorFailureMessage = null;
         ExecutorService workerPool = null;
-        SharedBrowserSession sharedBrowserSession = null;
         try {
             int concurrency = Math.max(1, Math.min(request.browserTabs(), request.totalUsers()));
-            appendLog("Preparing " + request.totalUsers() + " job(s) across "
-                    + concurrency + " concurrent tab(s) inside ONE browser window.");
+            appendLog("Preparing " + request.totalUsers() + " isolated user session(s) across "
+                    + concurrency + " concurrent worker slot(s).");
 
-            // ---------------------------------------------------------------
-            // Phase 1: Launch ONE persistent browser context with remote
-            // debugging enabled so every worker can attach to the same visible
-            // window and the same browser context.
-            // ---------------------------------------------------------------
-            int cdpPort = findFreePort();
-            sharedBrowserSession = createSharedBrowserSession(request, cdpPort);
-            final String cdpEndpoint = "http://localhost:" + cdpPort;
-            appendLog("Shared browser started on CDP port " + cdpPort + ". Workers will connect to: " + cdpEndpoint);
-            prepareSharedWorkerTabs(sharedBrowserSession, concurrency);
-            primeAuthenticatedSession(sharedBrowserSession, request);
-
-            // ---------------------------------------------------------------
-            // Phase 2: Build the shared job queue.
-            // ---------------------------------------------------------------
-            BlockingQueue<JobWorkItem> jobQueue = new LinkedBlockingQueue<>();
+            BlockingQueue<Integer> jobQueue = new LinkedBlockingQueue<>();
             for (int userIndex = 1; userIndex <= request.totalUsers() && !stopRequested; userIndex++) {
-                jobQueue.add(prepareJobWorkItem(userIndex, preparedPayloads));
+                jobQueue.add(userIndex);
             }
-            appendLog("Job queue ready: " + jobQueue.size() + " job(s).");
+            appendLog("User queue ready: " + jobQueue.size() + " isolated session(s).");
 
-            // ---------------------------------------------------------------
-            // Phase 3: Spawn one worker thread per tab slot.
-            //
-            // Each worker creates its own Playwright.create() (thread-safe),
-            // then calls connectOverCDP(cdpEndpoint) to join the shared browser
-            // and attach to its assigned pre-created tab in the shared context.
-            // ---------------------------------------------------------------
             AtomicInteger slotCounter = new AtomicInteger(0);
             workerPool = Executors.newFixedThreadPool(concurrency, r -> {
                 Thread t = new Thread(r, "load-dashboard-worker-" + slotCounter.incrementAndGet());
@@ -349,9 +333,9 @@ public class LoadTestingDashboardService {
 
             List<Future<?>> futures = new ArrayList<>();
             for (int slot = 1; slot <= concurrency; slot++) {
-                final int tabNumber = slot;
+                final int workerSlotNumber = slot;
                 futures.add(workerPool.submit(
-                        () -> runWorkerLoop(request, definition, tabNumber, jobQueue, cdpEndpoint)));
+                        () -> runIsolatedUserLoop(request, definition, workerSlotNumber, jobQueue, preparedPayloads)));
             }
 
             workerPool.shutdown();
@@ -370,16 +354,15 @@ public class LoadTestingDashboardService {
             if (workerPool != null && !workerPool.isTerminated()) {
                 workerPool.shutdownNow();
             }
-            closeQuietly(sharedBrowserSession);
             synchronized (this) {
                 openTabsCount = 0;
                 running = false;
                 finishedAt = Instant.now();
-                List<String> finalValidationIssues = validateCompletedRun(request.totalUsers());
+                List<String> finalValidationIssues = validateCompletedRun(request.totalTabRuns());
                 int unresolvedCount = Math.max(0, completedUsers - successCount - failureCount);
                 if (stopRequested) {
                     status = "STOPPED";
-                    message = "Execution stopped before all users completed.";
+                    message = "Execution stopped before all tab runs completed.";
                 } else if (coordinatorFailed) {
                     status = "FAILED";
                     message = "Execution failed: " + coordinatorFailureMessage;
@@ -387,14 +370,15 @@ public class LoadTestingDashboardService {
                     status = "FAILED";
                     message = "Execution failed final validation: " + String.join(" | ", finalValidationIssues);
                 } else if (failureCount > 0) {
-                    status = "COMPLETED";
-                    message = "Declaration workflow completed with " + failureCount + " failed users.";
+                    status = "FAILED";
+                    message = "Declaration workflow completed with " + failureCount + " failed tab execution(s).";
                 } else if (unresolvedCount > 0) {
-                    status = "COMPLETED";
-                    message = "Declaration workflow completed with " + unresolvedCount + " jobs pending verification.";
+                    status = "FAILED";
+                    message = "Declaration workflow completed with " + unresolvedCount + " tab execution(s) pending verification.";
                 } else {
                     status = "COMPLETED";
-                    message = "Declaration workflow completed successfully.";
+                    message = "Declaration workflow completed successfully across "
+                            + request.totalTabRuns() + " tab execution(s).";
                 }
             }
             appendLog(message);
@@ -402,48 +386,71 @@ public class LoadTestingDashboardService {
         }
     }
 
-    private void runWorkerLoop(
+    private void runIsolatedUserLoop(
             RunRequest request,
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
-            int tabNumber,
-            BlockingQueue<JobWorkItem> jobQueue,
-            String cdpEndpoint) {
-        // Each worker owns its own Playwright instance (thread-safe) but
-        // attaches to the same shared browser context via CDP.
+            int workerSlotNumber,
+            BlockingQueue<Integer> jobQueue,
+            List<JsonNode> preparedPayloads) {
+        Integer userIndex;
+        while ((userIndex = jobQueue.poll()) != null && !stopRequested) {
+            try {
+                executeIsolatedUserSession(request, definition, userIndex, workerSlotNumber, preparedPayloads);
+            } catch (Exception workerException) {
+                appendLog("Worker slot " + workerSlotNumber + " failed for user " + userIndex + ": "
+                        + rootMessage(workerException));
+            }
+        }
+    }
+
+    private void executeIsolatedUserSession(
+            RunRequest request,
+            LoadTestingDeclarationCatalog.DeclarationDefinition definition,
+            int userIndex,
+            int workerSlotNumber,
+            List<JsonNode> preparedPayloads) {
         Playwright playwright = null;
         Browser browser = null;
-        BrowserContext workerContext = null;
-        Page page = null;
+        BrowserContext context = null;
+        Page bootstrapPage = null;
+        boolean launchPermitAcquired = false;
         try {
+            acquirePermit(browserLaunchSemaphore, "browser launch");
+            launchPermitAcquired = true;
             playwright = Playwright.create();
-            browser = playwright.chromium().connectOverCDP(cdpEndpoint);
-            workerContext = resolveSharedWorkerContext(browser, tabNumber);
-            page = resolveSharedWorkerPage(workerContext, tabNumber);
+            browser = launchBrowser(playwright, request);
+            context = browser.newContext();
+            bootstrapPage = context.newPage();
+            configurePage(bootstrapPage);
+            markWorkerTabOpened(workerSlotNumber);
+            appendLog("Worker slot " + workerSlotNumber + " launched isolated session for user " + userIndex + ".");
+            openWorkerPage(new LoginPage(bootstrapPage), request, userIndex);
+            appendUserLog(userIndex, "Isolated session authenticated");
 
-            configurePage(page);
-            markWorkerTabOpened(tabNumber);
-            appendLog("Worker tab " + tabNumber + " attached to the shared browser window.");
-
-            openWorkerPage(new LoginPage(page), request, 0);
-            appendLog("Worker tab " + tabNumber + " authenticated in the shared session.");
-
-            // Process jobs from the shared queue until it is empty or a stop is requested.
-            JobWorkItem job;
-            while ((job = jobQueue.poll()) != null && !stopRequested) {
+            for (int userTabNumber = 1; userTabNumber <= request.tabsPerUser() && !stopRequested; userTabNumber++) {
+                JobWorkItem job = prepareJobWorkItem(userIndex, userTabNumber, preparedPayloads);
+                Page tabPage = null;
                 try {
-                    page.bringToFront();
-                } catch (Exception ignored) {
+                    tabPage = context.newPage();
+                    configurePage(tabPage);
+                    try {
+                        tabPage.bringToFront();
+                    } catch (Exception ignored) {
+                    }
+                    executeSingleQueuedJob(request, definition, job, workerSlotNumber, tabPage);
+                } finally {
+                    closeQuietly(tabPage);
                 }
-                executeSingleQueuedJob(request, definition, job, tabNumber, page);
             }
-
-        } catch (Exception workerException) {
-            appendLog("Worker tab " + tabNumber + " failed: " + rootMessage(workerException));
         } finally {
-            markWorkerTabClosed(tabNumber);
-            closeQuietly(page);
+            markWorkerTabClosed(workerSlotNumber);
+            closeQuietly(bootstrapPage);
+            closeQuietly(context);
             closeQuietly(browser);
             closeQuietly(playwright);
+            if (launchPermitAcquired) {
+                browserLaunchSemaphore.release();
+            }
         }
     }
 
@@ -452,17 +459,18 @@ public class LoadTestingDashboardService {
             RunRequest request,
             LoadTestingDeclarationCatalog.DeclarationDefinition definition,
             JobWorkItem job,
-            int tabNumber,
+            int workerSlotNumber,
             Page page) {
         long startedAtMillis = System.currentTimeMillis();
         Instant startedAtInstant = Instant.now();
         WorkflowResult result = null;
         ScreenshotEntry screenshotEntry = null;
         int userIndex = job.userIndex();
+        int logicalTabNumber = job.userTabNumber();
 
-        markUserStarted(userIndex);
+        markUserStarted(userIndex, logicalTabNumber);
         try {
-            result = executeWorkflow(request, definition, job, tabNumber, page, true);
+            result = executeWorkflow(request, definition, job, logicalTabNumber, page, false);
             if (result.submissionVerified()) {
                 appendUserLog(userIndex, "Job Submitted Successfully"
                         + " | Creation Status=" + firstNonBlank(result.creationStatus(), "N/A")
@@ -490,7 +498,7 @@ public class LoadTestingDashboardService {
                     null,
                     job.recordNumber(),
                     userIndex,
-                    tabNumber,
+                    logicalTabNumber,
                     0,
                     0,
                     false,
@@ -502,15 +510,17 @@ public class LoadTestingDashboardService {
         } finally {
             long finishedAtMillis = System.currentTimeMillis();
             userJobResults.add(buildUserJobResult(
+                    job.executionOrder(),
                     userIndex,
-                    tabNumber,
+                    logicalTabNumber,
+                    workerSlotNumber,
                     job.payload(),
                     result,
                     screenshotEntry,
                     startedAtInstant,
                     Instant.ofEpochMilli(finishedAtMillis),
                     finishedAtMillis - startedAtMillis));
-            markUserFinished(userIndex, result, finishedAtMillis - startedAtMillis, false);
+            markUserFinished(userIndex, logicalTabNumber, result, finishedAtMillis - startedAtMillis, false);
         }
     }
 
@@ -540,7 +550,7 @@ public class LoadTestingDashboardService {
 
         try {
             appendUserLog(userIndex, "Tab Number - " + tabNumber);
-            appendUserLog(userIndex, "Job Number - " + userIndex);
+            appendUserLog(userIndex, "Execution Order - " + job.executionOrder());
             appendUserLog(userIndex, "JSON File - " + request.selectedJson());
             appendUserLog(userIndex, "JSON Record Number - " + jsonRecordNumber);
             appendUserLog(userIndex, "JSON Loaded");
@@ -1372,28 +1382,34 @@ public class LoadTestingDashboardService {
         };
     }
 
-    private JobWorkItem prepareJobWorkItem(int userIndex, List<JsonNode> preparedPayloads) {
+    private JobWorkItem prepareJobWorkItem(int userIndex, int userTabNumber, List<JsonNode> preparedPayloads) {
         if (preparedPayloads == null || preparedPayloads.isEmpty()) {
             throw new IllegalStateException("No declaration payloads are loaded for the current run.");
         }
-        int index = Math.floorMod(userIndex - 1, preparedPayloads.size());
+        int executionOrder = ((Math.max(1, userIndex) - 1) * Math.max(1, currentRequest != null ? currentRequest.tabsPerUser() : 1))
+                + Math.max(1, userTabNumber);
+        int index = Math.floorMod(userTabNumber - 1, preparedPayloads.size());
         JsonNode template = preparedPayloads.get(index);
         JsonNode isolatedPayload = template.deepCopy();
         if (isolatedPayload instanceof ObjectNode objectNode) {
-            isolatedPayload = personalizePayloadForUser(objectNode, userIndex);
+            isolatedPayload = personalizePayloadForUser(objectNode, userIndex, userTabNumber, executionOrder);
         }
-        return new JobWorkItem(userIndex, index + 1, isolatedPayload);
+        return new JobWorkItem(executionOrder, userIndex, userTabNumber, index + 1, isolatedPayload);
     }
 
-    private JsonNode personalizePayloadForUser(ObjectNode payload, int userIndex) {
+    private JsonNode personalizePayloadForUser(
+            ObjectNode payload,
+            int userIndex,
+            int userTabNumber,
+            int executionOrder) {
         ObjectNode declarationPayload = DeclarationPayloads.unwrapObject(payload);
-        String messageReference = generateMessageReference(userIndex);
+        String messageReference = generateMessageReference(executionOrder);
         ObjectNode header = objectNode(declarationPayload, "header");
         header.put("messageReference", messageReference);
 
         ObjectNode uniqueReferenceNumber = objectNode(header, "uniqueReferenceNumber");
         uniqueReferenceNumber.put("date", Instant.now().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyyMMdd")));
-        uniqueReferenceNumber.put("sequenceNumeric", String.format("%04d", ((userIndex - 1) % 9000) + 1000));
+        uniqueReferenceNumber.put("sequenceNumeric", String.format("%06d", Math.floorMod(executionOrder - 1, 999999) + 1));
 
         Map<String, String> personalizedInvoiceNumbers = new HashMap<>();
         JsonNode invoicesNode = declarationPayload.path("invoice");
@@ -1402,9 +1418,10 @@ public class LoadTestingDashboardService {
                 JsonNode invoiceNode = invoices.get(index);
                 if (invoiceNode instanceof ObjectNode invoice) {
                     String originalInvoiceNumber = blankToNull(text(invoice, "invoiceNumber"));
-                    String personalizedInvoiceNumber = appendUserSuffix(
+                    String personalizedInvoiceNumber = appendExecutionSuffix(
                             firstNonBlank(originalInvoiceNumber, "INV"),
                             userIndex,
+                            userTabNumber,
                             index + 1,
                             20);
                     invoice.put("invoiceNumber", personalizedInvoiceNumber);
@@ -1422,7 +1439,7 @@ public class LoadTestingDashboardService {
                 JsonNode documentNode = supportingDocuments.get(index);
                 if (documentNode instanceof ObjectNode document) {
                     String documentId = firstNonBlank(text(document, "documentID"), "DOC");
-                    document.put("documentID", appendUserSuffix(documentId, userIndex, index + 1, 20));
+                    document.put("documentID", appendExecutionSuffix(documentId, userIndex, userTabNumber, index + 1, 20));
                 }
             }
         }
@@ -1452,7 +1469,8 @@ public class LoadTestingDashboardService {
                         if (shippingMarksNode instanceof ArrayNode shippingMarks && !shippingMarks.isEmpty()) {
                             String firstShippingMark = blankToNull(shippingMarks.get(0).asText(null));
                             if (firstShippingMark != null) {
-                                shippingMarks.set(0, shippingMarks.textNode(appendUserSuffix(firstShippingMark, userIndex, index + 1, 30)));
+                                shippingMarks.set(0, shippingMarks.textNode(
+                                        appendExecutionSuffix(firstShippingMark, userIndex, userTabNumber, index + 1, 30)));
                             }
                         }
                     }
@@ -1485,14 +1503,33 @@ public class LoadTestingDashboardService {
 
     private String generateMessageReference(int userIndex) {
         String datePart = Instant.now().atZone(ZoneId.systemDefault()).format(MESSAGE_REFERENCE_DATE);
-        int runSeed = Math.floorMod(runId != null ? runId.hashCode() : (int) System.currentTimeMillis(), 9000);
-        int perRunSequence = Math.floorMod(runSeed + Math.max(0, userIndex - 1), 9000) + 1000;
-        return "TDX" + datePart + String.format("%04d", perRunSequence);
+        int runSeed = Math.floorMod(runId != null ? runId.hashCode() : (int) System.currentTimeMillis(), 1_000_000);
+        int perRunSequence = Math.floorMod(runSeed + Math.max(0, userIndex - 1), 1_000_000);
+        return "TDX" + datePart + String.format("%06d", perRunSequence);
     }
 
     private String appendUserSuffix(String value, int userIndex, int itemIndex, int maxLength) {
         String base = value == null ? "" : value.replaceAll("\\s+", "");
         String suffix = "U" + userIndex + "I" + itemIndex;
+        if (base.isEmpty()) {
+            base = "REF";
+        }
+        if (maxLength <= 0) {
+            return suffix;
+        }
+        if (suffix.length() >= maxLength) {
+            return suffix.substring(Math.max(0, suffix.length() - maxLength));
+        }
+        int allowedBaseLength = Math.max(0, maxLength - suffix.length());
+        String trimmedBase = base.length() > allowedBaseLength
+                ? base.substring(0, allowedBaseLength)
+                : base;
+        return trimmedBase + suffix;
+    }
+
+    private String appendExecutionSuffix(String value, int userIndex, int userTabNumber, int itemIndex, int maxLength) {
+        String base = value == null ? "" : value.replaceAll("\\s+", "");
+        String suffix = "U" + userIndex + "T" + userTabNumber + "I" + itemIndex;
         if (base.isEmpty()) {
             base = "REF";
         }
@@ -2578,9 +2615,9 @@ public class LoadTestingDashboardService {
         }
     }
 
-    private synchronized void markUserStarted(int userIndex) {
+    private synchronized void markUserStarted(int userIndex, int logicalTabNumber) {
         runningUsers++;
-        appendUserLog(userIndex, "Starting Declaration Workflow");
+        appendUserLog(userIndex, "Starting Declaration Workflow - Logical Tab " + logicalTabNumber);
     }
 
     private synchronized void markWorkerTabOpened(int tabNumber) {
@@ -2594,7 +2631,12 @@ public class LoadTestingDashboardService {
         appendLog("Worker tab closed - Tab " + tabNumber);
     }
 
-    private synchronized void markUserFinished(int userIndex, WorkflowResult result, long durationMs, boolean tabOpened) {
+    private synchronized void markUserFinished(
+            int userIndex,
+            int logicalTabNumber,
+            WorkflowResult result,
+            long durationMs,
+            boolean tabOpened) {
         runningUsers = Math.max(0, runningUsers - 1);
         if (tabOpened) {
             openTabsCount = Math.max(0, openTabsCount - 1);
@@ -2626,9 +2668,9 @@ public class LoadTestingDashboardService {
 
         if (result != null) {
             latestWorkflowResult = result;
-            message = "Latest result: user " + userIndex + " - " + truncate(result.summary(), 180);
+            message = "Latest result: user " + userIndex + ", tab " + logicalTabNumber + " - " + truncate(result.summary(), 180);
         } else {
-            message = "Latest result: user " + userIndex + " - workflow did not return a result.";
+            message = "Latest result: user " + userIndex + ", tab " + logicalTabNumber + " - workflow did not return a result.";
         }
     }
 
@@ -2659,10 +2701,10 @@ public class LoadTestingDashboardService {
     private List<String> validateCompletedRun(int requestedJobs) {
         List<String> issues = new ArrayList<>();
         if (completedUsers != requestedJobs) {
-            issues.add("Processed jobs mismatch: expected " + requestedJobs + ", completed " + completedUsers);
+            issues.add("Processed tab runs mismatch: expected " + requestedJobs + ", completed " + completedUsers);
         }
         if (executedUsers != requestedJobs) {
-            issues.add("Executed jobs mismatch: expected " + requestedJobs + ", executed " + executedUsers);
+            issues.add("Executed tab runs mismatch: expected " + requestedJobs + ", executed " + executedUsers);
         }
         if (userJobResults.size() != requestedJobs) {
             issues.add("Report rows mismatch: expected " + requestedJobs + ", actual " + userJobResults.size());
@@ -2671,7 +2713,7 @@ public class LoadTestingDashboardService {
                 .filter(result -> result.screenshotUrl() == null || result.screenshotUrl().isBlank())
                 .count();
         if (missingScreenshots > 0) {
-            issues.add("Missing screenshots for " + missingScreenshots + " job(s)");
+            issues.add("Missing screenshots for " + missingScreenshots + " tab run(s)");
         }
         if ((successCount + failureCount) != requestedJobs) {
             issues.add("Final status count mismatch: success+failure=" + (successCount + failureCount)
@@ -2935,6 +2977,7 @@ public class LoadTestingDashboardService {
         return new RunRequest(
                 request.totalUsers(),
                 request.browserTabs(),
+                request.tabsPerUser() > 0 ? request.tabsPerUser() : 1,
                 request.url(),
                 request.username(),
                 request.password(),
@@ -2954,6 +2997,9 @@ public class LoadTestingDashboardService {
         }
         if (request.browserTabs() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Number of browser tabs must be greater than zero.");
+        }
+        if (request.tabsPerUser() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Number of tabs per user must be greater than zero.");
         }
         if (request.url() == null || request.url().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "URL is required.");
@@ -3059,8 +3105,10 @@ public class LoadTestingDashboardService {
     }
 
     private UserJobResult buildUserJobResult(
+            int executionOrder,
             int userIndex,
-            Integer tabNumber,
+            Integer logicalTabNumber,
+            Integer workerSlotNumber,
             JsonNode payload,
             WorkflowResult result,
             ScreenshotEntry screenshotEntry,
@@ -3077,10 +3125,11 @@ public class LoadTestingDashboardService {
                 ? null
                 : buildFailureReason(result, applicationStatus);
         return new UserJobResult(
+                executionOrder,
                 userIndex,
-                tabNumber != null ? tabNumber : 0,
-                tabNumber != null ? tabNumber : 0,
-                userIndex,
+                logicalTabNumber != null ? logicalTabNumber : 0,
+                workerSlotNumber != null ? workerSlotNumber : 0,
+                executionOrder,
                 result != null ? result.jobId() : null,
                 result != null ? result.declarationType() : null,
                 firstNonBlank(result != null ? result.createdBy() : null, currentRequest != null ? currentRequest.username() : null),
@@ -3101,7 +3150,7 @@ public class LoadTestingDashboardService {
                 successful,
                 result != null ? result.errorMessage() : null,
                 result != null ? result.selectedJson() : null,
-                result != null ? result.jsonRecordNumber() : userIndex,
+                result != null ? result.jsonRecordNumber() : logicalTabNumber != null ? logicalTabNumber : userIndex,
                 result != null ? result.filledFieldCount() : 0,
                 result != null ? result.missingFieldCount() : 0,
                 firstNonBlank(
@@ -3192,6 +3241,7 @@ public class LoadTestingDashboardService {
 
     public record UserJobResult(
             int executionOrder,
+            int userIndex,
             int tabNumber,
             int workerSlotNumber,
             int jobNumber,
@@ -3231,6 +3281,7 @@ public class LoadTestingDashboardService {
     public record RunRequest(
             int totalUsers,
             int browserTabs,
+            int tabsPerUser,
             String url,
             String username,
             String password,
@@ -3239,6 +3290,10 @@ public class LoadTestingDashboardService {
             boolean headless,
             int jmeterRampUpSeconds,
             int jmeterLoopCount) {
+
+        int totalTabRuns() {
+            return Math.max(0, totalUsers) * Math.max(1, tabsPerUser);
+        }
     }
 
     public record StartResponse(
@@ -3262,6 +3317,8 @@ public class LoadTestingDashboardService {
             String startedAt,
             String finishedAt,
             int totalUsers,
+            int tabsPerUser,
+            int totalTabRuns,
             int activeUsers,
             int completedUsers,
             int executedUsers,
@@ -3383,7 +3440,9 @@ public class LoadTestingDashboardService {
     }
 
     private record JobWorkItem(
+            int executionOrder,
             int userIndex,
+            int userTabNumber,
             int recordNumber,
             JsonNode payload) {
     }

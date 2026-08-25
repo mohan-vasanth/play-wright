@@ -37,8 +37,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
         } else {
             waitForPostSaveReadyState(15000);
         }
-        waitForActionButtonEnabled("SUBMIT DECLARATION", 15000);
-        clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
+        waitForActionButtonEnabled("SUBMIT DECLARATION", configuredElementWaitTimeoutMs());
+        clickActionButtonExactWithRetry("SUBMIT DECLARATION", configuredRetryCount());
         page.waitForTimeout(5000);
     }
 
@@ -569,17 +569,21 @@ public class OutDeclarationPage extends IptDeclarationPage {
                 "End User",
                 "Manufacturer");
 
+        fillDeclarantParty(party.path("declarantParty"));
+
         fillPartyLookupRow("Importer", party.path("importerParty"));
         fillPartyLookupRow("Inward Carrier", party.path("inwardCarrierAgentParty"));
         fillPartyLookupRow("Freight Forwarder", party.path("freightForwarderParty"));
         fillPartyLookupRow("Outward Carrier", party.path("outwardCarrierAgentParty"));
         fillPartyLookupRow("Declaring Agent", party.path("declaringAgentParty"));
 
-        reconcileLookupPartyComponentIfNeeded("Importer", party.path("importerParty"));
-        reconcileLookupPartyComponentIfNeeded("Inward Carrier", party.path("inwardCarrierAgentParty"));
-        reconcileLookupPartyComponentIfNeeded("Freight Forwarder", party.path("freightForwarderParty"));
-        reconcileLookupPartyComponentIfNeeded("Outward Carrier", party.path("outwardCarrierAgentParty"));
-        reconcileLookupPartyComponentIfNeeded("Declaring Agent", party.path("declaringAgentParty"));
+        if (!isPartyPerformanceAlignmentEnabled()) {
+            reconcileLookupPartyComponentIfNeeded("Importer", party.path("importerParty"));
+            reconcileLookupPartyComponentIfNeeded("Inward Carrier", party.path("inwardCarrierAgentParty"));
+            reconcileLookupPartyComponentIfNeeded("Freight Forwarder", party.path("freightForwarderParty"));
+            reconcileLookupPartyComponentIfNeeded("Outward Carrier", party.path("outwardCarrierAgentParty"));
+            reconcileLookupPartyComponentIfNeeded("Declaring Agent", party.path("declaringAgentParty"));
+        }
 
         fillExporterParty(party.path("exporterParty"));
 
@@ -610,33 +614,99 @@ public class OutDeclarationPage extends IptDeclarationPage {
         fillPartyRowIfPresent("Exporter", exporterParty);
     }
 
-    private void fillPartyLookupRow(String rowLabel, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        fillLookupPartyRow(
-                rowLabel,
-                text(identityNode.path("partyName"), "name"),
-                text(identityNode.path("partyIdentification"), "id"));
-    }
-
-    private void reconcileLookupPartyComponentIfNeeded(String rowLabel, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        String resolvedPartyName = partyName(partyNode);
-        String resolvedPartyId = text(identityNode.path("partyIdentification"), "id");
-        if ((resolvedPartyName == null || resolvedPartyName.isBlank())
-                && (resolvedPartyId == null || resolvedPartyId.isBlank())) {
+    private void fillDeclarantParty(JsonNode declarantParty) {
+        JsonNode personInformation = declarantParty.path("personInformation");
+        String declarantCode = text(personInformation, "codeValue");
+        String declarantName = text(personInformation, "name");
+        String telephone = text(declarantParty, "telephone");
+        if ((declarantCode == null || declarantCode.isBlank())
+                && (declarantName == null || declarantName.isBlank())
+                && (telephone == null || telephone.isBlank())) {
             return;
         }
 
-        Locator row = resolvePartyTableRow(rowLabel);
-        if (row != null) {
-            Locator nameField = resolveVisibleEditableFieldInRowOrNull(row, 0);
-            Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
-            if (lookupPartyRowResolved(row, nameField, idField, resolvedPartyName, resolvedPartyId, 800)) {
+        Locator partySection = resolvePartyInfoSectionOrNull();
+        fillAndVerifyScopedPartyField(
+                partySection,
+                "Declarant Agent/Party",
+                "Code / UEN",
+                declarantCode,
+                "Declarant Agent / Party Code / UEN",
+                "Declarant Agent / Party Code/UEN",
+                "Declarant Agent/Party Code / UEN",
+                "Declarant Agent/Party Code/UEN",
+                "Declarant Party Code / UEN",
+                "Declarant Party Code/UEN",
+                "Declarant Code / UEN");
+        fillAndVerifyScopedPartyField(
+                partySection,
+                "Declarant Agent/Party",
+                "Name",
+                declarantName,
+                "Declarant Agent / Party Name",
+                "Declarant Agent/Party Name",
+                "Declarant Party Name",
+                "Declarant Name");
+        fillAndVerifyScopedPartyField(
+                partySection,
+                "Declarant Agent/Party",
+                "Telephone",
+                telephone,
+                "Declarant Agent / Party Telephone",
+                "Declarant Agent/Party Telephone",
+                "Declarant Party Telephone",
+                "Declarant Telephone");
+    }
+
+    private void fillPartyLookupRow(String rowLabel, JsonNode partyNode) {
+        recordPartyOperation("party_row", "fill-out-party-lookup-row", rowLabel, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            String partyName = text(identityNode.path("partyName"), "name");
+            String partyId = text(identityNode.path("partyIdentification"), "id");
+            fillLookupPartyRow(
+                    rowLabel,
+                    partyName,
+                    partyId);
+            logLookupPartyRowValidation(rowLabel, "Party Name", partyName, 0);
+            logLookupPartyRowValidation(rowLabel, "UEN / ID", partyId, 1);
+        });
+    }
+
+    private void reconcileLookupPartyComponentIfNeeded(String rowLabel, JsonNode partyNode) {
+        recordPartyOperation("party_reconciliation", "reconcile-out-lookup-party-row", rowLabel, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            String resolvedPartyName = partyName(partyNode);
+            String resolvedPartyId = text(identityNode.path("partyIdentification"), "id");
+            if ((resolvedPartyName == null || resolvedPartyName.isBlank())
+                    && (resolvedPartyId == null || resolvedPartyId.isBlank())) {
                 return;
             }
-        }
 
-        syncPartyLookupComponentSelection(rowLabel, resolvedPartyName, resolvedPartyId);
+            Locator row = resolvePartyTableRow(rowLabel);
+            if (row != null) {
+                Locator nameField = resolveVisibleEditableFieldInRowOrNull(row, 0);
+                Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
+                if (isPartyPerformanceAlignmentEnabled()
+                        ? lookupPartyRowResolvedSnapshot(row, nameField, idField, resolvedPartyName, resolvedPartyId)
+                        : lookupPartyRowResolved(row, nameField, idField, resolvedPartyName, resolvedPartyId, 800)) {
+                    return;
+                }
+            }
+
+            boolean componentResolved = syncPartyLookupComponentSelection(rowLabel, resolvedPartyName, resolvedPartyId);
+            if (componentResolved && row != null) {
+                Locator nameField = resolveVisibleEditableFieldInRowOrNull(row, 0);
+                Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
+                if (lookupPartyRowResolved(row, nameField, idField, resolvedPartyName, resolvedPartyId, 1200)) {
+                    return;
+                }
+            }
+
+            logFieldMappingWarning("OUT lookup row '" + rowLabel
+                    + "' did not fully resolve through the lightweight row/component path. "
+                    + "Reapplying with the stricter party-row mapper.");
+            fillPartyRowIfPresent(rowLabel, partyNode);
+        });
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {
@@ -656,97 +726,121 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillPartyCard(String title, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        JsonNode addressNode = partyAddressNode(partyNode);
+        recordPartyOperation("party_card", "fill-out-party-card", title, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            JsonNode addressNode = partyAddressNode(partyNode);
 
-        String name = partyName(partyNode);
-        String id = normalize(firstNonBlank(
-                text(identityNode.path("partyIdentification"), "id"),
-                text(identityNode, "id"),
-                text(partyNode.path("partyIdentification"), "id"),
-                text(partyNode, "id")));
-        if ((name == null || name.isBlank())
-                && (id == null || id.isBlank())
-                && isMissingOrEmpty(addressNode)) {
-            return;
-        }
+            String name = partyName(partyNode);
+            String id = normalize(firstNonBlank(
+                    text(identityNode.path("partyIdentification"), "id"),
+                    text(identityNode, "id"),
+                    text(partyNode.path("partyIdentification"), "id"),
+                    text(partyNode, "id")));
+            if ((name == null || name.isBlank())
+                    && (id == null || id.isBlank())
+                    && isMissingOrEmpty(addressNode)) {
+                return;
+            }
 
-        logFieldMappingInfo("OUT party card '" + title + "' JSON value -> name='"
-                + firstNonBlank(name, "N/A")
-                + "', id='" + firstNonBlank(id, "N/A")
-                + "', hasAddress=" + !isMissingOrEmpty(addressNode));
+            logFieldMappingInfo("OUT party card '" + title + "' JSON value -> name='"
+                    + firstNonBlank(name, "N/A")
+                    + "', id='" + firstNonBlank(id, "N/A")
+                    + "', hasAddress=" + !isMissingOrEmpty(addressNode));
 
-        ensureAccordionExpanded(title, "Country Code", "Address");
-        Locator card = resolvePartyCard(title);
-        for (int attempt = 0; card == null && attempt < 4; attempt++) {
-            // Retry unconditionally: the container can be momentarily missing from the DOM snapshot
-            // while Angular is still settling a layout reflow triggered by the previous card/row, not
-            // just when the Angular-injection sync path below happens to succeed.
-            page.waitForTimeout(300L * (attempt + 1));
             ensureAccordionExpanded(title, "Country Code", "Address");
-            card = resolvePartyCard(title);
-        }
-        if (card == null) {
-            boolean globalSync = syncPartyLookupComponentSelection(title, name, id);
-            if (globalSync) {
-                logFieldMappingInfo("OUT party card '" + title
-                        + "' lookup host resolved before card container discovery.");
-                page.waitForTimeout(250);
+            Locator card = resolvePartyCard(title);
+            for (int attempt = 0; card == null && attempt < 4; attempt++) {
+                page.waitForTimeout(300L * (attempt + 1));
                 ensureAccordionExpanded(title, "Country Code", "Address");
                 card = resolvePartyCard(title);
             }
-        }
-        if (card == null) {
-            logFieldMappingWarning("OUT party card container was not found for '" + title
-                    + "' while JSON value was '" + firstNonBlank(name, id, "N/A")
-                    + "'. Party Info section text -> " + describePartyInfoSectionTextOrNull() + ".");
-            return;
-        }
-        try {
-            card.scrollIntoViewIfNeeded();
-        } catch (Exception ignored) {
-        }
-        page.waitForTimeout(250);
-        Locator visibleCardAfterScroll = resolvePartyCard(title);
-        if (visibleCardAfterScroll != null) {
-            card = visibleCardAfterScroll;
-        }
-        try {
-            logFieldMappingInfo("OUT party card '" + title + "' scope text -> " + normalize(card.innerText()));
-        } catch (Exception ignored) {
-        }
+            if (card == null) {
+                boolean globalSync = syncPartyLookupComponentSelection(title, name, id);
+                if (globalSync) {
+                    logFieldMappingInfo("OUT party card '" + title
+                            + "' lookup host resolved before card container discovery.");
+                    page.waitForTimeout(250);
+                    ensureAccordionExpanded(title, "Country Code", "Address");
+                    card = resolvePartyCard(title);
+                }
+            }
+            if (card == null) {
+                logFieldMappingWarning("OUT party card container was not found for '" + title
+                        + "' while JSON value was '" + firstNonBlank(name, id, "N/A")
+                        + "'. Party Info section text -> " + describePartyInfoSectionTextOrNull() + ".");
+                return;
+            }
+            try {
+                card.scrollIntoViewIfNeeded();
+            } catch (Exception ignored) {
+            }
+            page.waitForTimeout(250);
+            Locator visibleCardAfterScroll = resolvePartyCard(title);
+            if (visibleCardAfterScroll != null) {
+                card = visibleCardAfterScroll;
+            }
+            try {
+                logFieldMappingInfo("OUT party card '" + title + "' scope text -> " + normalize(card.innerText()));
+            } catch (Exception ignored) {
+            }
 
-        boolean synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
-        if (!synced) {
-            synced = syncPartyLookupComponentSelection(title, name, id);
-        }
-        if (!synced) {
-            // CooDeclarationPage's (working) party cards fill the lookup/name field positionally;
-            // fall back to that same approach when OUT's own Angular-injection sync helpers can't
-            // resolve a named lookup host for this card.
-            fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
-        }
-        if (!synced) {
-            synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
-        }
-        logFieldMappingInfo("OUT party card '" + title + "' lookup sync -> resolved=" + synced
-                + ", cardScopeFound=" + (card != null));
-        ensurePartyCardNameValue(card, title, name);
-        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, id);
+            boolean synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
+            if (!synced) {
+                synced = syncPartyLookupComponentSelection(title, name, id);
+            }
+            if (!synced) {
+                fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
+            }
+            if (!synced) {
+                synced = syncPartyLookupComponentSelectionInScope(card, title, name, id);
+            }
+            logFieldMappingInfo("OUT party card '" + title + "' lookup sync -> resolved=" + synced
+                    + ", cardScopeFound=" + (card != null));
+            ensurePartyCardNameValue(card, title, name);
+            logPartyFieldVerification(title, "Party Name", name, resolvePartyCardNameField(card, title), null);
+            fillAndVerifyScopedPartyField(card, title, "UEN", id, "UEN", "Code / UEN", "ID / UEN", "ID");
 
-        JsonNode addressLines = addressNode.path("addressLine").path("line");
-        String addressLine1 = arrayText(addressLines, 0);
-        String addressLine2 = arrayText(addressLines, 1);
-        String city = text(addressNode, "cityName");
-        String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
-        String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city);
+            JsonNode addressLines = addressNode.path("addressLine").path("line");
+            String addressLine1 = arrayText(addressLines, 0);
+            String addressLine2 = arrayText(addressLines, 1);
+            String city = text(addressNode, "cityName");
+            String subdivisionCode = firstNonBlank(
+                    text(addressNode, "countrySubentityCode"),
+                    text(addressNode, "countrySubdivisionCode"));
+            String subdivisionName = firstNonBlank(
+                    text(addressNode, "countrySubentity"),
+                    text(addressNode, "countrySubdivision"),
+                    text(addressNode, "countrySubdivisionName"));
+            String postalCode = firstNonBlank(text(addressNode, "postalZone"), subdivisionCode);
+            String compactAddress = joinNonBlank(", ", addressLine1, addressLine2, city);
 
-        fillPartyCardFieldWithFallback(card, "Address", compactAddress);
-        fillPartyCardFieldWithFallback(card, "Address Line 1", addressLine1);
-        fillPartyCardFieldWithFallback(card, "Address Line 2", addressLine2);
-        fillPartyCardFieldWithFallback(card, "City", city);
-        fillPartyCardFieldWithFallback(card, "Postal Code", postalCode);
-        fillPartyCardFieldWithFallback(card, "Country Code", text(addressNode, "countryCode"));
+            fillAndVerifyScopedPartyField(card, title, "Address", compactAddress, "Address");
+            fillAndVerifyScopedPartyField(card, title, "Address Line 1", addressLine1, "Address Line 1", "Address 1");
+            fillAndVerifyScopedPartyField(card, title, "Address Line 2", addressLine2, "Address Line 2", "Address 2");
+            fillAndVerifyScopedPartyField(card, title, "City", city, "City");
+            fillAndVerifyScopedPartyField(
+                    card,
+                    title,
+                    "Subdivision Code",
+                    subdivisionCode,
+                    "Subdivision Code",
+                    "State Code",
+                    "Province Code",
+                    "Country Subdivision Code");
+            fillAndVerifyScopedPartyField(
+                    card,
+                    title,
+                    "Subdivision Name",
+                    subdivisionName,
+                    "Subdivision Name",
+                    "Subdivision",
+                    "State / Province",
+                    "State",
+                    "Province",
+                    "Country Subdivision");
+            fillAndVerifyScopedPartyField(card, title, "Postal Code", postalCode, "Postal Code", "Postal");
+            fillAndVerifyScopedPartyField(card, title, "Country Code", text(addressNode, "countryCode"), "Country Code", "Country");
+        });
     }
 
     private boolean syncPartyLookupComponentSelectionInScope(Locator scope, String title, String partyName, String partyId) {
@@ -1114,6 +1208,147 @@ public class OutDeclarationPage extends IptDeclarationPage {
 
         focusAndType(field, value, false);
         ensureTextFieldValue(field, value);
+    }
+
+    private void fillAndVerifyScopedPartyField(
+            Locator scope,
+            String partyName,
+            String fieldName,
+            String expectedValue,
+            String... labelCandidates) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            logFieldMappingInfo("Party: " + partyName
+                    + " | Field: " + fieldName
+                    + " | Expected: not provided | Actual: not provided | SKIP - Not provided");
+            return;
+        }
+
+        Locator field = resolvePartyFieldByLabels(scope, labelCandidates);
+        if (field == null) {
+            String failureReason = "FAIL - UI field not found";
+            logFieldMappingWarning("Party: " + partyName
+                    + " | Field: " + fieldName
+                    + " | Expected: " + expectedValue
+                    + " | Actual: <field-not-found> | " + failureReason
+                    + " | Labels tried: " + String.join(", ", labelCandidates));
+            automationDiagnostics.recordFieldVerificationFailure(
+                    "Party '" + partyName + "' field '" + fieldName + "' was not found in the OUT Party tab.",
+                    expectedValue,
+                    "<field-not-found>");
+            return;
+        }
+
+        String actualValue = normalize(readRenderedFieldValue(field));
+        if (!partyFieldMatches(actualValue, expectedValue)) {
+            focusAndType(field, expectedValue, false);
+            if (!waitForAnyRenderedFieldValue(field, 1200, expectedValue)) {
+                ensureTextFieldValue(field, expectedValue);
+            }
+        }
+
+        logPartyFieldVerification(partyName, fieldName, expectedValue, field, null);
+    }
+
+    private Locator resolvePartyFieldByLabels(Locator scope, String... labelCandidates) {
+        if (labelCandidates == null || labelCandidates.length == 0) {
+            return null;
+        }
+
+        if (scope != null) {
+            for (String labelCandidate : labelCandidates) {
+                Locator scopedField = resolvePartyCardFieldAfterLabelOrNull(scope, labelCandidate, 0);
+                if (scopedField != null) {
+                    return scopedField;
+                }
+            }
+        }
+
+        for (String labelCandidate : labelCandidates) {
+            Locator field = resolveFieldByLabelOrNull(labelCandidate, 0);
+            if (field != null) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    private void logLookupPartyRowValidation(String partyName, String fieldName, String expectedValue, int fieldIndex) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            logFieldMappingInfo("Party: " + partyName
+                    + " | Field: " + fieldName
+                    + " | Expected: not provided | Actual: not provided | SKIP - Not provided");
+            return;
+        }
+
+        Locator row = resolvePartyTableRow(partyName);
+        Locator field = row == null ? null : resolveVisibleEditableFieldInRowOrNull(row, fieldIndex);
+        String fallbackActual = row == null ? null : normalize(row.innerText());
+        logPartyFieldVerification(partyName, fieldName, expectedValue, field, fallbackActual);
+    }
+
+    private void logPartyFieldVerification(
+            String partyName,
+            String fieldName,
+            String expectedValue,
+            Locator field,
+            String fallbackActualValue) {
+        if (expectedValue == null || expectedValue.isBlank()) {
+            logFieldMappingInfo("Party: " + partyName
+                    + " | Field: " + fieldName
+                    + " | Expected: not provided | Actual: not provided | SKIP - Not provided");
+            return;
+        }
+
+        String actualValue = field == null
+                ? normalize(fallbackActualValue)
+                : normalize(readRenderedFieldValue(field));
+        if ((actualValue == null || actualValue.isBlank()) && fallbackActualValue != null && !fallbackActualValue.isBlank()) {
+            actualValue = normalize(fallbackActualValue);
+        }
+
+        if (partyFieldMatches(actualValue, expectedValue)) {
+            logFieldMappingInfo("Party: " + partyName
+                    + " | Field: " + fieldName
+                    + " | Expected: " + expectedValue
+                    + " | Actual: " + firstNonBlank(actualValue, "<empty>")
+                    + " | PASS");
+            return;
+        }
+
+        String resolvedActualValue = firstNonBlank(actualValue, "<empty>");
+        logFieldMappingWarning("Party: " + partyName
+                + " | Field: " + fieldName
+                + " | Expected: " + expectedValue
+                + " | Actual: " + resolvedActualValue
+                + " | FAIL - Value Missing");
+        automationDiagnostics.recordFieldVerificationFailure(
+                "Party '" + partyName + "' field '" + fieldName + "' did not match the JSON value.",
+                expectedValue,
+                resolvedActualValue);
+    }
+
+    private boolean partyFieldMatches(String actualValue, String expectedValue) {
+        String normalizedActual = normalize(actualValue);
+        String normalizedExpected = normalize(expectedValue);
+        if (normalizedActual == null || normalizedExpected == null
+                || normalizedActual.isBlank() || normalizedExpected.isBlank()) {
+            return false;
+        }
+        if (normalizedActual.equalsIgnoreCase(normalizedExpected)
+                || normalizedActual.contains(normalizedExpected)
+                || normalizedExpected.contains(normalizedActual)) {
+            return true;
+        }
+
+        String commaInsensitiveActual = normalize(normalizedActual.replace(",", " "));
+        String commaInsensitiveExpected = normalize(normalizedExpected.replace(",", " "));
+        return commaInsensitiveActual != null
+                && commaInsensitiveExpected != null
+                && !commaInsensitiveActual.isBlank()
+                && !commaInsensitiveExpected.isBlank()
+                && (commaInsensitiveActual.equalsIgnoreCase(commaInsensitiveExpected)
+                || commaInsensitiveActual.contains(commaInsensitiveExpected)
+                || commaInsensitiveExpected.contains(commaInsensitiveActual));
     }
 
     private Locator resolvePartyCardFieldAfterLabelOrNull(Locator card, String label, int occurrence) {
@@ -2076,8 +2311,8 @@ public class OutDeclarationPage extends IptDeclarationPage {
     }
 
     private void saveDraftAndWaitForCompletion() {
-        waitForActionButtonEnabled("SAVE DRAFT", 15000);
-        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForActionButtonEnabled("SAVE DRAFT", configuredElementWaitTimeoutMs());
+        clickActionButtonExactWithRetry("SAVE DRAFT", configuredRetryCount());
         waitForPostSaveReadyState(15000);
         summaryDraftSaved = true;
     }
@@ -2188,10 +2423,12 @@ public class OutDeclarationPage extends IptDeclarationPage {
                     }
                     """, expected);
             if (Boolean.TRUE.equals(clicked)) {
+                automationDiagnostics.recordRetryUsage(buttonText, attempt + 1);
                 return;
             }
             page.waitForTimeout(750);
         }
+        automationDiagnostics.recordRetryUsage(buttonText, attempts + 1);
         throw new IllegalStateException("Unable to click action button: " + buttonText);
     }
 
@@ -2804,8 +3041,13 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
-        tryLookupPartySelection(nameField, partyName, partyName, partyId);
         Locator idField = resolveVisibleEditableFieldInRowOrNull(row, 1);
+        if (syncPartyLookupComponentSelection(rowLabel, partyName, partyId)
+                && lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 1500)) {
+            return;
+        }
+
+        tryLookupPartySelection(nameField, partyName, partyName, partyId);
         if (lookupPartyRowResolved(row, nameField, idField, partyName, partyId, 2000)) {
             return;
         }
@@ -2903,6 +3145,31 @@ public class OutDeclarationPage extends IptDeclarationPage {
             page.waitForTimeout(100);
         }
         return false;
+    }
+
+    private boolean lookupPartyRowResolvedSnapshot(
+            Locator row,
+            Locator nameField,
+            Locator idField,
+            String partyName,
+            String partyId) {
+        String normalizedPartyName = normalize(partyName);
+        String normalizedPartyId = normalize(partyId);
+        String nameValue = normalize(readRenderedFieldValue(nameField));
+        String idValue = normalize(readRenderedFieldValue(idField));
+        String rowText = normalize(readRowText(row));
+
+        boolean nameMatches = normalizedPartyName.isBlank()
+                || renderedFieldValueMatches(nameValue, normalizedPartyName)
+                || rowText.equalsIgnoreCase(normalizedPartyName)
+                || rowText.contains(normalizedPartyName)
+                || normalizedPartyName.contains(rowText);
+        boolean idMatches = normalizedPartyId.isBlank()
+                || renderedFieldValueMatches(idValue, normalizedPartyId)
+                || rowText.equalsIgnoreCase(normalizedPartyId)
+                || rowText.contains(normalizedPartyId)
+                || normalizedPartyId.contains(rowText);
+        return nameMatches && idMatches;
     }
 
     private String readRowText(Locator row) {

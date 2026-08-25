@@ -94,6 +94,19 @@ class TestLauncherControllerTest {
     }
 
     @Test
+    void jsonContentReturnsSelectedRepositoryJsonBody() {
+        ResponseEntity<?> response = controller.jsonContent("ipt", "ipt-declaration-test-case-1.json");
+
+        assertEquals(200, response.getStatusCode().value());
+        assertTrue(response.getBody() instanceof Map);
+
+        Map<?, ?> body = (Map<?, ?>) response.getBody();
+        assertEquals("ipt", body.get("type"));
+        assertEquals("ipt-declaration-test-case-1.json", body.get("resourcePath"));
+        assertTrue(String.valueOf(body.get("content")).contains("\"header\""));
+    }
+
+    @Test
     void pmtStatusStopsPollingEvenBeforePermitNumberIsCaptured() throws Exception {
         Method mapJobState = TestLauncherController.class.getDeclaredMethod("mapJobState", String.class, String.class);
         mapJobState.setAccessible(true);

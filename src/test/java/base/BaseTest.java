@@ -1,5 +1,6 @@
 package base;
 
+import com.automation.playwright_framework.AutomationFrameworkSettings;
 import com.microsoft.playwright.*;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,15 +11,16 @@ public class BaseTest {
     protected Browser browser;
     protected BrowserContext context;
     protected Page page;
+    protected AutomationFrameworkSettings automationSettings;
 
     @BeforeEach
     public void setup() {
+        automationSettings = AutomationFrameworkSettings.load();
         String browserChannel = System.getProperty("playwright.channel", "chrome");
         boolean headless = Boolean.parseBoolean(System.getProperty("playwright.headless", "false"));
         double slowMoMs = Double.parseDouble(System.getProperty("playwright.slowmo.ms", "0"));
-        long defaultTimeoutMs = Long.parseLong(System.getProperty("playwright.timeout.ms", "15000"));
-        long defaultNavigationTimeoutMs = Long.parseLong(
-                System.getProperty("playwright.navigation.timeout.ms", "60000"));
+        long defaultTimeoutMs = automationSettings.thresholdValidation().elementWaitTimeoutMs();
+        long defaultNavigationTimeoutMs = automationSettings.thresholdValidation().pageLoadTimeoutMs();
 
         playwright = Playwright.create();
         browser = playwright.chromium().launch(

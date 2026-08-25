@@ -151,6 +151,29 @@ public class TestLauncherController {
         }
     }
 
+    @GetMapping("/json-content")
+    public ResponseEntity<?> jsonContent(
+            @RequestParam String type,
+            @RequestParam String jsonResource) {
+        LauncherTypeConfig config = resolveTypeConfig(type);
+        if (config == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Unknown declaration type: " + type));
+        }
+
+        try {
+            Path jsonPath = resolveJsonResourcePath(config, jsonResource);
+            return ResponseEntity.ok(Map.of(
+                    "type", config.type(),
+                    "resourcePath", jsonResource.trim().replace('\\', '/'),
+                    "content", readJsonPreviewContent(jsonPath)));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(Map.of("error", exception.getMessage()));
+        } catch (IOException exception) {
+            return ResponseEntity.status(500).body(Map.of(
+                    "error", "Unable to read selected JSON resource: " + exception.getMessage()));
+        }
+    }
+
     @PostMapping("/start")
     public ResponseEntity<?> start(
             @RequestParam String type,
@@ -620,6 +643,16 @@ public class TestLauncherController {
                 .normalize();
         Files.write(outputPath, fileBytes);
         return outputPath;
+    }
+
+    private String readJsonPreviewContent(Path jsonPath) throws IOException {
+        byte[] fileBytes = Files.readAllBytes(jsonPath);
+        try {
+            Object jsonTree = OBJECT_MAPPER.readValue(fileBytes, Object.class);
+            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(jsonTree);
+        } catch (JsonProcessingException exception) {
+            return new String(fileBytes, StandardCharsets.UTF_8);
+        }
     }
 
     private LauncherTypeConfig resolveTypeConfig(String type) {

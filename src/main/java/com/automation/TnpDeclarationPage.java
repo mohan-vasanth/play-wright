@@ -703,45 +703,47 @@ public class TnpDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillTnpPartyCardIfPresent(String title, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        JsonNode addressNode = partyNode.path("address");
+        recordPartyOperation("party_card", "fill-tnp-party-card", title, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            JsonNode addressNode = partyNode.path("address");
 
-        String name = normalize(text(identityNode.path("partyName"), "name"));
-        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
-        String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
-        String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
-        String city = text(addressNode, "cityName");
-        String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
-        String countrySubentity = text(addressNode, "countrySubentity");
-        String compactAddress = joinNonBlank(", ", addressLine1, addressLine2);
-        String otherAddressDetails = joinNonBlank(", ", city, postalCode, countrySubentity);
-        String countryCode = text(addressNode, "countryCode");
+            String name = normalize(text(identityNode.path("partyName"), "name"));
+            String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+            String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
+            String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
+            String city = text(addressNode, "cityName");
+            String postalCode = firstNonBlank(text(addressNode, "postalZone"), text(addressNode, "countrySubentityCode"));
+            String countrySubentity = text(addressNode, "countrySubentity");
+            String compactAddress = joinNonBlank(", ", addressLine1, addressLine2);
+            String otherAddressDetails = joinNonBlank(", ", city, postalCode, countrySubentity);
+            String countryCode = text(addressNode, "countryCode");
 
-        if ((name == null || name.isBlank())
-                && (partyId == null || partyId.isBlank())
-                && compactAddress.isBlank()
-                && otherAddressDetails.isBlank()
-                && (countryCode == null || countryCode.isBlank())) {
-            return;
-        }
+            if ((name == null || name.isBlank())
+                    && (partyId == null || partyId.isBlank())
+                    && compactAddress.isBlank()
+                    && otherAddressDetails.isBlank()
+                    && (countryCode == null || countryCode.isBlank())) {
+                return;
+            }
 
-        Locator card = resolveTnpPartyCard(title);
-        if (card == null) {
-            logFieldMappingWarning("TNP party card '" + title + "' was not visible while JSON values were present.");
-            return;
-        }
+            Locator card = resolveTnpPartyCard(title);
+            if (card == null) {
+                logFieldMappingWarning("TNP party card '" + title + "' was not visible while JSON values were present.");
+                return;
+            }
 
-        logFieldMappingInfo("TNP party card '" + title + "' -> name='" + firstNonBlank(name, "N/A")
-                + "', uen='" + firstNonBlank(partyId, "N/A")
-                + "', address='" + firstNonBlank(compactAddress, "N/A")
-                + "', otherAddressDetails='" + firstNonBlank(otherAddressDetails, "N/A")
-                + "', countryCode='" + firstNonBlank(countryCode, "N/A") + "'");
+            logFieldMappingInfo("TNP party card '" + title + "' -> name='" + firstNonBlank(name, "N/A")
+                    + "', uen='" + firstNonBlank(partyId, "N/A")
+                    + "', address='" + firstNonBlank(compactAddress, "N/A")
+                    + "', otherAddressDetails='" + firstNonBlank(otherAddressDetails, "N/A")
+                    + "', countryCode='" + firstNonBlank(countryCode, "N/A") + "'");
 
-        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, partyId);
-        fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, partyId);
-        fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
-        fillFieldAfterScopeLabelIfPresent(card, "Other address details", 0, otherAddressDetails);
-        fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+            fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, partyId);
+            fillFieldAfterScopeLabelIfPresent(card, "UEN", 0, partyId);
+            fillFieldAfterScopeLabelIfPresent(card, "Address", 0, compactAddress);
+            fillFieldAfterScopeLabelIfPresent(card, "Other address details", 0, otherAddressDetails);
+            fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+        });
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {

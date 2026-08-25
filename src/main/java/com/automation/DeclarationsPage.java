@@ -122,8 +122,10 @@ public class DeclarationsPage {
         }
 
         for (int attempt = 0; attempt < 10; attempt++) {
+            Map<String, Object> result;
+            try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+            Map<String, Object> evaluated = (Map<String, Object>) page.evaluate("""
                     (messageReference) => {
                         const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
                         const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
@@ -262,6 +264,10 @@ public class DeclarationsPage {
                         return null;
                     }
                     """, messageReference);
+                result = evaluated;
+            } catch (PlaywrightException exception) {
+                result = null;
+            }
             if (result != null) {
                 String jobId = stringValue(result.get("jobId"));
                 String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
@@ -287,8 +293,10 @@ public class DeclarationsPage {
         }
 
         for (int attempt = 0; attempt < 10; attempt++) {
+            Map<String, Object> result;
+            try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+            Map<String, Object> evaluated = (Map<String, Object>) page.evaluate("""
                     (jobId) => {
                         const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
                         const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
@@ -410,6 +418,10 @@ public class DeclarationsPage {
                         return null;
                     }
                     """, jobId);
+                result = evaluated;
+            } catch (PlaywrightException exception) {
+                result = null;
+            }
 
             if (result != null) {
                 String resolvedJobId = stringValue(result.get("jobId"));
@@ -431,8 +443,10 @@ public class DeclarationsPage {
 
     public DeclarationListEntry readLatestDeclarationListEntry() {
         for (int attempt = 0; attempt < 10; attempt++) {
+            Map<String, Object> result;
+            try {
             @SuppressWarnings("unchecked")
-            Map<String, Object> result = (Map<String, Object>) page.evaluate("""
+            Map<String, Object> evaluated = (Map<String, Object>) page.evaluate("""
                     () => {
                         const headerSelector = 'th, [role="columnheader"], [role="gridcell"][aria-colindex], .mat-header-cell, .ag-header-cell, clr-dg-column, .datagrid-column, .datagrid-column-title, .datagrid-head-cell';
                         const rowSelector = 'tr, [role="row"], .mat-row, .ag-row, clr-dg-row, .datagrid-row, .datagrid-row-master';
@@ -548,6 +562,10 @@ public class DeclarationsPage {
                         };
                     }
                     """);
+                result = evaluated;
+            } catch (PlaywrightException exception) {
+                result = null;
+            }
             if (result != null) {
                 String jobId = stringValue(result.get("jobId"));
                 String jobStatus = normalizeJobStatus(stringValue(result.get("jobStatus")));
@@ -1029,7 +1047,11 @@ public class DeclarationsPage {
         if (latestMatchingEntry != null) {
             return latestMatchingEntry;
         }
-        return resolveTrackedDeclarationEntry(messageReference, expectedJobId);
+        try {
+            return resolveTrackedDeclarationEntry(messageReference, expectedJobId);
+        } catch (PlaywrightException exception) {
+            return null;
+        }
     }
 
     public void refreshDeclarationList() {

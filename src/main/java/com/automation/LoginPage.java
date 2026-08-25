@@ -6,8 +6,6 @@ import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 import com.microsoft.playwright.options.WaitUntilState;
 
-import java.net.URI;
-
 public class LoginPage {
 
     private final Page page;
@@ -43,18 +41,23 @@ public class LoginPage {
         try {
             page.navigate(url, new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
             page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-            return;
-        } catch (PlaywrightException ignored) {
+        } catch (PlaywrightException primaryFailure) {
+            if (isLoginFormVisible() || isAuthenticated()) {
+                return;
+            }
+
+            try {
+                page.navigate(url, new NavigateOptions().setWaitUntil(WaitUntilState.COMMIT));
+                page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            } catch (PlaywrightException retryFailure) {
+                if (isLoginFormVisible() || isAuthenticated()) {
+                    return;
+                }
+                throw new IllegalStateException(
+                        "Unable to open login page at " + url + ": " + rootMessage(retryFailure),
+                        retryFailure);
+            }
         }
-
-        page.navigate(extractOrigin(url), new NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-    }
-
-    private String extractOrigin(String url) {
-        URI uri = URI.create(url);
-        int port = uri.getPort();
-        return uri.getScheme() + "://" + uri.getHost() + (port > -1 ? ":" + port : "") + "/";
     }
 
     public void loginAsAdmin(String user, String pass) {
@@ -269,5 +272,14 @@ public class LoginPage {
         }
 
         throw new IllegalStateException(fieldName + " options did not load after clicking Load User Details.", lastFailure);
+    }
+
+    private String rootMessage(Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        String message = current.getMessage();
+        return message == null || message.isBlank() ? current.getClass().getSimpleName() : message;
     }
 }

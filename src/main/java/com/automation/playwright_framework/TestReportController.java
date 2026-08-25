@@ -292,6 +292,9 @@ public class TestReportController {
         int issueCount = 0;
         int failureCount = 0;
         int draftCount = 0;
+        int thresholdViolationCount = 0;
+        int securityScenarioCount = 0;
+        int securityFailureCount = 0;
         long updatedAtMillis = Long.MIN_VALUE;
 
         for (Map.Entry<Integer, BatchCaseAccumulator> entry : casesByIndex.entrySet()) {
@@ -301,6 +304,9 @@ public class TestReportController {
                     batchMetaByIndex.get(entry.getKey()));
             batchCases.add(batchCase);
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
+            thresholdViolationCount += batchCase.thresholdViolationCount();
+            securityScenarioCount += batchCase.securityScenarioCount();
+            securityFailureCount += batchCase.securityFailureCount();
             String displayStatus = summarizeDisplayStatus(batchCase.status(), batchCase.jobStatus());
             if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
@@ -320,7 +326,10 @@ public class TestReportController {
                         successCount,
                         issueCount,
                         failureCount,
-                        draftCount),
+                        draftCount,
+                        thresholdViolationCount,
+                        securityScenarioCount,
+                        securityFailureCount),
                 batchCases,
                 updatedAtMillis);
     }
@@ -337,9 +346,15 @@ public class TestReportController {
         int issueCount = 0;
         int failureCount = 0;
         int draftCount = 0;
+        int thresholdViolationCount = 0;
+        int securityScenarioCount = 0;
+        int securityFailureCount = 0;
         long updatedAtMillis = Long.MIN_VALUE;
         for (BatchCaseResult batchCase : matchingCases) {
             updatedAtMillis = Math.max(updatedAtMillis, batchCase.updatedAtMillis());
+            thresholdViolationCount += batchCase.thresholdViolationCount();
+            securityScenarioCount += batchCase.securityScenarioCount();
+            securityFailureCount += batchCase.securityFailureCount();
             String displayStatus = summarizeDisplayStatus(batchCase.status(), batchCase.jobStatus());
             if ("PMT".equals(displayStatus) || "SUB".equals(displayStatus) || "SUCCESS".equals(displayStatus)) {
                 successCount++;
@@ -359,7 +374,10 @@ public class TestReportController {
                         successCount,
                         issueCount,
                         failureCount,
-                        draftCount),
+                        draftCount,
+                        thresholdViolationCount,
+                        securityScenarioCount,
+                        securityFailureCount),
                 matchingCases,
                 updatedAtMillis);
     }
@@ -528,6 +546,13 @@ public class TestReportController {
         Long durationMillis = firstNonNull(valDiag.durationMillis(), failDiag.durationMillis());
         String duration     = firstNonBlank(valDiag.duration(), failDiag.duration(), formatDuration(durationMillis));
         int    invalidCount = valDiag.invalidCount() > 0 ? valDiag.invalidCount() : failDiag.invalidCount();
+        int lowValidationFailureCount = Math.max(valDiag.lowValidationFailureCount(), failDiag.lowValidationFailureCount());
+        int thresholdViolationCount = Math.max(valDiag.thresholdViolationCount(), failDiag.thresholdViolationCount());
+        int securityScenarioCount = Math.max(valDiag.securityScenarioCount(), failDiag.securityScenarioCount());
+        int securityFailureCount = Math.max(valDiag.securityFailureCount(), failDiag.securityFailureCount());
+        String rootCause = firstNonBlank(valDiag.rootCause(), failDiag.rootCause());
+        String recommendations = firstNonBlank(valDiag.recommendations(), failDiag.recommendations());
+        String performanceSummary = firstNonBlank(valDiag.performanceSummary(), failDiag.performanceSummary());
         String rawJson      = firstNonBlank(valDiag.rawJson(), failDiag.rawJson());
 
         boolean hasValidationError = toastText != null || invalidCount > 0;
@@ -552,6 +577,15 @@ public class TestReportController {
         } else {
             status = "NO_REPORT";
             message = "No batch declaration artifacts found.";
+        }
+
+        if ("SUCCESS".equals(status) && (thresholdViolationCount > 0 || securityFailureCount > 0)) {
+            status = "ISSUE";
+            message = firstNonBlank(
+                    rootCause,
+                    securityFailureCount > 0 ? "Security validation issue detected." : null,
+                    thresholdViolationCount > 0 ? "Threshold validation issue detected." : null,
+                    message);
         }
 
         // Derive job status from actual data; validation failures default to DRF (saved as draft)
@@ -581,6 +615,13 @@ public class TestReportController {
                 responseMsg, errorMsg, summary, toastText, invalidCount, rawJson,
                 fileName(diagnosticsPath), fileName(screenshotPath),
                 fileName(accumulator.statusScreenshot),
+                lowValidationFailureCount,
+                thresholdViolationCount,
+                securityScenarioCount,
+                securityFailureCount,
+                rootCause,
+                recommendations,
+                performanceSummary,
                 startTime,
                 resolvedEndTime,
                 duration,
@@ -650,6 +691,16 @@ public class TestReportController {
                     formatDuration(durationMillis));
             JsonNode invalidElementsNode = root.path("invalidElements");
             int invalidCount = invalidElementsNode.isArray() ? invalidElementsNode.size() : 0;
+            JsonNode lowTestingSummaryNode = root.path("lowTestingSummary");
+            int lowValidationFailureCount = lowTestingSummaryNode.path("validationFailures").asInt(0);
+            JsonNode thresholdSummaryNode = root.path("thresholdSummary");
+            int thresholdViolationCount = thresholdSummaryNode.path("violations").asInt(0);
+            JsonNode securitySummaryNode = root.path("securitySummary");
+            int securityScenarioCount = securitySummaryNode.path("executed").asInt(0);
+            int securityFailureCount = securitySummaryNode.path("failures").asInt(0);
+            String rootCause = normalizePlaceholder(root.path("rootCause").asText(null));
+            String recommendations = joinArrayValues(root.path("recommendations"));
+            String performanceSummary = summarizePerformanceMetrics(root.path("performanceMetrics"));
             return new BatchDiagnostics(
                     jobId,
                     jobStatus,
@@ -666,12 +717,19 @@ public class TestReportController {
                     duration,
                     durationMillis,
                     invalidCount,
+                    lowValidationFailureCount,
+                    thresholdViolationCount,
+                    securityScenarioCount,
+                    securityFailureCount,
+                    rootCause,
+                    recommendations,
+                    performanceSummary,
                     rawJson);
         } catch (Exception exception) {
             // File is not valid JSON (e.g. a plain-text Playwright error); surface the raw content
             String rawContent = null;
             try { rawContent = Files.readString(diagnosticsPath); } catch (Exception ignored) {}
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, rawContent, null, null, null, null, null, 0, rawContent);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, rawContent, null, null, null, null, null, 0, 0, 0, 0, 0, null, null, null, rawContent);
         }
     }
 
@@ -739,6 +797,35 @@ public class TestReportController {
             return totalSeconds + " s";
         }
         return String.format("%.2f s", durationMillis / 1000.0d);
+    }
+
+    private String joinArrayValues(JsonNode node) {
+        if (node == null || !node.isArray() || node.isEmpty()) {
+            return null;
+        }
+        List<String> values = new ArrayList<>();
+        for (JsonNode child : node) {
+            String value = blankToNull(child.asText(null));
+            if (value != null) {
+                values.add(value);
+            }
+        }
+        return values.isEmpty() ? null : String.join(System.lineSeparator(), values);
+    }
+
+    private String summarizePerformanceMetrics(JsonNode node) {
+        if (node == null || !node.isArray() || node.isEmpty()) {
+            return null;
+        }
+        List<String> metrics = new ArrayList<>();
+        for (JsonNode child : node) {
+            String step = blankToNull(child.path("step").asText(null));
+            String durationMs = blankToNull(child.path("durationMs").asText(null));
+            if (step != null && durationMs != null) {
+                metrics.add(step + ": " + durationMs + " ms");
+            }
+        }
+        return metrics.isEmpty() ? null : String.join(System.lineSeparator(), metrics);
     }
 
     @SafeVarargs
@@ -883,6 +970,9 @@ public class TestReportController {
         if (surefireReport != null && (surefireReport.failures() > 0 || surefireReport.errors() > 0)) {
             return "FAILURE";
         }
+        if (batchReport.summary().securityFailures() > 0 || batchReport.summary().thresholdViolations() > 0) {
+            return "ISSUE";
+        }
         if (batchReport.summary().issues() > 0) {
             return "ISSUE";
         }
@@ -906,6 +996,22 @@ public class TestReportController {
                     .orElseGet(() -> firstTestCaseMessage(surefireReport, "Declaration failed."));
         }
         if ("ISSUE".equals(status)) {
+            if (batchReport.summary().securityFailures() > 0) {
+                return batchReport.batchCases().stream()
+                        .filter(batchCase -> batchCase.securityFailureCount() > 0)
+                        .map(batchCase -> firstNonBlank(batchCase.rootCause(), batchCase.message()))
+                        .filter(message -> message != null && !message.isBlank())
+                        .findFirst()
+                        .orElse("Security validation issue detected.");
+            }
+            if (batchReport.summary().thresholdViolations() > 0) {
+                return batchReport.batchCases().stream()
+                        .filter(batchCase -> batchCase.thresholdViolationCount() > 0)
+                        .map(batchCase -> firstNonBlank(batchCase.rootCause(), batchCase.message()))
+                        .filter(message -> message != null && !message.isBlank())
+                        .findFirst()
+                        .orElse("Threshold validation issue detected.");
+            }
             return batchReport.batchCases().stream()
                     .filter(batchCase -> "ISSUE".equals(batchCase.status()) || "DRAFT".equals(batchCase.status()))
                     .map(BatchCaseResult::message)
@@ -1055,10 +1161,17 @@ public class TestReportController {
             String duration,
             Long durationMillis,
             int invalidCount,
+            int lowValidationFailureCount,
+            int thresholdViolationCount,
+            int securityScenarioCount,
+            int securityFailureCount,
+            String rootCause,
+            String recommendations,
+            String performanceSummary,
             String rawJson) {
 
         private static BatchDiagnostics empty() {
-            return new BatchDiagnostics(null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, null);
+            return new BatchDiagnostics(null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0, 0, 0, 0, 0, null, null, null, null);
         }
     }
 
@@ -1068,7 +1181,7 @@ public class TestReportController {
             long updatedAtMillis) {
 
         private static BatchReportSummary empty() {
-            return new BatchReportSummary(new BatchSummary(0, 0, 0, 0, 0), List.of(), Long.MIN_VALUE);
+            return new BatchReportSummary(new BatchSummary(0, 0, 0, 0, 0, 0, 0, 0), List.of(), Long.MIN_VALUE);
         }
     }
 
@@ -1086,7 +1199,10 @@ public class TestReportController {
             int successes,
             int issues,
             int failures,
-            int drafts) {
+            int drafts,
+            int thresholdViolations,
+            int securityScenarios,
+            int securityFailures) {
     }
 
     public record BatchCaseResult(
@@ -1109,6 +1225,13 @@ public class TestReportController {
             String diagnosticsFile,
             String screenshotFile,
             String statusScreenshotFile,
+            int lowValidationFailureCount,
+            int thresholdViolationCount,
+            int securityScenarioCount,
+            int securityFailureCount,
+            String rootCause,
+            String recommendations,
+            String performanceSummary,
             String startTime,
             String endTime,
             String duration,
@@ -1146,7 +1269,7 @@ public class TestReportController {
                     null,
                     message,
                     List.of(),
-                    new BatchSummary(0, 0, 0, 0, 0),
+                    new BatchSummary(0, 0, 0, 0, 0, 0, 0, 0),
                     List.of());
         }
     }

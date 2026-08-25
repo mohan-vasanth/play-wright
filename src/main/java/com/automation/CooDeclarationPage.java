@@ -55,9 +55,9 @@ public class CooDeclarationPage extends IptDeclarationPage {
     @Override
     public void submitDeclaration() {
         openSection("Summary (S)");
-        waitForActionButtonEnabled("SUBMIT DECLARATION", 15000);
+        waitForActionButtonEnabled("SUBMIT DECLARATION", configuredElementWaitTimeoutMs());
         captureProgressScreenshot("summary-before-submit");
-        clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
+        clickActionButtonExactWithRetry("SUBMIT DECLARATION", configuredRetryCount());
         page.waitForTimeout(5000);
         captureProgressScreenshot("after-submit");
     }
@@ -641,33 +641,35 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillPartyCard(String title, JsonNode partyNode, JsonNode addressNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        String name = text(identityNode.path("partyName"), "name");
-        String id = text(identityNode.path("partyIdentification"), "id");
-        if ((name == null || name.isBlank()) && (id == null || id.isBlank()) && isMissingOrEmpty(addressNode)) {
-            return;
-        }
+        recordPartyOperation("party_card", "fill-coo-party-card", title, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            String name = text(identityNode.path("partyName"), "name");
+            String id = text(identityNode.path("partyIdentification"), "id");
+            if ((name == null || name.isBlank()) && (id == null || id.isBlank()) && isMissingOrEmpty(addressNode)) {
+                return;
+            }
 
-        ensureAccordionExpanded(title, "Name");
-        Locator card = resolvePartyCard(title);
-        if (card == null) {
-            return;
-        }
+            ensureAccordionExpanded(title, "Name");
+            Locator card = resolvePartyCard(title);
+            if (card == null) {
+                return;
+            }
 
-        fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
-        fillNthFieldInScopeIfPresent(card, 1, id);
+            fillNthLookupFieldInScopeByClickOnlyIfPresent(card, 0, name, name, id);
+            fillNthFieldInScopeIfPresent(card, 1, id);
 
-        String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
-        String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
-        String city = text(addressNode, "cityName");
-        String postalCode = text(addressNode, "postalZone");
-        String countryCode = text(addressNode, "countryCode");
+            String addressLine1 = arrayText(addressNode.path("addressLine").path("line"), 0);
+            String addressLine2 = arrayText(addressNode.path("addressLine").path("line"), 1);
+            String city = text(addressNode, "cityName");
+            String postalCode = text(addressNode, "postalZone");
+            String countryCode = text(addressNode, "countryCode");
 
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, addressLine1);
-        fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, addressLine2);
-        fillFieldAfterScopeLabelIfPresent(card, "City", 0, city);
-        fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0, postalCode);
-        fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+            fillFieldAfterScopeLabelIfPresent(card, "Address Line 1", 0, addressLine1);
+            fillFieldAfterScopeLabelIfPresent(card, "Address Line 2", 0, addressLine2);
+            fillFieldAfterScopeLabelIfPresent(card, "City", 0, city);
+            fillFieldAfterScopeLabelIfPresent(card, "Postal Code", 0, postalCode);
+            fillLookupFieldAfterScopeLabelIfPresent(card, "Country Code", 0, countryCode, countryCode);
+        });
     }
 
     private JsonNode partyIdentityNode(JsonNode partyNode) {
@@ -687,38 +689,39 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private void fillPartyCertificateOfOriginLegends(JsonNode itemCertificate, JsonNode formMetaData) {
-        boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
-        if (!isCertificateOfOriginSectionEnabled(itemCertificate, formMetaData)) {
-            return;
-        }
-
-        setCheckboxByLabel("Certificate of Origin (CO)", true);
-        page.waitForTimeout(300);
-
-        Locator section = waitForPartyCertificateOfOriginSectionOrNull(3000);
-        if (section != null) {
-            if (hasItemCertificateData) {
-                fillCertificateOfOriginSectionFields(section, itemCertificate);
-                if (verifyPartyCertificateOfOriginFieldValues(itemCertificate, 1200)) {
-                    return;
-                }
-                logFieldMappingWarning("COO Party Certificate of Origin section was detected, but one or more legend "
-                        + "values were not rendered via the shared scoped flow. Retrying against concrete page fields.");
+        recordPartyOperation("party_verification", "fill-coo-certificate-legends", "Certificate of Origin (CO)", () -> {
+            boolean hasItemCertificateData = !isMissingOrEmpty(itemCertificate);
+            if (!isCertificateOfOriginSectionEnabled(itemCertificate, formMetaData)) {
+                return;
             }
-        }
 
-        if (!hasItemCertificateData) {
-            return;
-        }
+            setCheckboxByLabel("Certificate of Origin (CO)", true);
+            page.waitForTimeout(300);
 
-        if (fillPartyCertificateOfOriginByPageLabels(itemCertificate)) {
-            ensurePartyCertificateOfOriginFieldValues(itemCertificate);
-            return;
-        }
+            Locator section = waitForPartyCertificateOfOriginSectionOrNull(3000);
+            if (section != null) {
+                if (hasItemCertificateData) {
+                    fillCertificateOfOriginSectionFields(section, itemCertificate);
+                    if (verifyPartyCertificateOfOriginFieldValues(itemCertificate, 1200)) {
+                        return;
+                    }
+                    logFieldMappingWarning("COO Party Certificate of Origin section was detected, but one or more legend "
+                            + "values were not rendered via the shared scoped flow. Retrying against concrete page fields.");
+                }
+            }
 
-        logFieldMappingWarning("COO Party tab does not expose a resolvable Certificate of Origin (CO) legends section "
-                + "for the current declaration. Skipping Party-tab legend population.");
-        return;
+            if (!hasItemCertificateData) {
+                return;
+            }
+
+            if (fillPartyCertificateOfOriginByPageLabels(itemCertificate)) {
+                ensurePartyCertificateOfOriginFieldValues(itemCertificate);
+                return;
+            }
+
+            logFieldMappingWarning("COO Party tab does not expose a resolvable Certificate of Origin (CO) legends section "
+                    + "for the current declaration. Skipping Party-tab legend population.");
+        });
     }
 
     private JsonNode firstNonEmptyItemCertificate(JsonNode items) {
@@ -2626,8 +2629,8 @@ public class CooDeclarationPage extends IptDeclarationPage {
     }
 
     private void saveDraftAndWaitForCompletion() {
-        waitForActionButtonEnabled("SAVE DRAFT", 15000);
-        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForActionButtonEnabled("SAVE DRAFT", configuredElementWaitTimeoutMs());
+        clickActionButtonExactWithRetry("SAVE DRAFT", configuredRetryCount());
         waitForPostSaveReadyState(15000);
         captureProgressScreenshot("after-save-draft");
     }
@@ -2780,10 +2783,12 @@ public class CooDeclarationPage extends IptDeclarationPage {
                     }
                     """, expected);
             if (Boolean.TRUE.equals(clicked)) {
+                automationDiagnostics.recordRetryUsage(buttonText, attempt + 1);
                 return;
             }
             page.waitForTimeout(750);
         }
+        automationDiagnostics.recordRetryUsage(buttonText, attempts + 1);
         throw new IllegalStateException("Action button was not clickable: " + buttonText);
     }
 

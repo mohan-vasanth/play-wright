@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 
 @TradenixLiveTest
@@ -110,6 +111,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                     executionStartedAt,
                     diagnosticsPath,
                     Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-1.png"));
+            executePenetrationScenariosIfEnabled(testData, loginPage, declarationsPage, diagnosticsPath, 1);
             openGeneratedReport(finalEntry, 1);
             return;
         }
@@ -125,6 +127,7 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                 firstNonBlank(messageReference, declarationMessageReference(testData)),
                 executionStartedAt,
                 Instant.now());
+        executePenetrationScenariosIfEnabled(testData, loginPage, declarationsPage, diagnosticsPath, 1);
         StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         openGeneratedReport(null, 1);
         iptDeclarationPage.openInvoiceInfoSection();
@@ -181,6 +184,12 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                         executionStartedAt,
                         diagnosticsPath,
                         Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
+                executePenetrationScenariosIfEnabled(
+                        declaration,
+                        loginPage,
+                        declarationsPage,
+                        diagnosticsPath,
+                        index + 1);
             } catch (Exception exception) {
                 Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
@@ -202,6 +211,12 @@ public class IptDeclarationTestCase1Test extends BaseTest {
                             executionStartedAt,
                             diagnosticsPath,
                             Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
+                    executePenetrationScenariosIfEnabled(
+                            declaration,
+                            loginPage,
+                            declarationsPage,
+                            diagnosticsPath,
+                            index + 1);
                 } catch (Exception ignored) {
                 }
                 openGeneratedReport(lastCompletedEntry, declarationBatch.size());
@@ -861,5 +876,50 @@ public class IptDeclarationTestCase1Test extends BaseTest {
 
     private void deleteExistingArtifacts(String artifactPrefix) {
         ArtifactPaths.deleteExistingDeclarationArtifacts(artifactPrefix);
+    }
+
+    private void executePenetrationScenariosIfEnabled(
+            JsonNode declaration,
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            Path diagnosticsPath,
+            int caseIndex) {
+        if (automationSettings == null
+                || !automationSettings.penetrationTesting().enabled()
+                || declaration == null
+                || diagnosticsPath == null) {
+            return;
+        }
+
+        List<AutomationExecutionDiagnostics.SecurityValidationResult> results = AutomationPenetrationRunner.execute(
+                automationSettings,
+                declaration,
+                REPORT_ARTIFACT_PREFIX,
+                caseIndex,
+                new AutomationPenetrationRunner.ScenarioAdapter() {
+                    private IptDeclarationPage scenarioPage;
+
+                    @Override
+                    public void openFreshDraft() {
+                        openDeclarationListWithRelogin(loginPage, declarationsPage);
+                        declarationsPage.createNewDeclarationDraft(IPT_ROUTE);
+                        scenarioPage = createDeclarationPage();
+                    }
+
+                    @Override
+                    public IptDeclarationPage currentPageObject() {
+                        if (scenarioPage == null) {
+                            scenarioPage = createDeclarationPage();
+                        }
+                        return scenarioPage;
+                    }
+
+                    @Override
+                    public com.microsoft.playwright.Page page() {
+                        return page;
+                    }
+                });
+        AutomationDiagnosticsFileSupport.mergeSecurityResults(diagnosticsPath, results);
+        StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
     }
 }

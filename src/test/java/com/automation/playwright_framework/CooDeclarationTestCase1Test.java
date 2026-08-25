@@ -4,6 +4,7 @@ import base.BaseTest;
 import base.TradenixLiveTest;
 import com.automation.CooDeclarationPage;
 import com.automation.DeclarationsPage;
+import com.automation.IptDeclarationPage;
 import com.automation.LoginPage;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.List;
 
 @TradenixLiveTest
 public class CooDeclarationTestCase1Test extends BaseTest {
@@ -94,6 +96,7 @@ public class CooDeclarationTestCase1Test extends BaseTest {
                     executionStartedAt,
                     diagnosticsPath,
                     Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-1.png"));
+            executePenetrationScenariosIfEnabled(testData, loginPage, declarationsPage, diagnosticsPath, 1);
             openGeneratedReport(finalEntry, 1);
             return;
         }
@@ -109,6 +112,7 @@ public class CooDeclarationTestCase1Test extends BaseTest {
                 firstNonBlank(messageReference, testData.path("header").path("messageReference").asText(null)),
                 executionStartedAt,
                 Instant.now());
+        executePenetrationScenariosIfEnabled(testData, loginPage, declarationsPage, diagnosticsPath, 1);
         StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
         openGeneratedReport(null, 1);
     }
@@ -190,6 +194,12 @@ public class CooDeclarationTestCase1Test extends BaseTest {
                         executionStartedAt,
                         diagnosticsPath,
                         Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
+                executePenetrationScenariosIfEnabled(
+                        declaration,
+                        loginPage,
+                        declarationsPage,
+                        diagnosticsPath,
+                        index + 1);
             } catch (Exception exception) {
                 Path diagnosticsPath = Paths.get("target", REPORT_ARTIFACT_PREFIX + "-failure-" + (index + 1) + ".json");
                 captureDiagnosticsArtifacts(
@@ -211,6 +221,12 @@ public class CooDeclarationTestCase1Test extends BaseTest {
                             executionStartedAt,
                             diagnosticsPath,
                             Paths.get("target", REPORT_ARTIFACT_PREFIX + "-status-" + (index + 1) + ".png"));
+                    executePenetrationScenariosIfEnabled(
+                            declaration,
+                            loginPage,
+                            declarationsPage,
+                            diagnosticsPath,
+                            index + 1);
                 } catch (Exception ignored) {
                 }
                 openGeneratedReport(lastCompletedEntry, declarationBatch.size());
@@ -825,5 +841,54 @@ public class CooDeclarationTestCase1Test extends BaseTest {
 
     private void deleteExistingArtifacts(String artifactPrefix) {
         ArtifactPaths.deleteExistingDeclarationArtifacts(artifactPrefix);
+    }
+
+    private void executePenetrationScenariosIfEnabled(
+            JsonNode declaration,
+            LoginPage loginPage,
+            DeclarationsPage declarationsPage,
+            Path diagnosticsPath,
+            int caseIndex) {
+        if (automationSettings == null
+                || !automationSettings.penetrationTesting().enabled()
+                || declaration == null
+                || diagnosticsPath == null) {
+            return;
+        }
+
+        List<AutomationExecutionDiagnostics.SecurityValidationResult> results = AutomationPenetrationRunner.execute(
+                automationSettings,
+                declaration,
+                REPORT_ARTIFACT_PREFIX,
+                caseIndex,
+                new AutomationPenetrationRunner.ScenarioAdapter() {
+                    private CooDeclarationPage scenarioPage;
+
+                    @Override
+                    public void openFreshDraft() {
+                        openDeclarationListWithRelogin(loginPage, declarationsPage);
+                        declarationsPage.createNewDeclarationDraft(
+                                COO_ROUTE,
+                                "Edit Declaration",
+                                "Job Info",
+                                "Header & Certificate");
+                        scenarioPage = new CooDeclarationPage(page);
+                    }
+
+                    @Override
+                    public IptDeclarationPage currentPageObject() {
+                        if (scenarioPage == null) {
+                            scenarioPage = new CooDeclarationPage(page);
+                        }
+                        return scenarioPage;
+                    }
+
+                    @Override
+                    public com.microsoft.playwright.Page page() {
+                        return page;
+                    }
+                });
+        AutomationDiagnosticsFileSupport.mergeSecurityResults(diagnosticsPath, results);
+        StaticReportDataWriter.refresh(REPORT_ARTIFACT_PREFIX);
     }
 }

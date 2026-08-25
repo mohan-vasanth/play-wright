@@ -45,6 +45,26 @@ public class IptDeclarationSupplyIndicatorTest extends BaseTest {
     }
 
     @Test
+    void clearsSupplyIndicatorWhenJsonFieldIsMissingButUiStartsChecked() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <div>
+                    <div>Checks</div>
+                    <label for="supply-indicator">Supply Indicator</label>
+                    <input id="supply-indicator" type="checkbox" checked>
+                  </div>
+                </body>
+                </html>
+                """);
+
+        ObjectNode cargo = OBJECT_MAPPER.createObjectNode();
+        invokeFillChecksSection(OBJECT_MAPPER.createObjectNode(), cargo);
+
+        assertFalse(page.locator("#supply-indicator").isChecked());
+    }
+
+    @Test
     void clearsSupplyIndicatorOnlyWhenJsonValueIsExplicitlyFalse() throws Exception {
         page.setContent("""
                 <html>
@@ -142,6 +162,31 @@ public class IptDeclarationSupplyIndicatorTest extends BaseTest {
         assertTrue(page.locator("#license").isChecked());
         assertFalse(page.locator("#supply-indicator").isChecked());
         assertFalse(page.locator("#additional-recipients").isChecked());
+    }
+
+    @Test
+    void clearsSupplyIndicatorWhenPreviousRunCheckedItAndCurrentJsonOmitsTheField() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <div>
+                    <div>Checks</div>
+                    <label for="supply-indicator">Supply Indicator</label>
+                    <input id="supply-indicator" type="checkbox">
+                  </div>
+                </body>
+                </html>
+                """);
+
+        ObjectNode priorCargo = OBJECT_MAPPER.createObjectNode();
+        priorCargo.put("supplyIndicator", true);
+        invokeFillChecksSection(OBJECT_MAPPER.createObjectNode(), priorCargo);
+        assertTrue(page.locator("#supply-indicator").isChecked());
+
+        ObjectNode currentCargo = OBJECT_MAPPER.createObjectNode();
+        invokeFillChecksSection(OBJECT_MAPPER.createObjectNode(), currentCargo);
+
+        assertFalse(page.locator("#supply-indicator").isChecked());
     }
 
     @Test

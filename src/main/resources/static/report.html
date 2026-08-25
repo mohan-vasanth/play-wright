@@ -757,6 +757,14 @@
                     <div class="metric-label">Drafts</div>
                     <div id="batchDrafts" class="metric-value">0</div>
                 </div>
+                <div class="metric-card metric-issues">
+                    <div class="metric-label">Threshold Violations</div>
+                    <div id="batchThresholds" class="metric-value">0</div>
+                </div>
+                <div class="metric-card metric-failures">
+                    <div class="metric-label">Security Failures</div>
+                    <div id="batchSecurityFailures" class="metric-value">0</div>
+                </div>
             </section>
         </section>
 
@@ -831,6 +839,8 @@
     const batchIssues = document.getElementById('batchIssues');
     const batchFailures = document.getElementById('batchFailures');
     const batchDrafts = document.getElementById('batchDrafts');
+    const batchThresholds = document.getElementById('batchThresholds');
+    const batchSecurityFailures = document.getElementById('batchSecurityFailures');
     const batchCases = document.getElementById('batchCases');
     const batchResultsTitle = document.getElementById('batchResultsTitle');
     const heroContext = document.getElementById('heroContext');
@@ -858,7 +868,7 @@
         }
         if (window.location.protocol === 'file:') {
             const stored = localStorage.getItem(API_BASE_STORAGE_KEY);
-            return (stored || 'http://localhost:8080').replace(/\/$/, '');
+            return (stored || 'http://localhost:8081').replace(/\/$/, '');
         }
         return '';
     }
@@ -981,7 +991,10 @@
             successes: 0,
             issues: 0,
             failures: 0,
-            drafts: 0
+            drafts: 0,
+            thresholdViolations: 0,
+            securityScenarios: 0,
+            securityFailures: 0
         };
 
         for (const batchCase of batchCases) {
@@ -999,6 +1012,9 @@
             } else if (['ISSUE', 'SNT', 'REG'].includes(displayStatus)) {
                 summary.issues += 1;
             }
+            summary.thresholdViolations += Number(batchCase?.thresholdViolationCount || 0);
+            summary.securityScenarios += Number(batchCase?.securityScenarioCount || 0);
+            summary.securityFailures += Number(batchCase?.securityFailureCount || 0);
         }
 
         return summary;
@@ -1061,6 +1077,8 @@
         batchIssues.textContent = 0;
         batchFailures.textContent = 0;
         batchDrafts.textContent = 0;
+        batchThresholds.textContent = 0;
+        batchSecurityFailures.textContent = 0;
         tests.textContent = 0;
         failures.textContent = 0;
         errors.textContent = 0;
@@ -1138,6 +1156,8 @@
         batchIssues.textContent = batchSummary.issues ?? 0;
         batchFailures.textContent = batchSummary.failures ?? 0;
         batchDrafts.textContent = batchSummary.drafts ?? 0;
+        batchThresholds.textContent = batchSummary.thresholdViolations ?? 0;
+        batchSecurityFailures.textContent = batchSummary.securityFailures ?? 0;
 
         tests.textContent = focusedReport.tests ?? 0;
         failures.textContent = focusedReport.failures ?? 0;
@@ -1225,6 +1245,17 @@
         const startTime = batchCase.startTime || '-';
         const endTime = batchCase.endTime || batchCase.updatedAt || '-';
         const duration = batchCase.duration || '-';
+        const lowValidationFailureCount = batchCase.lowValidationFailureCount ?? 0;
+        const thresholdViolationCount = batchCase.thresholdViolationCount ?? 0;
+        const securityScenarioCount = batchCase.securityScenarioCount ?? 0;
+        const securityFailureCount = batchCase.securityFailureCount ?? 0;
+        const rootCause = batchCase.rootCause || 'No framework-level root cause was captured.';
+        const recommendations = batchCase.recommendations
+            ? `<div class="code-block">${escapeHtml(batchCase.recommendations)}</div>`
+            : '<div class="info-paragraph">No recommendations were generated for this declaration.</div>';
+        const performanceSummary = batchCase.performanceSummary
+            ? `<div class="code-block">${escapeHtml(batchCase.performanceSummary)}</div>`
+            : '<div class="info-paragraph">No performance metrics were captured for this declaration.</div>';
         const pmtNumberRow = shouldDisplayPmtNumber(batchCase.jobStatus, batchCase.pmtNumber, batchCase.declarationNumber)
             ? `<div class="info-row"><span>PMT Number</span><span>${escapeHtml(pmtNumber)}</span></div>`
             : '';
@@ -1269,6 +1300,10 @@
                                 ${pmtNumberRow}
                                 <div class="info-row"><span>Report Status</span><span>${escapeHtml(batchCase.status || '-')}</span></div>
                                 <div class="info-row"><span>Invalid Fields</span><span>${escapeHtml(batchCase.invalidCount ?? 0)}</span></div>
+                                <div class="info-row"><span>Low-Test Failures</span><span>${escapeHtml(lowValidationFailureCount)}</span></div>
+                                <div class="info-row"><span>Threshold Violations</span><span>${escapeHtml(thresholdViolationCount)}</span></div>
+                                <div class="info-row"><span>Security Scenarios</span><span>${escapeHtml(securityScenarioCount)}</span></div>
+                                <div class="info-row"><span>Security Failures</span><span>${escapeHtml(securityFailureCount)}</span></div>
                             </div>
                             <div class="info-paragraph">Response Message: ${escapeHtml(responseMessage)}</div>
                         </section>
@@ -1287,9 +1322,20 @@
                             </div>
                         </section>
 
+                        <section class="info-card">
+                            <div class="info-title">Validation & Security</div>
+                            <div class="info-paragraph">Root Cause: ${escapeHtml(rootCause)}</div>
+                            ${recommendations}
+                        </section>
+
                         <section class="info-card api-card">
                             <div class="info-title">API Response</div>
                             ${responseSummary}
+                        </section>
+
+                        <section class="info-card api-card">
+                            <div class="info-title">Performance Metrics</div>
+                            ${performanceSummary}
                         </section>
 
                         <section class="info-card diagnostics-card">
@@ -1371,7 +1417,7 @@
                 heroContext.textContent = resolveHeroContextText();
                 statusBadge.className = 'status-badge status-NO_REPORT';
                 statusBadge.textContent = 'NO_REPORT';
-                issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8080/report.html or append ?apiBase=http://localhost:8080 when using the file directly.`;
+                issue.textContent = `Unable to load report from ${reportUrl}. Start the Spring app and open http://localhost:8081/report.html or append ?apiBase=http://localhost:8081 when using the file directly.`;
                 source.textContent = `API endpoint: ${reportUrl}`;
                 suiteName.textContent = 'Suite: not available';
                 updatedAt.textContent = 'Updated: -';
@@ -1384,6 +1430,8 @@
                 batchIssues.textContent = 0;
                 batchFailures.textContent = 0;
                 batchDrafts.textContent = 0;
+                batchThresholds.textContent = 0;
+                batchSecurityFailures.textContent = 0;
                 tests.textContent = 0;
                 failures.textContent = 0;
                 errors.textContent = 0;

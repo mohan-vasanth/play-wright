@@ -1,5 +1,7 @@
 package com.automation;
 
+import com.automation.playwright_framework.AutomationExecutionDiagnostics;
+import com.automation.playwright_framework.AutomationFrameworkSettings;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.MissingNode;
@@ -53,14 +55,23 @@ public class IptDeclarationPage {
             Integer.getInteger("tradenix.ui.post.save.ready.timeout.ms", 45000);
     private static final int UI_SUBMIT_CLICK_WAIT_MS = 2000;
     private static final int UI_POST_SUBMIT_WAIT_MS = 3000;
+    private static final boolean PARTY_PERFORMANCE_ALIGNMENT_ENABLED =
+            Boolean.parseBoolean(System.getProperty("tradenix.party.performance.alignment.enabled", "true"));
 
     protected final Page page;
+    protected final AutomationFrameworkSettings automationSettings;
+    protected final AutomationExecutionDiagnostics automationDiagnostics;
+    private final PartyTabPerformanceTrace partyPerformanceTrace = new PartyTabPerformanceTrace();
     private final List<String> fieldMappingDiagnostics = new ArrayList<>();
     private boolean summaryDraftSaved;
     private int validatedFieldEntryCount;
+    private long formControlsGeneration;
+    private long lastWaitedFormControlsGeneration = Long.MIN_VALUE;
 
     public IptDeclarationPage(Page page) {
         this.page = page;
+        this.automationSettings = AutomationFrameworkSettings.load();
+        this.automationDiagnostics = new AutomationExecutionDiagnostics(automationSettings);
     }
 
     public void populateFrom(JsonNode data) {
@@ -72,10 +83,14 @@ public class IptDeclarationPage {
 
     public void populateDraftFrom(JsonNode data) {
         JsonNode payload = normalizeDeclarationPayload(data);
+        automationDiagnostics.resetForScenario(declarationFlowLabel());
+        partyPerformanceTrace.reset(declarationFlowLabel());
         resetFieldMappingDiagnostics();
         validateDeclarationPayload(payload);
         summaryDraftSaved = false;
         validatedFieldEntryCount = 0;
+        formControlsGeneration = 0L;
+        lastWaitedFormControlsGeneration = Long.MIN_VALUE;
         logFieldMappingInfo("Executing declaration flow: " + declarationFlowLabel());
         if (DeclarationPayloads.isWrapped(data)) {
             logFieldMappingInfo("Using nested inboundMessage payload for declaration field mapping.");
@@ -105,6 +120,10 @@ public class IptDeclarationPage {
         return validatedFieldEntryCount;
     }
 
+    public AutomationExecutionDiagnostics automationDiagnostics() {
+        return automationDiagnostics;
+    }
+
     public void submitDeclaration() {
         openSection("Summary (Y)");
         if (!summaryDraftSaved) {
@@ -113,7 +132,7 @@ public class IptDeclarationPage {
             waitForPostSaveReadyState(UI_POST_SAVE_READY_TIMEOUT_MS);
         }
         waitForActionButtonEnabled("SUBMIT DECLARATION", UI_POST_SAVE_READY_TIMEOUT_MS);
-        clickActionButtonExactWithRetry("SUBMIT DECLARATION", 3);
+        clickActionButtonExactWithRetry("SUBMIT DECLARATION", configuredRetryCount());
         page.waitForTimeout(5000);
     }
 
@@ -377,15 +396,23 @@ public class IptDeclarationPage {
                 mappingDiagnosticsNode.add(entry);
             }
             diagnosticsRoot.put("validatedFieldEntryCount", validatedFieldEntryCount);
-            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(diagnosticsRoot);
+            diagnosticsRoot.set("partyPerformance", partyPerformanceTrace.toJson());
+            return OBJECT_MAPPER.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(automationDiagnostics.enrich(diagnosticsRoot));
         } catch (PlaywrightException exception) {
-            return "Unable to capture submit validation diagnostics: " + exception.getMessage()
-                    + System.lineSeparator()
-                    + String.join(System.lineSeparator(), fieldMappingDiagnostics);
+            ObjectNode diagnosticsRoot = OBJECT_MAPPER.createObjectNode();
+            diagnosticsRoot.put("captureError", exception.getMessage());
+            diagnosticsRoot.put("rawDiagnostics",
+                    String.join(System.lineSeparator(), fieldMappingDiagnostics));
+            diagnosticsRoot.set("partyPerformance", partyPerformanceTrace.toJson());
+            return automationDiagnostics.enrich(diagnosticsRoot).toPrettyString();
         } catch (Exception exception) {
-            return "Unable to serialize submit validation diagnostics: " + exception.getMessage()
-                    + System.lineSeparator()
-                    + String.join(System.lineSeparator(), fieldMappingDiagnostics);
+            ObjectNode diagnosticsRoot = OBJECT_MAPPER.createObjectNode();
+            diagnosticsRoot.put("captureError", exception.getMessage());
+            diagnosticsRoot.put("rawDiagnostics",
+                    String.join(System.lineSeparator(), fieldMappingDiagnostics));
+            diagnosticsRoot.set("partyPerformance", partyPerformanceTrace.toJson());
+            return automationDiagnostics.enrich(diagnosticsRoot).toPrettyString();
         }
     }
 
@@ -521,9 +548,12 @@ public class IptDeclarationPage {
         }
 
         Boolean supplyIndicator = readOptionalJsonBoolean(cargo.path("supplyIndicator"));
-        if (supplyIndicator != null) {
-            setCheckboxByLabelIfDifferent("Supply Indicator", supplyIndicator);
+        logCheckboxResolutionState("Supply Indicator", "before-set", supplyIndicator);
+        setCheckboxByLabelIfDifferent("Supply Indicator", Boolean.TRUE.equals(supplyIndicator));
+        if (!Boolean.TRUE.equals(supplyIndicator)) {
+            synchronizeFrameworkCheckboxState("Supply Indicator", false);
         }
+        logCheckboxResolutionState("Supply Indicator", "after-set", supplyIndicator);
     }
 
     private void selectBgIndicator(String bgIndicator) {
@@ -1127,131 +1157,155 @@ public class IptDeclarationPage {
         JsonNode inwardCarrierAgentParty = party.path("inwardCarrierAgentParty");
         JsonNode freightForwarderParty = party.path("freightForwarderParty");
 
-        fillPartyRow("Importer", importerParty);
-        fillPartyRow("Inward Carrier", inwardCarrierAgentParty);
-        fillPartyRow("Freight Forwarder", freightForwarderParty);
+        fillStrictPartyRow("Importer", importerParty);
+        fillStrictPartyRow("Inward Carrier", inwardCarrierAgentParty);
+        fillStrictPartyRow("Freight Forwarder", freightForwarderParty);
         fillDeclarationSpecificPartyInfo(data, party);
 
-        reconcilePartyRowIfNeeded("Importer", importerParty);
-        reconcilePartyRowIfNeeded("Inward Carrier", inwardCarrierAgentParty);
-        reconcilePartyRowIfNeeded("Freight Forwarder", freightForwarderParty);
+        if (!PARTY_PERFORMANCE_ALIGNMENT_ENABLED) {
+            reconcilePartyRowIfNeeded("Importer", importerParty);
+            reconcilePartyRowIfNeeded("Inward Carrier", inwardCarrierAgentParty);
+            reconcilePartyRowIfNeeded("Freight Forwarder", freightForwarderParty);
+        }
+    }
+
+    protected void fillStrictPartyRow(String rowLabel, JsonNode partyNode) {
+        JsonNode identityNode = partyIdentityNode(partyNode);
+        String partyName = normalize(text(identityNode.path("partyName"), "name"));
+        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+
+        if (partyName.isBlank() && partyId.isBlank()) {
+            clearPartyRow(rowLabel);
+            return;
+        }
+
+        fillPartyRow(rowLabel, partyNode);
+
+        if (partyName.isBlank()) {
+            clearPartyNameField(rowLabel);
+        }
+        if (partyId.isBlank()) {
+            clearPartyIdField(rowLabel);
+        }
     }
 
     private void fillPartyRow(String rowLabel, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        String partyName = partyName(partyNode);
-        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
-        if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
-            return;
-        }
-
-        logPartyMappingState(rowLabel, "JSON value", partyName, partyId, null);
-
-        if (partyName == null || partyName.isBlank()) {
-            if (partyId != null && !partyId.isBlank() && !fillPartyIdFieldIfPresent(rowLabel, null, partyId)) {
-                throw new IllegalStateException("Party UEN value was not populated for row: "
-                        + rowLabel + " Expected UEN: " + partyId);
+        recordPartyOperation("party_row", "fill-party-row", rowLabel, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            String partyName = partyName(partyNode);
+            String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+            if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
+                return;
             }
-            return;
-        }
 
-        Locator componentField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
-        Locator field = componentField != null ? componentField : resolvePartyNameField(rowLabel);
-        Locator idField = resolvePartyIdFieldOrNull(rowLabel);
-        field.waitFor(new Locator.WaitForOptions().setTimeout(5000));
-        logFieldMappingInfo("Party row '" + rowLabel + "' controls"
-                + " -> nameControl={" + describeControl(field) + "},"
-                + " idControl={" + (idField == null ? "N/A" : describeControl(idField)) + "}");
+            logPartyMappingState(rowLabel, "JSON value", partyName, partyId, null);
 
-        field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
-        boolean lookupCodePartyName = looksLikePartyLookupCode(partyName);
-        String[] selectionHints = partySelectionHints(partyName, partyId);
-        String[] searchCandidates = partySearchCandidates(partyName, partyId);
-
-        boolean matched = false;
-        for (String searchCandidate : searchCandidates) {
-            clearAndTypePartyField(field, searchCandidate);
-            boolean suggestionSelected = attemptPartySuggestionSelection(field, selectionHints);
-            if (!suggestionSelected) {
-                suggestionSelected = attemptLookupCodePartySuggestionFallback(field, partyName);
-            }
-            finalizeFieldEntry(field);
-            boolean committedSelection = waitForCommittedPartySelection(field, 2500);
-            boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
-            boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1500);
-            boolean fieldValueMatches = lookupCodePartyName
-                    ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 2500)
-                    : waitForPartyFieldValue(field, partyName, 2500);
-
-            if (componentField != null
-                    && partyId != null
-                    && !partyId.isBlank()
-                    && (!committedSelection || !resolvedSelection)) {
-                if (syncPartyLookupComponentSelection(rowLabel, partyName, partyId)) {
-                    committedSelection = waitForCommittedPartySelection(field, 1200) || committedSelection;
-                    resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 1500)
-                            || resolvedSelection;
-                    rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1200) || rowValuesMatch;
-                    fieldValueMatches = lookupCodePartyName
-                            ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500) || fieldValueMatches
-                            : waitForPartyFieldValue(field, partyName, 1500) || fieldValueMatches;
+            if (partyName == null || partyName.isBlank()) {
+                if (partyId != null && !partyId.isBlank() && !fillPartyIdFieldIfPresent(rowLabel, null, partyId)) {
+                    throw new IllegalStateException("Party UEN value was not populated for row: "
+                            + rowLabel + " Expected UEN: " + partyId);
                 }
+                return;
             }
 
-            String finalFieldValue = readRenderedFieldValue(field);
-            String finalRowValue = readPartyRowText(rowLabel);
-            logPartyMappingAttempt(
-                    rowLabel,
-                    searchCandidate,
-                    partyName,
-                    partyId,
-                    committedSelection,
-                    resolvedSelection,
-                    rowValuesMatch,
-                    fieldValueMatches,
-                    finalFieldValue,
-                    finalRowValue);
-            boolean nameResolved = lookupCodePartyName
-                    ? (resolvedSelection
-                    || waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500))
-                    : (suggestionSelected || componentField != null || rowValuesMatch || fieldValueMatches)
-                    && (committedSelection || resolvedSelection || rowValuesMatch || fieldValueMatches);
-            boolean idResolved = partyId == null
-                    || partyId.isBlank()
-                    || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
-                    || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
-            if (!idResolved && partyId != null && !partyId.isBlank()) {
-                if (confirmVisibleSuggestionWithKeyboard(field, selectionHints)) {
-                    idResolved = waitForStablePartyIdFieldValue(idField, partyId, 600, 1500)
-                            || waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
+            Locator componentField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+            Locator field = componentField != null ? componentField : resolvePartyNameField(rowLabel);
+            Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+            field.waitFor(new Locator.WaitForOptions().setTimeout(5000));
+            logFieldMappingInfo("Party row '" + rowLabel + "' controls"
+                    + " -> nameControl={" + describeControl(field) + "},"
+                    + " idControl={" + (idField == null ? "N/A" : describeControl(idField)) + "}");
+
+            field.scrollIntoViewIfNeeded();
+            field.click(new Locator.ClickOptions().setForce(true));
+            boolean lookupCodePartyName = looksLikePartyLookupCode(partyName);
+            String[] selectionHints = partySelectionHints(partyName, partyId);
+            String[] searchCandidates = partySearchCandidates(partyName, partyId);
+
+            boolean matched = false;
+            for (String searchCandidate : searchCandidates) {
+                clearAndTypePartyField(field, searchCandidate);
+                boolean suggestionSelected = attemptPartySuggestionSelection(field, selectionHints);
+                if (!suggestionSelected) {
+                    suggestionSelected = attemptLookupCodePartySuggestionFallback(field, partyName);
                 }
-            }
-            if (!idResolved && partyId != null && !partyId.isBlank()) {
-                idResolved = (componentField != null && syncPartyLookupComponentSelection(rowLabel, partyName, partyId))
-                        || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
+                finalizeFieldEntry(field);
+                boolean committedSelection = waitForCommittedPartySelection(field, 2500);
+                boolean resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 2500);
+                boolean rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1500);
+                boolean fieldValueMatches = lookupCodePartyName
+                        ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 2500)
+                        : waitForPartyFieldValue(field, partyName, 2500);
+
+                if (componentField != null
+                        && partyId != null
+                        && !partyId.isBlank()
+                        && (!committedSelection || !resolvedSelection)) {
+                    if (syncPartyLookupComponentSelection(rowLabel, partyName, partyId)) {
+                        committedSelection = waitForCommittedPartySelection(field, 1200) || committedSelection;
+                        resolvedSelection = waitForResolvedPartySelection(field, partyName, partyId, searchCandidate, 1500)
+                                || resolvedSelection;
+                        rowValuesMatch = waitForPartyRowValues(rowLabel, partyName, null, 1200) || rowValuesMatch;
+                        fieldValueMatches = lookupCodePartyName
+                                ? waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500) || fieldValueMatches
+                                : waitForPartyFieldValue(field, partyName, 1500) || fieldValueMatches;
+                    }
+                }
+
+                String finalFieldValue = readRenderedFieldValue(field);
+                String finalRowValue = readPartyRowText(rowLabel);
+                logPartyMappingAttempt(
+                        rowLabel,
+                        searchCandidate,
+                        partyName,
+                        partyId,
+                        committedSelection,
+                        resolvedSelection,
+                        rowValuesMatch,
+                        fieldValueMatches,
+                        finalFieldValue,
+                        finalRowValue);
+                boolean nameResolved = lookupCodePartyName
+                        ? (resolvedSelection
+                        || waitForResolvedPartyNameFieldValue(field, partyName, partyId, 1500))
+                        : (suggestionSelected || componentField != null || rowValuesMatch || fieldValueMatches)
+                        && (committedSelection || resolvedSelection || rowValuesMatch || fieldValueMatches);
+                boolean idResolved = partyId == null
+                        || partyId.isBlank()
                         || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
                         || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
+                if (!idResolved && partyId != null && !partyId.isBlank()) {
+                    if (confirmVisibleSuggestionWithKeyboard(field, selectionHints)) {
+                        idResolved = waitForStablePartyIdFieldValue(idField, partyId, 600, 1500)
+                                || waitForPartyRowValues(rowLabel, partyName, partyId, 1500);
+                    }
+                }
+                if (!idResolved && partyId != null && !partyId.isBlank()) {
+                    idResolved = (componentField != null && syncPartyLookupComponentSelection(rowLabel, partyName, partyId))
+                            || fillPartyIdFieldIfPresent(rowLabel, partyName, partyId)
+                            || waitForStablePartyIdFieldValue(idField, partyId, 600, 1200)
+                            || waitForPartyRowValues(rowLabel, partyName, partyId, 1200);
+                }
+                if (nameResolved && idResolved) {
+                    matched = true;
+                    logPartyMappingState(
+                            rowLabel,
+                            "UI final value",
+                            readRenderedFieldValue(field),
+                            partyId,
+                            readPartyRowText(rowLabel));
+                    break;
+                }
             }
-            if (nameResolved && idResolved) {
-                matched = true;
-                logPartyMappingState(
-                        rowLabel,
-                        "UI final value",
-                        readRenderedFieldValue(field),
-                        partyId,
-                        readPartyRowText(rowLabel));
-                break;
-            }
-        }
 
-        if (!matched) {
-            capturePartyRowFailureArtifacts(rowLabel);
-            throw new IllegalStateException("Party dropdown suggestion was not selected for row: "
-                    + rowLabel + " Expected: " + partyName
-                    + ", Actual row text: " + readPartyRowText(rowLabel)
-                    + ", Current field value: " + readRenderedFieldValue(field));
-        }
+            if (!matched) {
+                capturePartyRowFailureArtifacts(rowLabel);
+                throw new IllegalStateException("Party dropdown suggestion was not selected for row: "
+                        + rowLabel + " Expected: " + partyName
+                        + ", Actual row text: " + readPartyRowText(rowLabel)
+                        + ", Current field value: " + readRenderedFieldValue(field));
+            }
+        });
     }
 
     protected void fillPartyRowIfPresent(String rowLabel, JsonNode partyNode) {
@@ -1271,8 +1325,10 @@ public class IptDeclarationPage {
     }
 
     protected void clearPartyRow(String rowLabel) {
+        logPartyRowClearState(rowLabel, "before-clear");
         clearPartyNameField(rowLabel);
         clearPartyIdField(rowLabel);
+        logPartyRowClearState(rowLabel, "after-clear");
     }
 
     protected void clearPartyNameField(String rowLabel) {
@@ -1300,20 +1356,57 @@ public class IptDeclarationPage {
         clearEditableFieldIfPresent(idField);
     }
 
+    private void logPartyRowClearState(String rowLabel, String phase) {
+        try {
+            Locator nameField = null;
+            Locator idField = null;
+            try {
+                nameField = resolvePartyNameField(rowLabel);
+            } catch (Exception ignored) {
+            }
+            try {
+                idField = resolvePartyIdFieldOrNull(rowLabel);
+            } catch (Exception ignored) {
+            }
+            logFieldMappingInfo("Party row '" + rowLabel + "' " + phase
+                    + " -> nameControl={" + (nameField == null ? "N/A" : describeControl(nameField)) + "},"
+                    + " nameValue='" + firstNonBlank(normalize(readRenderedFieldValue(nameField)), "") + "',"
+                    + " idControl={" + (idField == null ? "N/A" : describeControl(idField)) + "},"
+                    + " idValue='" + firstNonBlank(normalize(readRenderedFieldValue(idField)), "") + "',"
+                    + " rowText='" + firstNonBlank(normalize(readPartyRowText(rowLabel)), "") + "'");
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void logCheckboxResolutionState(String label, String phase, Boolean expectedJsonValue) {
+        try {
+            Locator checkbox = resolveCheckboxByLabel(label);
+            logFieldMappingInfo("Checkbox '" + label + "' " + phase
+                    + " -> expectedJsonValue=" + (expectedJsonValue == null ? "MISSING" : expectedJsonValue)
+                    + ", control={" + (checkbox == null ? "N/A" : describeControl(checkbox)) + "},"
+                    + " selected=" + (checkbox == null ? "N/A" : isCheckboxSelected(checkbox)));
+        } catch (Exception ignored) {
+        }
+    }
+
     private void reconcilePartyRowIfNeeded(String rowLabel, JsonNode partyNode) {
-        JsonNode identityNode = partyIdentityNode(partyNode);
-        String partyName = partyName(partyNode);
-        String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
-        if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
-            return;
-        }
+        recordPartyOperation("party_reconciliation", "reconcile-party-row", rowLabel, () -> {
+            JsonNode identityNode = partyIdentityNode(partyNode);
+            String partyName = partyName(partyNode);
+            String partyId = normalize(text(identityNode.path("partyIdentification"), "id"));
+            if ((partyName == null || partyName.isBlank()) && (partyId == null || partyId.isBlank())) {
+                return;
+            }
 
-        if (isPartyRowResolved(rowLabel, partyName, partyId)) {
-            return;
-        }
+            if (PARTY_PERFORMANCE_ALIGNMENT_ENABLED
+                    ? partyRowResolvedSnapshot(rowLabel, partyName, partyId)
+                    : isPartyRowResolved(rowLabel, partyName, partyId)) {
+                return;
+            }
 
-        logFieldMappingWarning("Party row '" + rowLabel + "' drifted after initial mapping. Reapplying lookup selection.");
-        fillPartyRow(rowLabel, partyNode);
+            logFieldMappingWarning("Party row '" + rowLabel + "' drifted after initial mapping. Reapplying lookup selection.");
+            fillPartyRow(rowLabel, partyNode);
+        });
     }
 
     private boolean isPartyRowResolved(String rowLabel, String partyName, String partyId) {
@@ -1338,6 +1431,28 @@ public class IptDeclarationPage {
         return false;
     }
 
+    private boolean partyRowResolvedSnapshot(String rowLabel, String partyName, String partyId) {
+        Locator nameField = resolvePartyNameField(rowLabel);
+        Locator idField = resolvePartyIdFieldOrNull(rowLabel);
+        String rowText = normalize(readPartyRowText(rowLabel));
+        String normalizedPartyName = normalize(partyName);
+        String normalizedPartyId = normalize(partyId);
+        String nameValue = normalize(readRenderedFieldValue(nameField));
+        String idValue = normalize(readRenderedFieldValue(idField));
+
+        boolean nameMatches = normalizedPartyName.isBlank()
+                || renderedFieldValueMatches(nameValue, normalizedPartyName)
+                || rowText.equalsIgnoreCase(normalizedPartyName)
+                || rowText.contains(normalizedPartyName)
+                || normalizedPartyName.contains(rowText);
+        boolean idMatches = normalizedPartyId.isBlank()
+                || renderedFieldValueMatches(idValue, normalizedPartyId)
+                || rowText.equalsIgnoreCase(normalizedPartyId)
+                || rowText.contains(normalizedPartyId)
+                || normalizedPartyId.contains(rowText);
+        return nameMatches && idMatches;
+    }
+
     private JsonNode partyIdentityNode(JsonNode partyNode) {
         JsonNode partyDetail = partyNode.path("partyDetail");
         return isMissingOrEmpty(partyDetail) ? partyNode : partyDetail;
@@ -1349,11 +1464,11 @@ public class IptDeclarationPage {
         }
 
         JsonNode identityNode = partyIdentityNode(partyNode);
+        // Only explicit party-name paths are authoritative. Generic "name" fallbacks can
+        // pull unrelated values and populate UI fields that are absent from the JSON payload.
         return normalize(firstNonBlank(
                 text(identityNode.path("partyName"), "name"),
-                text(identityNode, "name"),
-                text(partyNode.path("partyName"), "name"),
-                text(partyNode, "name")));
+                text(partyNode.path("partyName"), "name")));
     }
 
     private boolean waitForPartyFieldValue(Locator field, String expectedName, int timeoutMs) {
@@ -2502,6 +2617,62 @@ public class IptDeclarationPage {
             setDeclarationIndicatorInSummary(true);
         }
         saveDraftAndWaitForCompletion();
+        reconcileStrictJsonStateAfterDraftSave(data);
+    }
+
+    private void reconcileStrictJsonStateAfterDraftSave(JsonNode data) {
+        boolean supplyReconciled = reconcileSupplyIndicatorAfterDraftSave(data.path("cargo"));
+        boolean inwardCarrierReconciled = reconcileInwardCarrierAfterDraftSave(data.path("party"));
+
+        if (!supplyReconciled && !inwardCarrierReconciled) {
+            return;
+        }
+
+        openSection("Summary (Y)");
+        saveDraftAndWaitForCompletion();
+    }
+
+    private boolean reconcileSupplyIndicatorAfterDraftSave(JsonNode cargo) {
+        Boolean supplyIndicator = readOptionalJsonBoolean(cargo.path("supplyIndicator"));
+        boolean expectedChecked = Boolean.TRUE.equals(supplyIndicator);
+        if (expectedChecked) {
+            return false;
+        }
+
+        openSection("Shipment Info (S)");
+        Locator checkbox = resolveCheckboxByLabel("Supply Indicator");
+        boolean before = checkbox != null && isCheckboxSelected(checkbox);
+        setCheckboxByLabel("Supply Indicator", false);
+        synchronizeFrameworkCheckboxState("Supply Indicator", false);
+        checkbox = resolveCheckboxByLabel("Supply Indicator");
+        boolean after = checkbox != null && isCheckboxSelected(checkbox);
+        boolean changed = before != after || before;
+        if (changed) {
+            logFieldMappingWarning("Post-save reconciliation reset 'Supply Indicator' from stale checked state to unchecked.");
+        }
+        return changed;
+    }
+
+    private boolean reconcileInwardCarrierAfterDraftSave(JsonNode party) {
+        JsonNode inwardCarrierAgentParty = party.path("inwardCarrierAgentParty");
+        JsonNode identityNode = partyIdentityNode(inwardCarrierAgentParty);
+        String expectedName = normalize(text(identityNode.path("partyName"), "name"));
+        String expectedId = normalize(text(identityNode.path("partyIdentification"), "id"));
+        if (!expectedName.isBlank() || !expectedId.isBlank()) {
+            return false;
+        }
+
+        openSection("Party Info (P)");
+        String beforeName = normalize(readRenderedFieldValue(resolvePartyNameField("Inward Carrier")));
+        Locator beforeIdField = resolvePartyIdFieldOrNull("Inward Carrier");
+        String beforeId = beforeIdField == null ? "" : normalize(readRenderedFieldValue(beforeIdField));
+        if (beforeName.isBlank() && beforeId.isBlank()) {
+            return false;
+        }
+
+        clearPartyRow("Inward Carrier");
+        logFieldMappingWarning("Post-save reconciliation cleared stale 'Inward Carrier' values that were absent from JSON.");
+        return true;
     }
 
     private Locator resolveSummaryCard(String title, String... expectedTexts) {
@@ -2981,9 +3152,27 @@ public class IptDeclarationPage {
     }
 
     protected void fillSectionAndAdvance(String sectionName, Runnable filler) {
-        openSection(sectionName);
-        filler.run();
-        completeSection(sectionName);
+        if (!sectionTabMatches("Party Info (P)", sectionName) && partyPerformanceTrace.awaitingNextTabStart()) {
+            partyPerformanceTrace.markNextTabStart(sectionName);
+        }
+        partyPerformanceTrace.enterSection(sectionName);
+        automationDiagnostics.startStep(sectionName);
+        automationDiagnostics.recordPageReady(sectionName, isPageReadyForInteraction(),
+                "Page readiness checked before section '" + sectionName + "'.");
+        try {
+            openSection(sectionName);
+            filler.run();
+            if (sectionTabMatches("Party Info (P)", sectionName)) {
+                partyPerformanceTrace.markPartyComplete();
+            }
+            completeSection(sectionName);
+            automationDiagnostics.finishStep(sectionName);
+            if (automationDiagnostics.shouldStopExecution()) {
+                throw new IllegalStateException("Framework validation threshold reached while executing section: " + sectionName);
+            }
+        } finally {
+            partyPerformanceTrace.leaveSection(sectionName);
+        }
     }
 
     protected void completeSection(String sectionName) {
@@ -3032,6 +3221,49 @@ public class IptDeclarationPage {
 
     protected String cpcSectionName() {
         return null;
+    }
+
+    protected boolean isPartyTimingCaptureActive() {
+        return partyPerformanceTrace.isCaptureActive();
+    }
+
+    protected boolean isPartyPerformanceAlignmentEnabled() {
+        return PARTY_PERFORMANCE_ALIGNMENT_ENABLED;
+    }
+
+    protected void recordPartyOperation(String category, String name, String detail, Runnable operation) {
+        if (!isPartyTimingCaptureActive()) {
+            operation.run();
+            return;
+        }
+        partyPerformanceTrace.time(category, name, detail, operation);
+    }
+
+    protected <T> T recordPartyOperation(String category, String name, String detail, java.util.function.Supplier<T> operation) {
+        if (!isPartyTimingCaptureActive()) {
+            return operation.get();
+        }
+        return partyPerformanceTrace.time(category, name, detail, operation);
+    }
+
+    protected void invalidateFormControlsGeneration() {
+        formControlsGeneration++;
+        lastWaitedFormControlsGeneration = Long.MIN_VALUE;
+    }
+
+    protected void markPartyNextNavigationStart(String detail) {
+        partyPerformanceTrace.markNextNavigationStart(detail);
+    }
+
+    protected String describeControlSafely(Locator field) {
+        if (field == null) {
+            return "N/A";
+        }
+        try {
+            return describeControl(field);
+        } catch (Exception ignored) {
+            return "N/A";
+        }
     }
 
     protected void fillLicense(String licenseValue) {
@@ -3841,27 +4073,34 @@ public class IptDeclarationPage {
     }
 
     protected void focusAndType(Locator field, String value, boolean selectSuggestion, String... suggestionHints) {
-        closeTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+        recordPartyOperation(
+                "field_population",
+                selectSuggestion ? "focus-and-type-lookup" : "focus-and-type-text",
+                describeControlSafely(field),
+                () -> {
+                    recordFieldInteractionPreconditions(field, value);
+                    closeTransientOverlays();
+                    field.scrollIntoViewIfNeeded();
+                    List<String> expectedValues = expectedFieldValues(value, suggestionHints);
 
-        if (trySelectNativeDropdown(field, value, suggestionHints)) {
-            ensureFieldEntryCommitted(field, value, selectSuggestion, expectedValues);
-            finalizeFieldEntry(field);
-            return;
-        }
+                    if (trySelectNativeDropdown(field, value, suggestionHints)) {
+                        ensureFieldEntryCommitted(field, value, selectSuggestion, expectedValues);
+                        finalizeFieldEntry(field);
+                        return;
+                    }
 
-        field.click(new Locator.ClickOptions().setForce(true));
-        page.keyboard().press("Control+A");
-        page.keyboard().press("Backspace");
-        page.keyboard().type(value);
-        pauseUi(UI_ACTION_PAUSE_MS);
-        if (selectSuggestion) {
-            commitSuggestionSelection(field, value, suggestionHints, expectedValues);
-        } else {
-            ensureFieldEntryCommitted(field, value, false, expectedValues);
-        }
-        finalizeFieldEntry(field);
+                    field.click(new Locator.ClickOptions().setForce(true));
+                    page.keyboard().press("Control+A");
+                    page.keyboard().press("Backspace");
+                    page.keyboard().type(value);
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                    if (selectSuggestion) {
+                        commitSuggestionSelection(field, value, suggestionHints, expectedValues);
+                    } else {
+                        ensureFieldEntryCommitted(field, value, false, expectedValues);
+                    }
+                    finalizeFieldEntry(field);
+                });
     }
 
     protected void focusAndTypeByClickOnly(Locator field, String value, String... suggestionHints) {
@@ -3869,23 +4108,26 @@ public class IptDeclarationPage {
             return;
         }
 
-        closeTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+        recordPartyOperation("field_population", "focus-and-type-click-only", describeControlSafely(field), () -> {
+            recordFieldInteractionPreconditions(field, value);
+            closeTransientOverlays();
+            field.scrollIntoViewIfNeeded();
+            List<String> expectedValues = expectedFieldValues(value, suggestionHints);
 
-        if (trySelectNativeDropdown(field, value, suggestionHints)) {
-            ensureFieldEntryCommitted(field, value, true, expectedValues);
+            if (trySelectNativeDropdown(field, value, suggestionHints)) {
+                ensureFieldEntryCommitted(field, value, true, expectedValues);
+                finalizeFieldEntry(field);
+                return;
+            }
+
+            field.click(new Locator.ClickOptions().setForce(true));
+            page.keyboard().press("Control+A");
+            page.keyboard().press("Backspace");
+            page.keyboard().type(value);
+            pauseUi(UI_ACTION_PAUSE_MS);
+            commitSuggestionSelectionByClickOnly(field, value, suggestionHints, expectedValues);
             finalizeFieldEntry(field);
-            return;
-        }
-
-        field.click(new Locator.ClickOptions().setForce(true));
-        page.keyboard().press("Control+A");
-        page.keyboard().press("Backspace");
-        page.keyboard().type(value);
-        pauseUi(UI_ACTION_PAUSE_MS);
-        commitSuggestionSelectionByClickOnly(field, value, suggestionHints, expectedValues);
-        finalizeFieldEntry(field);
+        });
     }
 
     protected void fillVerifiedTextField(Locator field, String value, String fieldLabel) {
@@ -3896,28 +4138,29 @@ public class IptDeclarationPage {
         if (field == null || value == null || value.isBlank()) {
             return;
         }
-
-        closeTransientOverlays();
-        field.scrollIntoViewIfNeeded();
-        field.click(new Locator.ClickOptions().setForce(true));
-        clearFieldForEntry(field);
-        try {
-            field.type(value, new Locator.TypeOptions().setDelay(60));
-        } catch (PlaywrightException ignored) {
-            page.keyboard().type(value);
-        }
-        pauseUi(UI_ACTION_PAUSE_MS);
-        try {
-            ensureFieldEntryCommitted(field, value, false, List.of(value));
-        } catch (IllegalStateException exception) {
-            throw new IllegalStateException(buildFieldVerificationFailure(
-                    fieldLabel + " value was not rendered",
-                    field,
-                    value), exception);
-        }
-        if (moveToNextField) {
-            finalizeFieldEntry(field);
-        }
+        recordPartyOperation("verification", "fill-verified-text-field", fieldLabel, () -> {
+            closeTransientOverlays();
+            field.scrollIntoViewIfNeeded();
+            field.click(new Locator.ClickOptions().setForce(true));
+            clearFieldForEntry(field);
+            try {
+                field.type(value, new Locator.TypeOptions().setDelay(60));
+            } catch (PlaywrightException ignored) {
+                page.keyboard().type(value);
+            }
+            pauseUi(UI_ACTION_PAUSE_MS);
+            try {
+                ensureFieldEntryCommitted(field, value, false, List.of(value));
+            } catch (IllegalStateException exception) {
+                throw new IllegalStateException(buildFieldVerificationFailure(
+                        fieldLabel + " value was not rendered",
+                        field,
+                        value), exception);
+            }
+            if (moveToNextField) {
+                finalizeFieldEntry(field);
+            }
+        });
     }
 
     private List<String> expectedFieldValues(String value, String... suggestionHints) {
@@ -3936,36 +4179,38 @@ public class IptDeclarationPage {
             String value,
             String[] suggestionHints,
             List<String> expectedValues) {
-        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
-        boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
-        if (!suggestionClicked) {
-            if (focusFieldForKeyboardSelection(field)) {
-                try {
-                    page.keyboard().press("ArrowDown");
-                    pauseUi(UI_ACTION_PAUSE_MS);
-                    suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
-                    if (!suggestionClicked) {
-                        suggestionClicked = clickFirstVisibleSuggestion(field);
+        recordPartyOperation("dropdown_selection", "commit-suggestion-selection", describeControlSafely(field), () -> {
+            waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
+            boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
+            if (!suggestionClicked) {
+                if (focusFieldForKeyboardSelection(field)) {
+                    try {
+                        page.keyboard().press("ArrowDown");
+                        pauseUi(UI_ACTION_PAUSE_MS);
+                        suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
                         if (!suggestionClicked) {
-                            page.keyboard().press("Enter");
-                            pauseUi(UI_ACTION_PAUSE_MS);
+                            suggestionClicked = clickFirstVisibleSuggestion(field);
+                            if (!suggestionClicked) {
+                                page.keyboard().press("Enter");
+                                pauseUi(UI_ACTION_PAUSE_MS);
+                            }
                         }
+                    } catch (PlaywrightException ignored) {
                     }
-                } catch (PlaywrightException ignored) {
                 }
             }
-        }
-        pauseUi(UI_ACTION_PAUSE_MS);
-        boolean componentSynced = false;
-        String[] renderedCandidates = expectedValues.toArray(String[]::new);
-        if (!suggestionClicked || !waitForAnyRenderedFieldValue(field, 600, renderedCandidates)) {
-            componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
-        }
-        if (componentSynced) {
             pauseUi(UI_ACTION_PAUSE_MS);
-        }
-        ensureLookupValue(field, value);
-        ensureFieldEntryCommitted(field, value, true, expectedValues);
+            boolean componentSynced = false;
+            String[] renderedCandidates = expectedValues.toArray(String[]::new);
+            if (!suggestionClicked || !waitForAnyRenderedFieldValue(field, 600, renderedCandidates)) {
+                componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
+            }
+            if (componentSynced) {
+                pauseUi(UI_ACTION_PAUSE_MS);
+            }
+            ensureLookupValue(field, value);
+            ensureFieldEntryCommitted(field, value, true, expectedValues);
+        });
     }
 
     private void commitSuggestionSelectionByClickOnly(
@@ -3973,44 +4218,46 @@ public class IptDeclarationPage {
             String value,
             String[] suggestionHints,
             List<String> expectedValues) {
-        waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
-        boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
-        if (!suggestionClicked && focusFieldForKeyboardSelection(field)) {
-            try {
-                page.keyboard().press("ArrowDown");
-                pauseUi(UI_ACTION_PAUSE_MS);
-                suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
-            } catch (PlaywrightException ignored) {
+        recordPartyOperation("dropdown_selection", "commit-suggestion-selection-click-only", describeControlSafely(field), () -> {
+            waitForVisibleSuggestion(UI_LOOKUP_WAIT_MS, field, suggestionHints);
+            boolean suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
+            if (!suggestionClicked && focusFieldForKeyboardSelection(field)) {
+                try {
+                    page.keyboard().press("ArrowDown");
+                    pauseUi(UI_ACTION_PAUSE_MS);
+                    suggestionClicked = clickVisibleSuggestion(field, suggestionHints);
+                } catch (PlaywrightException ignored) {
+                }
             }
-        }
-        if (!suggestionClicked) {
-            suggestionClicked = clickFirstVisibleSuggestion(field);
-        }
-        pauseUi(UI_ACTION_PAUSE_MS);
-
-        boolean componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
-        if (componentSynced) {
+            if (!suggestionClicked) {
+                suggestionClicked = clickFirstVisibleSuggestion(field);
+            }
             pauseUi(UI_ACTION_PAUSE_MS);
-        }
 
-        if (lookupClickOnlySelectionResolved(field, value, suggestionHints, expectedValues)) {
-            validatedFieldEntryCount++;
-            return;
-        }
+            boolean componentSynced = syncLookupComponentSelection(field, value, suggestionHints);
+            if (componentSynced) {
+                pauseUi(UI_ACTION_PAUSE_MS);
+            }
 
-        if (!suggestionClicked) {
+            if (lookupClickOnlySelectionResolved(field, value, suggestionHints, expectedValues)) {
+                validatedFieldEntryCount++;
+                return;
+            }
+
+            if (!suggestionClicked) {
+                throw new IllegalStateException(buildFieldVerificationFailure(
+                        "Lookup suggestion was not selected by click",
+                        field,
+                        value,
+                        expectedValues.toArray(String[]::new)));
+            }
+
             throw new IllegalStateException(buildFieldVerificationFailure(
-                    "Lookup suggestion was not selected by click",
+                    "Lookup suggestion click did not resolve field",
                     field,
                     value,
                     expectedValues.toArray(String[]::new)));
-        }
-
-        throw new IllegalStateException(buildFieldVerificationFailure(
-                "Lookup suggestion click did not resolve field",
-                field,
-                value,
-                expectedValues.toArray(String[]::new)));
+        });
     }
 
     private void ensureFieldEntryCommitted(
@@ -4029,6 +4276,10 @@ public class IptDeclarationPage {
             }
         }
         if (!waitForAnyRenderedFieldValue(field, 1800, candidates)) {
+            automationDiagnostics.recordFieldVerificationFailure(
+                    "Field value was not rendered after interaction.",
+                    value,
+                    readRenderedFieldValue(field));
             throw new IllegalStateException(buildFieldVerificationFailure(
                     "Field value was not rendered",
                     field,
@@ -4036,6 +4287,7 @@ public class IptDeclarationPage {
                     candidates));
         }
         validatedFieldEntryCount++;
+        automationDiagnostics.recordValidatedField();
     }
 
     private void fillVerifiedLookupField(Locator field, String value, String... suggestionHints) {
@@ -5798,14 +6050,14 @@ public class IptDeclarationPage {
 
     private Locator resolvePartyIdFieldOrNull(String rowLabel) {
         Locator nameField = resolvePartyNameField(rowLabel);
-        Locator componentField = resolvePartyIdFieldFromComponentOrNull(rowLabel);
-        if (componentField != null && !sameEditableField(componentField, nameField)) {
-            return componentField;
-        }
-
-        Locator directRowField = resolvePartyFieldInRowOrNull(rowLabel, 1);
+        Locator directRowField = alignPartyFieldWithAnchor(nameField, resolvePartyFieldInRowOrNull(rowLabel, 1));
         if (directRowField != null && !sameEditableField(directRowField, nameField)) {
             return directRowField;
+        }
+
+        Locator componentField = alignPartyFieldWithAnchor(nameField, resolvePartyIdFieldFromComponentOrNull(rowLabel));
+        if (componentField != null && !sameEditableField(componentField, nameField)) {
+            return componentField;
         }
 
         Locator siblingField = resolveNearestPartySiblingFieldOrNull(
@@ -5813,18 +6065,20 @@ public class IptDeclarationPage {
                 nameField,
                 partyNameComponentSelector(rowLabel),
                 visibleFormFieldSelector());
+        siblingField = alignPartyFieldWithAnchor(nameField, siblingField);
         if (siblingField != null && !sameEditableField(siblingField, nameField)) {
             return siblingField;
         }
 
-        Locator exactRowField = alignPartyFieldWithAnchor(nameField, resolveEditableFieldInRowByExactText(rowLabel, 1));
+        Locator exactRowField = alignPartyFieldWithAnchor(nameField, resolveExactPartyFieldInRowOrNull(rowLabel, 1));
         if (exactRowField != null && !sameEditableField(exactRowField, nameField)) {
             return exactRowField;
         }
 
-        return alignPartyFieldWithAnchor(
+        Locator finalFallback = alignPartyFieldWithAnchor(
                 nameField,
                 resolveNearestPartySiblingFieldOrNull(rowLabel, nameField, partyNameComponentSelector(rowLabel)));
+        return finalFallback;
     }
 
     private Locator resolvePartyLookupComponentOrNull(String rowLabel) {
@@ -5892,12 +6146,15 @@ public class IptDeclarationPage {
         }
 
         Locator rowScope = resolvePartyRowContainerOrNull(rowLabel);
-        Locator rowSibling = resolveNearestFieldToRightOrNull(rowScope, nameField, selector, fieldSelector);
-        if (rowSibling != null) {
-            return rowSibling;
-        }
+        return resolveNearestFieldToRightOrNull(rowScope, nameField, selector, fieldSelector);
+    }
 
-        return null;
+    private Locator resolveExactPartyFieldInRowOrNull(String rowLabel, int occurrence) {
+        try {
+            return resolveEditableFieldInRowByExactText(rowLabel, occurrence);
+        } catch (IllegalStateException exception) {
+            return null;
+        }
     }
 
     private Locator resolveNearestEditableFieldToRightOrNull(Locator scope, Locator anchorField, String excludedSelector) {
@@ -6161,13 +6418,82 @@ public class IptDeclarationPage {
     protected void logFieldMappingInfo(String message) {
         String entry = "INFO: " + message;
         fieldMappingDiagnostics.add(entry);
+        classifyFieldMappingInfo(message);
         System.out.println("[IptDeclarationPage] " + entry);
     }
 
     protected void logFieldMappingWarning(String message) {
         String entry = "WARN: " + message;
         fieldMappingDiagnostics.add(entry);
+        classifyFieldMappingWarning(message);
         System.out.println("[IptDeclarationPage] " + entry);
+    }
+
+    private void classifyFieldMappingInfo(String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        String normalized = message.toUpperCase(Locale.ROOT);
+        if (normalized.contains("SKIPPED")) {
+            automationDiagnostics.recordJsonValueCheck(flowLabelForDiagnostics(), null);
+        }
+    }
+
+    private void classifyFieldMappingWarning(String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        String normalized = message.toUpperCase(Locale.ROOT);
+        if (normalized.contains("NOT FOUND") || normalized.contains("NOT VISIBLE")) {
+            automationDiagnostics.recordMissingElement(message);
+            return;
+        }
+        if (normalized.contains("DRIFTED") || normalized.contains("AMBIGUOUS") || normalized.contains("UNEXPECTED")) {
+            automationDiagnostics.recordUnexpectedUiChange(message);
+            return;
+        }
+        automationDiagnostics.recordGenericWarning(message);
+    }
+
+    private void recordFieldInteractionPreconditions(Locator field, String value) {
+        automationDiagnostics.recordJsonValueCheck(flowLabelForDiagnostics(), value);
+        boolean visible = false;
+        boolean enabled = false;
+        try {
+            visible = field != null && field.isVisible();
+            enabled = visible && Boolean.TRUE.equals(field.evaluate(
+                    "element => !element.disabled && element.getAttribute('aria-disabled') !== 'true'"));
+        } catch (Exception ignored) {
+        }
+        automationDiagnostics.recordControlState(
+                flowLabelForDiagnostics(),
+                visible,
+                enabled,
+                "Control state evaluated before interaction.");
+    }
+
+    private boolean isPageReadyForInteraction() {
+        try {
+            Object ready = page.evaluate("""
+                    () => {
+                        const readyState = document.readyState || '';
+                        const isVisible = element => !!element
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        const interactiveControlVisible = Array.from(document.querySelectorAll(
+                            "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
+                            .some(element => isVisible(element) && !element.disabled);
+                        return (readyState === 'interactive' || readyState === 'complete') && interactiveControlVisible;
+                    }
+                    """);
+            return Boolean.TRUE.equals(ready);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String flowLabelForDiagnostics() {
+        String label = declarationFlowLabel();
+        return label == null || label.isBlank() ? "UNKNOWN" : label;
     }
 
     private ObjectNode parseDiagnosticsRoot(String diagnosticsJson) {
@@ -7692,43 +8018,49 @@ public class IptDeclarationPage {
     }
 
     protected Locator resolveFieldByLabelInSectionOrNull(String sectionTitle, String label, int occurrence) {
-        waitForFormControls();
-        Locator section = resolveSectionOrNull(sectionTitle);
-        if (section == null) {
-            return null;
-        }
-        String escapedLabel = toXpathLiteral(label);
-        String controlQuery = "self::input or self::textarea or self::select or @role='combobox' or @role='textbox'";
-        String labelQuery =
-                ".//*[self::label or self::span or self::div or self::p]"
-                        + "[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
-                        + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")])]";
+        return recordPartyOperation(
+                "locator_lookup",
+                "resolve-field-by-label-in-section",
+                sectionTitle + " :: " + label + " [" + occurrence + "]",
+                () -> {
+                    waitForFormControls();
+                    Locator section = resolveSectionOrNull(sectionTitle);
+                    if (section == null) {
+                        return null;
+                    }
+                    String escapedLabel = toXpathLiteral(label);
+                    String controlQuery = "self::input or self::textarea or self::select or @role='combobox' or @role='textbox'";
+                    String labelQuery =
+                            ".//*[self::label or self::span or self::div or self::p]"
+                                    + "[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")]"
+                                    + "[not(.//*[contains(normalize-space(translate(., '*', '')), " + escapedLabel + ")])]";
 
-        Locator matchingLabels = section.locator("xpath=" + labelQuery);
-        Locator associatedControl = resolveAssociatedControl(section, matchingLabels, occurrence, controlQuery);
-        if (associatedControl != null) {
-            return associatedControl;
-        }
+                    Locator matchingLabels = section.locator("xpath=" + labelQuery);
+                    Locator associatedControl = resolveAssociatedControl(section, matchingLabels, occurrence, controlQuery);
+                    if (associatedControl != null) {
+                        return associatedControl;
+                    }
 
-        Locator fromNearestContainer = section.locator(
-                "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
-                        + "//*[" + controlQuery + "])[1]");
-        Locator visibleFromNearestContainer = resolveConcreteEditableFieldOrNull(fromNearestContainer);
-        if (visibleFromNearestContainer != null) {
-            return visibleFromNearestContainer;
-        }
+                    Locator fromNearestContainer = section.locator(
+                            "xpath=((" + labelQuery + ")[" + (occurrence + 1) + "]/ancestor::*[.//*[" + controlQuery + "]][1]"
+                                    + "//*[" + controlQuery + "])[1]");
+                    Locator visibleFromNearestContainer = resolveConcreteEditableFieldOrNull(fromNearestContainer);
+                    if (visibleFromNearestContainer != null) {
+                        return visibleFromNearestContainer;
+                    }
 
-        Locator fromLabel = section.locator(
-                "xpath=(" + labelQuery + ")[" + (occurrence + 1)
-                        + "]/following::*[" + controlQuery + "][1]");
-        Locator visibleFromLabel = resolveConcreteEditableFieldOrNull(fromLabel);
-        if (visibleFromLabel != null) {
-            return visibleFromLabel;
-        }
+                    Locator fromLabel = section.locator(
+                            "xpath=(" + labelQuery + ")[" + (occurrence + 1)
+                                    + "]/following::*[" + controlQuery + "][1]");
+                    Locator visibleFromLabel = resolveConcreteEditableFieldOrNull(fromLabel);
+                    if (visibleFromLabel != null) {
+                        return visibleFromLabel;
+                    }
 
-        Locator placeholders = section.locator(
-                "input[placeholder='" + escapeForSelector(label) + "'], textarea[placeholder='" + escapeForSelector(label) + "']");
-        return firstVisible(placeholders);
+                    Locator placeholders = section.locator(
+                            "input[placeholder='" + escapeForSelector(label) + "'], textarea[placeholder='" + escapeForSelector(label) + "']");
+                    return firstVisible(placeholders);
+                });
     }
 
     private Locator resolveBgIndicatorField() {
@@ -7804,27 +8136,29 @@ public class IptDeclarationPage {
     }
 
     protected Locator resolveSection(String sectionTitle) {
-        waitForFormControls();
-        String escapedTitle = toXpathLiteral(sectionTitle);
-        String controlQuery = ".//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button";
+        return recordPartyOperation("locator_lookup", "resolve-section", sectionTitle, () -> {
+            waitForFormControls();
+            String escapedTitle = toXpathLiteral(sectionTitle);
+            String controlQuery = ".//input or .//textarea or .//select or .//*[@role='combobox'] or .//*[@role='textbox'] or .//button";
 
-        Locator exactNearestSection = page.locator(
-                "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
-                        + "/ancestor::*[" + controlQuery + "][1])");
-        Locator visibleExactNearestSection = firstVisible(exactNearestSection);
-        if (visibleExactNearestSection != null) {
-            return visibleExactNearestSection;
-        }
+            Locator exactNearestSection = page.locator(
+                    "xpath=((//*[normalize-space(translate(., '*', ''))=" + escapedTitle + "])[last()]"
+                            + "/ancestor::*[" + controlQuery + "][1])");
+            Locator visibleExactNearestSection = firstVisible(exactNearestSection);
+            if (visibleExactNearestSection != null) {
+                return visibleExactNearestSection;
+            }
 
-        Locator section = page.locator(
-                "xpath=(//*[contains(normalize-space(.), " + escapedTitle + ")]"
-                        + "[not(.//*[contains(normalize-space(.), " + escapedTitle + ")])])[1]"
-                        + "/ancestor::*[" + controlQuery + "]");
-        Locator visibleSection = firstVisible(section);
-        if (visibleSection != null) {
-            return visibleSection;
-        }
-        throw new IllegalStateException("Section container was not visible: " + sectionTitle);
+            Locator section = page.locator(
+                    "xpath=(//*[contains(normalize-space(.), " + escapedTitle + ")]"
+                            + "[not(.//*[contains(normalize-space(.), " + escapedTitle + ")])])[1]"
+                            + "/ancestor::*[" + controlQuery + "]");
+            Locator visibleSection = firstVisible(section);
+            if (visibleSection != null) {
+                return visibleSection;
+            }
+            throw new IllegalStateException("Section container was not visible: " + sectionTitle);
+        });
     }
 
     protected Locator resolveSectionOrNull(String sectionTitle) {
@@ -7952,18 +8286,22 @@ public class IptDeclarationPage {
     }
 
     protected void goToNextSection() {
+        markPartyNextNavigationStart("NEXT button flow started.");
         clickActionButton("NEXT", "Next");
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+        invalidateFormControlsGeneration();
         closeTransientOverlays();
     }
 
     protected void openSection(String sectionName) {
-        closeTransientOverlays();
-        Locator tab = resolveSectionTabOrNull(sectionName);
+        recordPartyOperation("navigation", "open-section", sectionName, () -> closeTransientOverlays());
+        Locator tab = recordPartyOperation("locator_lookup", "resolve-section-tab", sectionName,
+                () -> resolveSectionTabOrNull(sectionName));
         if (tab != null) {
             tab.scrollIntoViewIfNeeded();
             tab.click(new Locator.ClickOptions().setForce(true));
             page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            invalidateFormControlsGeneration();
             return;
         }
 
@@ -8166,8 +8504,8 @@ public class IptDeclarationPage {
     }
 
     private void saveDraftAndWaitForCompletion() {
-        waitForActionButtonEnabled("SAVE DRAFT", 15000);
-        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
+        waitForActionButtonEnabled("SAVE DRAFT", configuredElementWaitTimeoutMs());
+        clickActionButtonExactWithRetry("SAVE DRAFT", configuredRetryCount());
         waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, "SAVE DRAFT", "SUBMIT DECLARATION");
         summaryDraftSaved = true;
     }
@@ -8177,12 +8515,18 @@ public class IptDeclarationPage {
     }
 
     protected void saveDraftAndAdvanceToNextSectionWhenReady(String... readyButtonTexts) {
-        waitForActionButtonEnabled("SAVE DRAFT", 15000);
-        clickActionButtonExactWithRetry("SAVE DRAFT", 3);
-        waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, readyButtonTexts);
-        clickActionButtonExactWithRetry("NEXT", 3);
+        recordPartyOperation("navigation", "wait-save-draft-enabled", String.join(", ", readyButtonTexts),
+                () -> waitForActionButtonEnabled("SAVE DRAFT", configuredElementWaitTimeoutMs()));
+        recordPartyOperation("navigation", "click-save-draft", "SAVE DRAFT",
+                () -> clickActionButtonExactWithRetry("SAVE DRAFT", configuredRetryCount()));
+        recordPartyOperation("navigation", "wait-post-save-ready", String.join(", ", readyButtonTexts),
+                () -> waitForActionButtonsReady(UI_POST_SAVE_READY_TIMEOUT_MS, readyButtonTexts));
+        markPartyNextNavigationStart("NEXT click started after SAVE DRAFT readiness.");
+        recordPartyOperation("navigation", "click-next", "NEXT",
+                () -> clickActionButtonExactWithRetry("NEXT", configuredRetryCount()));
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-        closeTransientOverlays();
+        invalidateFormControlsGeneration();
+        recordPartyOperation("navigation", "close-overlays-after-next", "NEXT", () -> closeTransientOverlays());
     }
 
     private void waitForPostSaveReadyState(int timeoutMs) {
@@ -8190,6 +8534,7 @@ public class IptDeclarationPage {
     }
 
     private void waitForActionButtonsReady(int timeoutMs, String... buttonTexts) {
+        String detail = String.join(", ", buttonTexts);
         int stableChecks = 0;
         long deadline = System.currentTimeMillis() + timeoutMs;
         while (System.currentTimeMillis() <= deadline) {
@@ -8254,7 +8599,9 @@ public class IptDeclarationPage {
             } else {
                 stableChecks = 0;
             }
-            page.waitForTimeout(200);
+            final int pollWaitMs = 200;
+            recordPartyOperation("wait", "action-buttons-ready-poll", detail,
+                    () -> page.waitForTimeout(pollWaitMs));
         }
         throw new IllegalStateException("Page did not return to ready state after saving draft. Buttons: "
                 + String.join(", ", buttonTexts));
@@ -8306,10 +8653,12 @@ public class IptDeclarationPage {
         for (int attempt = 0; attempt < attempts; attempt++) {
             closeTransientOverlays();
             if (clickExactActionButtonIfVisible(buttonText)) {
+                automationDiagnostics.recordRetryUsage(buttonText, attempt + 1);
                 return;
             }
             page.waitForTimeout(500);
         }
+        automationDiagnostics.recordRetryUsage(buttonText, attempts + 1);
         throw new IllegalStateException("Action button was not clickable: " + buttonText);
     }
 
@@ -8713,11 +9062,15 @@ public class IptDeclarationPage {
     protected void setCheckboxByLabel(String label, boolean checked) {
         Locator visibleCheckbox = resolveCheckboxByLabel(label);
         if (visibleCheckbox == null) {
+            logFieldMappingWarning("Checkbox '" + label + "' could not be resolved for expected state " + checked + ".");
             return;
         }
 
         visibleCheckbox.scrollIntoViewIfNeeded();
         boolean selected = isCheckboxSelected(visibleCheckbox);
+        logFieldMappingInfo("Checkbox action '" + label + "' -> expected=" + checked
+                + ", before=" + selected
+                + ", control={" + describeControl(visibleCheckbox) + "}");
         if (selected != checked) {
             clickCheckboxTarget(label, visibleCheckbox);
         }
@@ -8727,6 +9080,8 @@ public class IptDeclarationPage {
         if (isCheckboxSelected(visibleCheckbox) != checked) {
             forceCheckboxValue(checked, label);
         }
+        logFieldMappingInfo("Checkbox action '" + label + "' -> after=" + isCheckboxSelected(visibleCheckbox)
+                + ", control={" + describeControl(visibleCheckbox) + "}");
     }
 
     protected void setCheckboxByLabelIfDifferent(String label, boolean checked) {
@@ -8741,6 +9096,39 @@ public class IptDeclarationPage {
         }
 
         setCheckboxByLabel(label, checked);
+        pauseUi(UI_ACTION_PAUSE_MS);
+    }
+
+    private void synchronizeFrameworkCheckboxState(String label, boolean checked) {
+        Locator visibleCheckbox = resolveCheckboxByLabel(label);
+        if (visibleCheckbox == null) {
+            return;
+        }
+
+        boolean frameworkBacked;
+        try {
+            frameworkBacked = Boolean.TRUE.equals(visibleCheckbox.evaluate("""
+                    element => {
+                        const hasOwnBinding = !!element.getAttribute?.('formcontrolname')
+                            || !!element.getAttribute?.('ng-reflect-model')
+                            || !!element.getAttribute?.('ng-reflect-name');
+                        if (hasOwnBinding) {
+                            return true;
+                        }
+
+                        const boundContainer = element.closest?.('[formcontrolname], [ng-reflect-model], [ng-reflect-name]');
+                        return !!boundContainer || typeof window.ng !== 'undefined';
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            frameworkBacked = false;
+        }
+
+        if (!frameworkBacked) {
+            return;
+        }
+
+        forceCheckboxValue(checked, label);
         pauseUi(UI_ACTION_PAUSE_MS);
     }
 
@@ -8982,32 +9370,42 @@ public class IptDeclarationPage {
     }
 
     private void waitForFormControls() {
-        page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-        try {
-            page.waitForFunction("""
-                    () => {
-                        const isVisible = element => !!element
-                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
-                        return Array.from(document.querySelectorAll(
-                            "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
-                            .some(element => isVisible(element) && !element.disabled);
-                    }
-                    """);
-        } catch (PlaywrightException ignored) {
+        if (PARTY_PERFORMANCE_ALIGNMENT_ENABLED && lastWaitedFormControlsGeneration == formControlsGeneration) {
+            return;
         }
-        page.waitForTimeout(300);
+        recordPartyOperation("wait", "wait-for-form-controls", "generation=" + formControlsGeneration, () -> {
+            page.waitForLoadState(LoadState.DOMCONTENTLOADED);
+            try {
+                page.waitForFunction("""
+                        () => {
+                            const isVisible = element => !!element
+                                && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                            return Array.from(document.querySelectorAll(
+                                "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], button"))
+                                .some(element => isVisible(element) && !element.disabled);
+                        }
+                        """);
+            } catch (PlaywrightException ignored) {
+            }
+            page.waitForTimeout(300);
+        });
+        if (PARTY_PERFORMANCE_ALIGNMENT_ENABLED) {
+            lastWaitedFormControlsGeneration = formControlsGeneration;
+        }
     }
 
     private void closeTransientOverlays() {
-        try {
-            page.keyboard().press("Escape");
-        } catch (PlaywrightException ignored) {
-        }
+        recordPartyOperation("wait", "close-transient-overlays", "Escape + overlay settle", () -> {
+            try {
+                page.keyboard().press("Escape");
+            } catch (PlaywrightException ignored) {
+            }
 
-        try {
-            page.waitForTimeout(150);
-        } catch (PlaywrightException ignored) {
-        }
+            try {
+                page.waitForTimeout(150);
+            } catch (PlaywrightException ignored) {
+            }
+        });
     }
 
     protected void waitForAnyVisibleText(String... texts) {
@@ -9096,6 +9494,14 @@ public class IptDeclarationPage {
             }
         }
         return compact.toArray(String[]::new);
+    }
+
+    protected int configuredRetryCount() {
+        return Math.max(1, automationSettings.thresholdValidation().maxRetryCount());
+    }
+
+    protected int configuredElementWaitTimeoutMs() {
+        return (int) Math.min(Integer.MAX_VALUE, automationSettings.thresholdValidation().elementWaitTimeoutMs());
     }
 
     private String[] bgIndicatorHints(String bgIndicator) {
@@ -9223,7 +9629,7 @@ public class IptDeclarationPage {
 
     private void pauseUi(int timeoutMs) {
         if (timeoutMs > 0) {
-            page.waitForTimeout(timeoutMs);
+            recordPartyOperation("static_wait", "pause-ui", timeoutMs + "ms", () -> page.waitForTimeout(timeoutMs));
         }
     }
 
