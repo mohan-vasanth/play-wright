@@ -228,13 +228,14 @@ public class TnpDeclarationPage extends IptDeclarationPage {
             logFieldMappingInfo("TNP items JSON -> no item array present; Items tab skipped.");
             return;
         }
+        boolean xpPermit = isXpPermit(data);
 
         for (int index = 0; index < items.size(); index++) {
             if (index > 0) {
                 clickTnpAddItemButton();
                 page.waitForTimeout(500);
             }
-            fillTnpSingleItem(items.get(index), data.path("formMetaData"), index);
+            fillTnpSingleItem(items.get(index), data.path("formMetaData"), index, xpPermit);
         }
     }
 
@@ -501,7 +502,7 @@ public class TnpDeclarationPage extends IptDeclarationPage {
         }
     }
 
-    private void fillTnpSingleItem(JsonNode item, JsonNode formMetaData, int index) {
+    private void fillTnpSingleItem(JsonNode item, JsonNode formMetaData, int index, boolean xpPermit) {
         logFieldMappingInfo("TNP item " + (index + 1)
                 + " -> hsCode='" + firstNonBlank(text(item, "itemHarmonizedSystemCode"), "N/A")
                 + "', description='" + firstNonBlank(text(item, "goodsDescription"), "N/A")
@@ -537,12 +538,10 @@ public class TnpDeclarationPage extends IptDeclarationPage {
             fillTnpReferenceFieldByOccurrence(itemDetailsSection, 3, text(item, "inMAWBOUCROBLNumber"));
             fillTnpReferenceFieldByOccurrence(itemDetailsSection, 4, text(item, "outMAWBOUCROBLNumber"));
         }
-        fillLookupFieldAfterScopeLabelIfPresent(
+        fillTnpHsCodeField(
                 itemDetailsSection,
-                "HS Code",
-                0,
                 text(item, "itemHarmonizedSystemCode"),
-                text(item, "itemHarmonizedSystemCode"));
+                xpPermit);
         fillFieldAfterScopeLabelIfPresent(
                 itemDetailsSection,
                 "Description",
@@ -585,11 +584,144 @@ public class TnpDeclarationPage extends IptDeclarationPage {
         }
     }
 
+    private void fillTnpHsCodeField(Locator itemDetailsSection, String hsCode, boolean xpPermit) {
+        if (hsCode == null || hsCode.isBlank()) {
+            return;
+        }
+
+        try {
+            fillLookupFieldAfterScopeLabelIfPresent(
+                    itemDetailsSection,
+                    "HS Code",
+                    0,
+                    hsCode,
+                    hsCode);
+        } catch (IllegalStateException exception) {
+            Locator refreshedItemDetailsSection = resolveCurrentTnpItemDetailsSection();
+            if (xpPermit && (tnpItemRowDisplaysValue(refreshedItemDetailsSection, "HS Code", hsCode)
+                    || tnpItemSectionDisplaysValue(refreshedItemDetailsSection, hsCode))) {
+                logFieldMappingInfo("TNP XP-PERMIT HS Code row rendered expected value after lookup component refresh: '"
+                        + hsCode + "'.");
+                return;
+            }
+            throw exception;
+        }
+    }
+
+    private boolean tnpItemSectionDisplaysValue(Locator scope, String expectedValue) {
+        if (scope == null || expectedValue == null || expectedValue.isBlank()) {
+            return false;
+        }
+
+        try {
+            return Boolean.TRUE.equals(scope.evaluate("""
+                    (section, expectedRaw) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const expectedValue = normalize(expectedRaw);
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+
+                        const values = [
+                            normalize(section.innerText || section.textContent || ''),
+                            ...Array.from(section.querySelectorAll(
+                                "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], [contenteditable='true'], .ng-value-label, .selected-item, [class*='value'], [class*='selected']"))
+                                .filter(isVisible)
+                                .flatMap(candidate => [
+                                    normalize(candidate.innerText || candidate.textContent || ''),
+                                    normalize(candidate.value),
+                                    normalize(candidate.getAttribute?.('value')),
+                                    normalize(candidate.getAttribute?.('aria-label')),
+                                    normalize(candidate.getAttribute?.('aria-valuetext'))
+                                ])
+                        ].filter(Boolean);
+
+                        return values.some(candidate =>
+                            candidate === expectedValue
+                                || candidate.includes(expectedValue)
+                                || expectedValue.includes(candidate));
+                    }
+                    """, expectedValue));
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     private void fillTnpReferenceFieldByOccurrence(Locator itemDetailsSection, int occurrence, String value) {
         if (value == null || value.isBlank()) {
             return;
         }
         fillNthFieldInScopeIfPresent(itemDetailsSection, occurrence, value);
+    }
+
+    private boolean isXpPermit(JsonNode data) {
+        return "71".equals(firstNonBlank(text(data.path("header"), "declarationType"), "").trim());
+    }
+
+    private boolean tnpItemRowDisplaysValue(Locator scope, String rowLabel, String expectedValue) {
+        if (scope == null || rowLabel == null || rowLabel.isBlank() || expectedValue == null || expectedValue.isBlank()) {
+            return false;
+        }
+
+        try {
+            return Boolean.TRUE.equals(scope.evaluate("""
+                    (section, args) => {
+                        const normalize = value => (value || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const expectedLabel = normalize(args?.rowLabel);
+                        const expectedValue = normalize(args?.expectedValue);
+                        const isVisible = element => {
+                            if (!element) {
+                                return false;
+                            }
+                            const style = window.getComputedStyle(element);
+                            return !!style
+                                && style.display !== 'none'
+                                && style.visibility !== 'hidden'
+                                && (element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        };
+                        const visibleText = element => normalize(element?.innerText || element?.textContent || '');
+                        const labels = Array.from(section.querySelectorAll('label, span, div, p'))
+                            .filter(isVisible);
+                        const label = labels.find(candidate => visibleText(candidate) === expectedLabel);
+                        if (!label) {
+                            return false;
+                        }
+
+                        const row = label.closest('tr, td, .clr-form-control, .form-group, .row, [role="row"], div')
+                            || label.parentElement
+                            || section;
+                        const values = [
+                            visibleText(row),
+                            ...Array.from(row.querySelectorAll(
+                                "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], [contenteditable='true'], .ng-value-label, .selected-item, [class*='value'], [class*='selected']"))
+                                .filter(isVisible)
+                                .flatMap(candidate => [
+                                    visibleText(candidate),
+                                    normalize(candidate.value),
+                                    normalize(candidate.getAttribute?.('value')),
+                                    normalize(candidate.getAttribute?.('aria-label')),
+                                    normalize(candidate.getAttribute?.('aria-valuetext'))
+                                ])
+                        ].filter(Boolean);
+
+                        return values.some(candidate =>
+                            candidate === expectedValue
+                                || candidate.includes(expectedValue)
+                                || expectedValue.includes(candidate));
+                    }
+                    """, Map.of(
+                    "rowLabel", rowLabel,
+                    "expectedValue", expectedValue)));
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private boolean scopeContainsText(Locator scope, String expectedText) {

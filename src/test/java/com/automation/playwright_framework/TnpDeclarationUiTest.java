@@ -11,6 +11,8 @@ import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TnpDeclarationUiTest extends BaseTest {
 
@@ -471,6 +473,75 @@ class TnpDeclarationUiTest extends BaseTest {
         assertEquals("CN", page.locator("#item2-coo").inputValue());
         assertEquals("58.000", page.locator("#item2-qty").inputValue());
         assertEquals("NMB", page.locator("#item2-uom").inputValue());
+    }
+
+    @Test
+    void xpPermitHsCodeAcceptsRenderedRowValueWhenLookupInputRefreshes() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="item-details" style="padding: 12px; border: 1px solid #ccc; width: 900px;">
+                    <div>Item Details</div>
+                    <div class="field-row">
+                      <label>HS Code</label>
+                      <div class="lookup-shell">
+                        <input id="xp-hs-search" type="text"
+                               oninput="setTimeout(() => { this.value=''; document.getElementById('xp-hs-display').textContent='87100000'; }, 0);"
+                               onchange="setTimeout(() => { this.value=''; document.getElementById('xp-hs-display').textContent='87100000'; }, 0);"
+                               onblur="setTimeout(() => { this.value=''; document.getElementById('xp-hs-display').textContent='87100000'; }, 0);">
+                        <div id="xp-hs-display" class="selected-value"></div>
+                      </div>
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        TnpDeclarationPage declarationPage = new TnpDeclarationPage(page);
+        Method method = TnpDeclarationPage.class.getDeclaredMethod(
+                "fillTnpHsCodeField",
+                com.microsoft.playwright.Locator.class,
+                String.class,
+                boolean.class);
+        method.setAccessible(true);
+        method.invoke(declarationPage, page.locator("#item-details"), "87100000", true);
+
+        assertEquals("87100000", page.locator("#xp-hs-display").textContent().trim());
+    }
+
+    @Test
+    void nonXpPermitStillFailsWhenLookupInputRefreshesWithoutRenderedFieldBinding() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="item-details" style="padding: 12px; border: 1px solid #ccc; width: 900px;">
+                    <div>Item Details</div>
+                    <div class="field-row">
+                      <label>HS Code</label>
+                      <div class="lookup-shell">
+                        <input id="generic-hs-search" type="text"
+                               oninput="setTimeout(() => { this.value=''; document.getElementById('generic-hs-display').textContent=''; }, 0);"
+                               onchange="setTimeout(() => { this.value=''; document.getElementById('generic-hs-display').textContent=''; }, 0);"
+                               onblur="setTimeout(() => { this.value=''; document.getElementById('generic-hs-display').textContent=''; }, 0);">
+                        <div id="generic-hs-display" class="selected-value"></div>
+                      </div>
+                    </div>
+                  </section>
+                </body>
+                </html>
+                """);
+
+        TnpDeclarationPage declarationPage = new TnpDeclarationPage(page);
+        Method method = TnpDeclarationPage.class.getDeclaredMethod(
+                "fillTnpHsCodeField",
+                com.microsoft.playwright.Locator.class,
+                String.class,
+                boolean.class);
+        method.setAccessible(true);
+
+        Exception exception = assertThrows(Exception.class,
+                () -> method.invoke(declarationPage, page.locator("#item-details"), "87100000", false));
+        assertTrue(exception.getCause() instanceof IllegalStateException);
     }
 
     private JsonNode readResource(String resourcePath) throws Exception {

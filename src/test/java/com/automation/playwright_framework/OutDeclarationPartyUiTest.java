@@ -3,6 +3,7 @@ package com.automation.playwright_framework;
 import base.BaseTest;
 import com.automation.IptDeclarationPage;
 import com.automation.OutDeclarationPage;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -10,6 +11,7 @@ import java.lang.reflect.Method;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 class OutDeclarationPartyUiTest extends BaseTest {
@@ -1180,7 +1182,7 @@ class OutDeclarationPartyUiTest extends BaseTest {
     }
 
     @Test
-    void fillPartyInfoPopulatesAllLookupRowsInOutPartyTab() throws Exception {
+    void fillPartyInfoPreservesExactLookupRowValuesInOutPartyTab() throws Exception {
         page.setContent("""
                 <html>
                 <body>
@@ -1235,7 +1237,7 @@ class OutDeclarationPartyUiTest extends BaseTest {
 
                   <script>
                     (() => {
-                      const bindComponent = (hostId, inputId, uenId, code, description) => {
+                      const bindComponent = (hostId, inputId, uenId, code, description, renderedName, renderedUen) => {
                         const host = document.getElementById(hostId);
                         const input = document.getElementById(inputId);
                         const uen = document.getElementById(uenId);
@@ -1245,8 +1247,8 @@ class OutDeclarationPartyUiTest extends BaseTest {
                           ],
                           inputElement: { nativeElement: input },
                           onChange(selectedCode) {
-                            input.value = description;
-                            uen.value = selectedCode || code;
+                            input.value = renderedName ?? description;
+                            uen.value = renderedUen ?? selectedCode ?? code;
                             input.dispatchEvent(new Event('input', { bubbles: true }));
                             input.dispatchEvent(new Event('change', { bubbles: true }));
                             uen.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1257,11 +1259,46 @@ class OutDeclarationPartyUiTest extends BaseTest {
                         return { host, component };
                       };
 
-                      const importer = bindComponent('importer-host', 'importer-name', 'importer-uen', '200200381C', 'ABES GROUP COMPANY');
-                      const inward = bindComponent('inward-host', 'inward-name', 'inward-uen', '199201306R', 'AB SHIPPING PTE LTD AB SHIPPING PTE LTD');
-                      const freight = bindComponent('freight-host', 'freight-name', 'freight-uen', '202535359H', 'ADATACOMPANY PTE LTD');
-                      const outward = bindComponent('outward-host', 'outward-name', 'outward-uen', '199201306R', 'AB SHIPPING PTE LTD');
-                      const declaring = bindComponent('declaring-host', 'declaring-name', 'declaring-uen', '202535359H', 'ADATA PVT LMT');
+                      const importer = bindComponent(
+                        'importer-host',
+                        'importer-name',
+                        'importer-uen',
+                        '200200381C',
+                        'ABES GROUP COMPANY PTE LTD ABES GROUP COMPANY PTE LTD',
+                        '200200381C',
+                        '');
+                      const inward = bindComponent(
+                        'inward-host',
+                        'inward-name',
+                        'inward-uen',
+                        '199201306R',
+                        'AB SHIPPING PTE LTD AB SHIPPING PTE LTD',
+                        'AB SHIPPING PTE LTD AB SHIPPING PTE LTD',
+                        '199');
+                      const freight = bindComponent(
+                        'freight-host',
+                        'freight-name',
+                        'freight-uen',
+                        '202535359H',
+                        'ADATACOMPANY PTE LTD',
+                        'ADATACOMPANY PTE LTD',
+                        '202535359H');
+                      const outward = bindComponent(
+                        'outward-host',
+                        'outward-name',
+                        'outward-uen',
+                        '199201306R',
+                        'AB SHIPPING PTE LTD',
+                        'AB SHIPPING PTE LTD',
+                        '199201306R');
+                      const declaring = bindComponent(
+                        'declaring-host',
+                        'declaring-name',
+                        'declaring-uen',
+                        '202535359H',
+                        'ADATA PVT LMT',
+                        'ADATA PVT LMT',
+                        '202535359H');
 
                       window.ng = {
                         getComponent(target) {
@@ -1294,7 +1331,7 @@ class OutDeclarationPartyUiTest extends BaseTest {
                             },
                             "inwardCarrierAgentParty": {
                               "partyIdentification": { "id": "199201306R" },
-                              "partyName": { "name": "AB SHIPPING PTE LTD AB SHIPPING PTE LTD" }
+                              "partyName": { "name": "AB SHIPPING PTE LTD" }
                             },
                             "freightForwarderParty": {
                               "partyIdentification": { "id": "202535359H" },
@@ -1312,9 +1349,12 @@ class OutDeclarationPartyUiTest extends BaseTest {
                         }
                         """));
 
+        JsonNode diagnostics = OBJECT_MAPPER.readTree(declarationPage.captureSubmitValidationDiagnostics());
+        String diagnosticsText = diagnostics.toString();
+
         assertEquals("ABES GROUP COMPANY", page.locator("#importer-name").inputValue());
         assertEquals("200200381C", page.locator("#importer-uen").inputValue());
-        assertEquals("AB SHIPPING PTE LTD AB SHIPPING PTE LTD", page.locator("#inward-name").inputValue());
+        assertEquals("AB SHIPPING PTE LTD", page.locator("#inward-name").inputValue());
         assertEquals("199201306R", page.locator("#inward-uen").inputValue());
         assertEquals("ADATACOMPANY PTE LTD", page.locator("#freight-name").inputValue());
         assertEquals("202535359H", page.locator("#freight-uen").inputValue());
@@ -1322,5 +1362,405 @@ class OutDeclarationPartyUiTest extends BaseTest {
         assertEquals("199201306R", page.locator("#outward-uen").inputValue());
         assertEquals("ADATA PVT LMT", page.locator("#declaring-name").inputValue());
         assertEquals("202535359H", page.locator("#declaring-uen").inputValue());
+        assertFalse(diagnosticsText.contains("Party: Importer | Field: Party Name | Expected: ABES GROUP COMPANY | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Importer | Field: UEN / ID | Expected: 200200381C | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Inward Carrier | Field: Party Name | Expected: AB SHIPPING PTE LTD | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Inward Carrier | Field: UEN / ID | Expected: 199201306R | Actual: <empty> | FAIL - Value Missing"));
+    }
+
+    @Test
+    void fillPartyInfoUsesStrictRowMappingWhenOutLookupRowsShareOneContainer() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding:12px; border:1px solid #ccc; width:1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div id="party-grid" style="display:grid; grid-template-columns:160px 360px 40px 220px; row-gap:12px; column-gap:12px; align-items:center;">
+                      <div>Freight Forwarder</div>
+                      <app-freight-forwarder-lookup id="freight-host" formcontrolname="name" style="display:block;">
+                        <input id="freight-name" type="text" style="width:320px; height:28px;">
+                      </app-freight-forwarder-lookup>
+                      <div>🔍</div>
+                      <input id="freight-uen" type="text" style="width:220px; height:28px;">
+
+                      <div>Outward Carrier</div>
+                      <app-outward-carrier-agent-lookup id="outward-host" formcontrolname="name" style="display:block;">
+                        <input id="outward-name" type="text" style="width:320px; height:28px;">
+                      </app-outward-carrier-agent-lookup>
+                      <div>🔍</div>
+                      <input id="outward-uen" type="text" style="width:220px; height:28px;">
+
+                      <div>Declaring Agent</div>
+                      <app-declaring-agent-lookup id="declaring-host" formcontrolname="name" style="display:block;">
+                        <input id="declaring-name" type="text" style="width:320px; height:28px;">
+                      </app-declaring-agent-lookup>
+                      <div>🔍</div>
+                      <input id="declaring-uen" type="text" style="width:220px; height:28px;">
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      const bindComponent = (hostId, inputId, uenId, code, description) => {
+                        const host = document.getElementById(hostId);
+                        const input = document.getElementById(inputId);
+                        const uen = document.getElementById(uenId);
+                        const component = {
+                          allOptions: [{ code, description }],
+                          inputElement: { nativeElement: input },
+                          selectedItem: null,
+                          onChange(selectedCode) {
+                            if (selectedCode !== code) {
+                              return;
+                            }
+                            this.selectedItem = { code, description };
+                            input.value = description;
+                            uen.value = code;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                            uen.dispatchEvent(new Event('input', { bubbles: true }));
+                            uen.dispatchEvent(new Event('change', { bubbles: true }));
+                          },
+                          onTouched() {}
+                        };
+                        return { host, component };
+                      };
+
+                      const freight = bindComponent('freight-host', 'freight-name', 'freight-uen', '202535359H', 'ADATACOMPANY PTE LTD');
+                      const outward = bindComponent('outward-host', 'outward-name', 'outward-uen', '199201306R', 'AB SHIPPING PTE LTD');
+                      const declaring = bindComponent('declaring-host', 'declaring-name', 'declaring-uen', '202535359H', 'ADATA PVT LMT');
+
+                      window.ng = {
+                        getComponent(target) {
+                          if (target === freight.host) return freight.component;
+                          if (target === outward.host) return outward.component;
+                          if (target === declaring.host) return declaring.component;
+                          return null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "freightForwarderParty": {
+                              "partyIdentification": { "id": "202535359H" },
+                              "partyName": { "name": "ADATACOMPANY PTE LTD" }
+                            },
+                            "outwardCarrierAgentParty": {
+                              "partyIdentification": { "id": "199201306R" },
+                              "partyName": { "name": "AB SHIPPING PTE LTD" }
+                            },
+                            "declaringAgentParty": {
+                              "partyIdentification": { "id": "202535359H" },
+                              "partyName": { "name": "ADATA PVT LMT" }
+                            }
+                          }
+                        }
+                        """));
+
+        JsonNode diagnostics = OBJECT_MAPPER.readTree(declarationPage.captureSubmitValidationDiagnostics());
+        String diagnosticsText = diagnostics.toString();
+
+        assertEquals("ADATACOMPANY PTE LTD", page.locator("#freight-name").inputValue());
+        assertEquals("202535359H", page.locator("#freight-uen").inputValue());
+        assertEquals("AB SHIPPING PTE LTD", page.locator("#outward-name").inputValue());
+        assertEquals("199201306R", page.locator("#outward-uen").inputValue());
+        assertEquals("ADATA PVT LMT", page.locator("#declaring-name").inputValue());
+        assertEquals("202535359H", page.locator("#declaring-uen").inputValue());
+        assertFalse(diagnosticsText.contains("Party: Outward Carrier | Field: Party Name | Expected: AB SHIPPING PTE LTD | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Outward Carrier | Field: UEN / ID | Expected: 199201306R | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Declaring Agent | Field: Party Name | Expected: ADATA PVT LMT | Actual: <empty> | FAIL - Value Missing"));
+        assertFalse(diagnosticsText.contains("Party: Declaring Agent | Field: UEN / ID | Expected: 202535359H | Actual: <empty> | FAIL - Value Missing"));
+    }
+
+    @Test
+    void fillPartyInfoRestabilizesImporterAfterAsyncLookupRepaint() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding:12px; border:1px solid #ccc; width:1200px;">
+                    <h2>Party Info (P)</h2>
+
+                    <div style="display:grid; grid-template-columns:160px 360px 40px 220px; gap:12px; align-items:center; margin-bottom:12px;">
+                      <div>Importer</div>
+                      <app-importer-lookup id="importer-host" formcontrolname="name" style="display:block;">
+                        <input id="importer-name" type="text" style="width:320px; height:28px;">
+                      </app-importer-lookup>
+                      <div>🔍</div>
+                      <input id="importer-uen" type="text" style="width:220px; height:28px;">
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      const host = document.getElementById('importer-host');
+                      const input = document.getElementById('importer-name');
+                      const uen = document.getElementById('importer-uen');
+                      const code = '198003808K';
+                      const description = 'FORESPAND FOOD ENTERPRISE PTE LTD';
+
+                      const repaintWrongValue = value => {
+                        setTimeout(() => {
+                          input.value = value;
+                          uen.value = '';
+                          input.dispatchEvent(new Event('input', { bubbles: true }));
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                          uen.dispatchEvent(new Event('input', { bubbles: true }));
+                          uen.dispatchEvent(new Event('change', { bubbles: true }));
+                        }, 0);
+                      };
+
+                      const component = {
+                        allOptions: [{ code, description }],
+                        inputElement: { nativeElement: input },
+                        formControl: {
+                          setValue(value) {
+                            repaintWrongValue(value || code);
+                          }
+                        },
+                        writeValue(value) {
+                          repaintWrongValue(value || code);
+                        },
+                        onChange(selectedCode) {
+                          if (selectedCode !== code) {
+                            return;
+                          }
+                          input.value = description;
+                          uen.value = code;
+                          input.dispatchEvent(new Event('input', { bubbles: true }));
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                          uen.dispatchEvent(new Event('input', { bubbles: true }));
+                          uen.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+
+                      window.ng = {
+                        getComponent(target) {
+                          if (target === host) return component;
+                          return null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "importerParty": {
+                              "partyIdentification": { "id": "198003808K" },
+                              "partyName": { "name": "FORESPAND FOOD ENTERPRISE PTE LTD" }
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("FORESPAND FOOD ENTERPRISE PTE LTD", page.locator("#importer-name").inputValue());
+        assertEquals("198003808K", page.locator("#importer-uen").inputValue());
+    }
+
+    @Test
+    void fillPartyInfoDoesNotRestabilizeOutLookupRowsThatAreAlreadyExact() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding:12px; border:1px solid #ccc; width:1200px;">
+                    <h2>Party Info (P)</h2>
+
+                    <div style="display:grid; grid-template-columns:160px 360px 40px 220px; gap:12px; align-items:center; margin-bottom:12px;">
+                      <div>Freight Forwarder</div>
+                      <app-freight-forwarder-lookup id="freight-host" formcontrolname="name" style="display:block;">
+                        <input id="freight-name" type="text" style="width:320px; height:28px;">
+                      </app-freight-forwarder-lookup>
+                      <div>🔍</div>
+                      <input id="freight-uen" type="text" style="width:220px; height:28px;">
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      const host = document.getElementById('freight-host');
+                      const input = document.getElementById('freight-name');
+                      const uen = document.getElementById('freight-uen');
+                      const code = '202535359H';
+                      const description = 'ADATACOMPANY PTE LTD';
+                      let componentHookCalls = 0;
+
+                      const component = {
+                        allOptions: [{ code, description }],
+                        inputElement: { nativeElement: input },
+                        formControl: {
+                          setValue() {
+                            componentHookCalls += 1;
+                            input.value = '';
+                            uen.value = '';
+                          }
+                        },
+                        writeValue() {
+                          componentHookCalls += 1;
+                          input.value = '';
+                          uen.value = '';
+                        },
+                        onChange(selectedCode) {
+                          if (selectedCode !== code) {
+                            return;
+                          }
+                          input.value = description;
+                          uen.value = code;
+                          input.dispatchEvent(new Event('input', { bubbles: true }));
+                          input.dispatchEvent(new Event('change', { bubbles: true }));
+                          uen.dispatchEvent(new Event('input', { bubbles: true }));
+                          uen.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+
+                      window.__outExactRowComponentHookCalls = () => componentHookCalls;
+                      window.ng = {
+                        getComponent(target) {
+                          if (target === host) return component;
+                          return null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "freightForwarderParty": {
+                              "partyIdentification": { "id": "202535359H" },
+                              "partyName": { "name": "ADATACOMPANY PTE LTD" }
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("ADATACOMPANY PTE LTD", page.evaluate("document.getElementById('freight-name')?.value"));
+        assertEquals("202535359H", page.evaluate("document.getElementById('freight-uen')?.value"));
+    }
+
+    @Test
+    void fillPartyInfoDoesNotLetManufacturerCardFallbackOverwriteImporterRow() throws Exception {
+        page.setContent("""
+                <html>
+                <body>
+                  <section id="party-section" style="padding:12px; border:1px solid #ccc; width:1200px;">
+                    <h2>Party Info (P)</h2>
+                    <div style="display:grid; grid-template-columns:160px 360px 40px 220px; gap:12px; align-items:center; margin-bottom:20px;">
+                      <div>Importer</div>
+                      <app-importer-lookup id="importer-host" formcontrolname="name" style="display:block;">
+                        <input id="importer-name" type="text" style="width:320px; height:28px;">
+                      </app-importer-lookup>
+                      <div>🔍</div>
+                      <input id="importer-uen" type="text" style="width:220px; height:28px;">
+                    </div>
+
+                    <div style="font-weight:600; margin-bottom:8px;">Manufacturer</div>
+                    <div style="display:grid; grid-template-columns:360px 220px; gap:12px; align-items:center;">
+                      <input id="manufacturer-name" type="text" style="width:320px; height:28px;">
+                      <div>
+                        <div>UEN</div>
+                        <input id="manufacturer-uen" type="text" style="width:220px; height:28px;">
+                      </div>
+                    </div>
+                    <div style="margin-top:12px;">
+                      <div>Country Code</div>
+                      <input id="manufacturer-country" type="text" style="width:120px; height:28px;">
+                    </div>
+                  </section>
+
+                  <script>
+                    (() => {
+                      const importerHost = document.getElementById('importer-host');
+                      const importerName = document.getElementById('importer-name');
+                      const importerUen = document.getElementById('importer-uen');
+                      const importerComponent = {
+                        allOptions: [{ code: '200200381C', description: 'ABES GROUP COMPANY PTE LTD' }],
+                        inputElement: { nativeElement: importerName },
+                        onChange(selectedCode) {
+                          if (selectedCode !== '200200381C') {
+                            return;
+                          }
+                          importerName.value = 'ABES GROUP COMPANY';
+                          importerUen.value = '200200381C';
+                          importerName.dispatchEvent(new Event('input', { bubbles: true }));
+                          importerName.dispatchEvent(new Event('change', { bubbles: true }));
+                          importerUen.dispatchEvent(new Event('input', { bubbles: true }));
+                          importerUen.dispatchEvent(new Event('change', { bubbles: true }));
+                        },
+                        onTouched() {}
+                      };
+
+                      window.ng = {
+                        getComponent(target) {
+                          if (target === importerHost) return importerComponent;
+                          return null;
+                        }
+                      };
+                    })();
+                  </script>
+                </body>
+                </html>
+                """);
+
+        OutDeclarationPage declarationPage = new OutDeclarationPage(page);
+        Method method = OutDeclarationPage.class.getDeclaredMethod("fillPartyInfo", com.fasterxml.jackson.databind.JsonNode.class);
+        method.setAccessible(true);
+
+        method.invoke(
+                declarationPage,
+                OBJECT_MAPPER.readTree("""
+                        {
+                          "party": {
+                            "importerParty": {
+                              "partyIdentification": { "id": "200200381C" },
+                              "partyName": { "name": "ABES GROUP COMPANY" }
+                            },
+                            "manufacturerParty": {
+                              "partyIdentification": { "id": "198003808K" },
+                              "partyName": { "name": "ARMSTRONG INDUSTRIAL CORP" },
+                              "address": {
+                                "countryCode": "IN"
+                              }
+                            }
+                          }
+                        }
+                        """));
+
+        assertEquals("ABES GROUP COMPANY", page.locator("#importer-name").inputValue());
+        assertEquals("200200381C", page.locator("#importer-uen").inputValue());
+        assertEquals("ARMSTRONG INDUSTRIAL CORP", page.locator("#manufacturer-name").inputValue());
+        assertEquals("198003808K", page.locator("#manufacturer-uen").inputValue());
+        assertEquals("IN", page.locator("#manufacturer-country").inputValue());
     }
 }
