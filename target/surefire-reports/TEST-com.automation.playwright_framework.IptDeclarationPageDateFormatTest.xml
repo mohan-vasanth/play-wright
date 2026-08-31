@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.automation.playwright_framework.IptDeclarationTestCase1Test" time="44.519" tests="1" errors="1" skipped="0" failures="0" flakes="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.automation.playwright_framework.IptDeclarationPageDateFormatTest" time="0.0" tests="2" errors="0" skipped="0" failures="0" flakes="0">
   <properties>
     <property name="java.specification.version" value="17"/>
     <property name="sun.cpu.isalist" value="amd64"/>
@@ -57,18 +57,6 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="61.0"/>
   </properties>
-  <testcase name="submitIptDeclarationTestCase1UsingJsonData" classname="com.automation.playwright_framework.IptDeclarationTestCase1Test" time="44.515">
-    <error message="Section container was not visible: Cargo Details" type="java.lang.IllegalStateException"><![CDATA[java.lang.IllegalStateException: Section container was not visible: Cargo Details
-	at com.automation.IptDeclarationPage.resolveSection(IptDeclarationPage.java:3162)
-	at com.automation.IptDeclarationPage.resolveFieldByLabelInSectionOrNull(IptDeclarationPage.java:3042)
-	at com.automation.IptDeclarationPage.resolveFieldByLabelInSection(IptDeclarationPage.java:2218)
-	at com.automation.IptDeclarationPage.fillFieldInSection(IptDeclarationPage.java:1142)
-	at com.automation.IptDeclarationPage.fillTransportInfo(IptDeclarationPage.java:319)
-	at com.automation.IptDeclarationPage.lambda$populateDraftFrom$1(IptDeclarationPage.java:57)
-	at com.automation.IptDeclarationPage.fillSectionAndAdvance(IptDeclarationPage.java:891)
-	at com.automation.IptDeclarationPage.populateDraftFrom(IptDeclarationPage.java:57)
-	at com.automation.IptDeclarationPage.populateFrom(IptDeclarationPage.java:49)
-	at com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData(IptDeclarationTestCase1Test.java:58)
-]]></error>
-  </testcase>
+  <testcase name="keepsAlreadyFormattedUiDateUntouched" classname="com.automation.playwright_framework.IptDeclarationPageDateFormatTest" time="0.0"/>
+  <testcase name="formatsArrivalDateFromYyyyMmDdToDdMmYyyy" classname="com.automation.playwright_framework.IptDeclarationPageDateFormatTest" time="0.0"/>
 </testsuite>

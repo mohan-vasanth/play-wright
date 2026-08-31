@@ -1,4 +1,17 @@
 -------------------------------------------------------------------------------
 Test set: com.automation.playwright_framework.IptDeclarationTestCase1Test
 -------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 514.8 s -- in com.automation.playwright_framework.IptDeclarationTestCase1Test
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 44.52 s <<< FAILURE! -- in com.automation.playwright_framework.IptDeclarationTestCase1Test
+com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData -- Time elapsed: 44.51 s <<< ERROR!
+java.lang.IllegalStateException: Section container was not visible: Cargo Details
+	at com.automation.IptDeclarationPage.resolveSection(IptDeclarationPage.java:3162)
+	at com.automation.IptDeclarationPage.resolveFieldByLabelInSectionOrNull(IptDeclarationPage.java:3042)
+	at com.automation.IptDeclarationPage.resolveFieldByLabelInSection(IptDeclarationPage.java:2218)
+	at com.automation.IptDeclarationPage.fillFieldInSection(IptDeclarationPage.java:1142)
+	at com.automation.IptDeclarationPage.fillTransportInfo(IptDeclarationPage.java:319)
+	at com.automation.IptDeclarationPage.lambda$populateDraftFrom$1(IptDeclarationPage.java:57)
+	at com.automation.IptDeclarationPage.fillSectionAndAdvance(IptDeclarationPage.java:891)
+	at com.automation.IptDeclarationPage.populateDraftFrom(IptDeclarationPage.java:57)
+	at com.automation.IptDeclarationPage.populateFrom(IptDeclarationPage.java:49)
+	at com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData(IptDeclarationTestCase1Test.java:58)
+

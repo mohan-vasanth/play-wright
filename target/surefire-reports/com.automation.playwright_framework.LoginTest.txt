@@ -1,0 +1,20 @@
+-------------------------------------------------------------------------------
+Test set: com.automation.playwright_framework.LoginTest
+-------------------------------------------------------------------------------
+Tests run: 2, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 44.49 s <<< FAILURE! -- in com.automation.playwright_framework.LoginTest
+com.automation.playwright_framework.LoginTest.adminCanLoginToTradenix -- Time elapsed: 40.33 s <<< ERROR!
+com.microsoft.playwright.impl.TargetClosedError: Target page, context or browser has been closed
+	at com.microsoft.playwright.impl.PageImpl$WaitablePageClose.get(PageImpl.java:1423)
+	at com.microsoft.playwright.impl.WaitableRace.get(WaitableRace.java:46)
+	at com.microsoft.playwright.impl.WaitableRace.get(WaitableRace.java:46)
+	at com.microsoft.playwright.impl.ChannelOwner.runUntil(ChannelOwner.java:138)
+	at com.microsoft.playwright.impl.FrameImpl.waitForNavigationImpl(FrameImpl.java:970)
+	at com.microsoft.playwright.impl.FrameImpl.waitForURLImpl(FrameImpl.java:1030)
+	at com.microsoft.playwright.impl.PageImpl.lambda$waitForURL$19(PageImpl.java:1552)
+	at com.microsoft.playwright.impl.WaitForEventLogger.get(WaitForEventLogger.java:49)
+	at com.microsoft.playwright.impl.ChannelOwner.withWaitLogging(ChannelOwner.java:84)
+	at com.microsoft.playwright.impl.PageImpl.waitForURL(PageImpl.java:1551)
+	at com.microsoft.playwright.impl.PageImpl.waitForURL(PageImpl.java:1537)
+	at com.microsoft.playwright.Page.waitForURL(Page.java:8414)
+	at com.automation.playwright_framework.LoginTest.adminCanLoginToTradenix(LoginTest.java:28)
+

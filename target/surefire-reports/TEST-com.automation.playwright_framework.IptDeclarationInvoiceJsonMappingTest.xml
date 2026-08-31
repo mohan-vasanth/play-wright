@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.automation.playwright_framework.IptDeclarationTestCase1Test" time="44.519" tests="1" errors="1" skipped="0" failures="0" flakes="0">
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://maven.apache.org/surefire/maven-surefire-plugin/xsd/surefire-test-report.xsd" version="3.0.2" name="com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest" time="0.217" tests="2" errors="0" skipped="0" failures="1" flakes="0">
   <properties>
     <property name="java.specification.version" value="17"/>
     <property name="sun.cpu.isalist" value="amd64"/>
@@ -57,18 +57,16 @@
     <property name="sun.io.unicode.encoding" value="UnicodeLittle"/>
     <property name="java.class.version" value="61.0"/>
   </properties>
-  <testcase name="submitIptDeclarationTestCase1UsingJsonData" classname="com.automation.playwright_framework.IptDeclarationTestCase1Test" time="44.515">
-    <error message="Section container was not visible: Cargo Details" type="java.lang.IllegalStateException"><![CDATA[java.lang.IllegalStateException: Section container was not visible: Cargo Details
-	at com.automation.IptDeclarationPage.resolveSection(IptDeclarationPage.java:3162)
-	at com.automation.IptDeclarationPage.resolveFieldByLabelInSectionOrNull(IptDeclarationPage.java:3042)
-	at com.automation.IptDeclarationPage.resolveFieldByLabelInSection(IptDeclarationPage.java:2218)
-	at com.automation.IptDeclarationPage.fillFieldInSection(IptDeclarationPage.java:1142)
-	at com.automation.IptDeclarationPage.fillTransportInfo(IptDeclarationPage.java:319)
-	at com.automation.IptDeclarationPage.lambda$populateDraftFrom$1(IptDeclarationPage.java:57)
-	at com.automation.IptDeclarationPage.fillSectionAndAdvance(IptDeclarationPage.java:891)
-	at com.automation.IptDeclarationPage.populateDraftFrom(IptDeclarationPage.java:57)
-	at com.automation.IptDeclarationPage.populateFrom(IptDeclarationPage.java:49)
-	at com.automation.playwright_framework.IptDeclarationTestCase1Test.submitIptDeclarationTestCase1UsingJsonData(IptDeclarationTestCase1Test.java:58)
-]]></error>
+  <testcase name="readsSupplierManufacturerNameFromInvoiceNode" classname="com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest" time="0.021"/>
+  <testcase name="readsBankerGuaranteeCodeFromBatchHeader" classname="com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest" time="0.03">
+    <failure message="expected: &lt;I&gt; but was: &lt;&gt;" type="org.opentest4j.AssertionFailedError"><![CDATA[org.opentest4j.AssertionFailedError: expected: <I> but was: <>
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:158)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:139)
+	at org.junit.jupiter.api.AssertEquals.failNotEqual(AssertEquals.java:201)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:184)
+	at org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:179)
+	at org.junit.jupiter.api.Assertions.assertEquals(Assertions.java:1188)
+	at com.automation.playwright_framework.IptDeclarationInvoiceJsonMappingTest.readsBankerGuaranteeCodeFromBatchHeader(IptDeclarationInvoiceJsonMappingTest.java:41)
+]]></failure>
   </testcase>
 </testsuite>
