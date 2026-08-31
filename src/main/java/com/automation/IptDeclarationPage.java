@@ -12,6 +12,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.BoundingBox;
 import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.options.WaitForSelectorState;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -30,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -63,6 +65,8 @@ public class IptDeclarationPage {
     protected final AutomationExecutionDiagnostics automationDiagnostics;
     private final PartyTabPerformanceTrace partyPerformanceTrace = new PartyTabPerformanceTrace();
     private final List<String> fieldMappingDiagnostics = new ArrayList<>();
+    private Consumer<String> fieldMappingLogSink;
+    private String executionContextLabel;
     private boolean summaryDraftSaved;
     private int validatedFieldEntryCount;
     private long formControlsGeneration;
@@ -122,6 +126,13 @@ public class IptDeclarationPage {
 
     public AutomationExecutionDiagnostics automationDiagnostics() {
         return automationDiagnostics;
+    }
+
+    public void configureExecutionLogging(String executionContextLabel, Consumer<String> fieldMappingLogSink) {
+        this.executionContextLabel = executionContextLabel == null || executionContextLabel.isBlank()
+                ? null
+                : executionContextLabel.trim();
+        this.fieldMappingLogSink = fieldMappingLogSink;
     }
 
     public void submitDeclaration() {
@@ -391,6 +402,9 @@ public class IptDeclarationPage {
                     }
                     """));
             ObjectNode diagnosticsRoot = parseDiagnosticsRoot(uiDiagnostics);
+            if (executionContextLabel != null && !executionContextLabel.isBlank()) {
+                diagnosticsRoot.put("executionContext", executionContextLabel);
+            }
             ArrayNode mappingDiagnosticsNode = diagnosticsRoot.putArray("mappingDiagnostics");
             for (String entry : fieldMappingDiagnostics) {
                 mappingDiagnosticsNode.add(entry);
@@ -401,6 +415,9 @@ public class IptDeclarationPage {
                     .writeValueAsString(automationDiagnostics.enrich(diagnosticsRoot));
         } catch (PlaywrightException exception) {
             ObjectNode diagnosticsRoot = OBJECT_MAPPER.createObjectNode();
+            if (executionContextLabel != null && !executionContextLabel.isBlank()) {
+                diagnosticsRoot.put("executionContext", executionContextLabel);
+            }
             diagnosticsRoot.put("captureError", exception.getMessage());
             diagnosticsRoot.put("rawDiagnostics",
                     String.join(System.lineSeparator(), fieldMappingDiagnostics));
@@ -408,6 +425,9 @@ public class IptDeclarationPage {
             return automationDiagnostics.enrich(diagnosticsRoot).toPrettyString();
         } catch (Exception exception) {
             ObjectNode diagnosticsRoot = OBJECT_MAPPER.createObjectNode();
+            if (executionContextLabel != null && !executionContextLabel.isBlank()) {
+                diagnosticsRoot.put("executionContext", executionContextLabel);
+            }
             diagnosticsRoot.put("captureError", exception.getMessage());
             diagnosticsRoot.put("rawDiagnostics",
                     String.join(System.lineSeparator(), fieldMappingDiagnostics));
@@ -1216,6 +1236,16 @@ public class IptDeclarationPage {
                     + " -> nameControl={" + describeControl(field) + "},"
                     + " idControl={" + (idField == null ? "N/A" : describeControl(idField)) + "}");
 
+            if (partyRowResolvedSnapshot(rowLabel, partyName, partyId)) {
+                logPartyMappingState(
+                        rowLabel,
+                        "UI existing value",
+                        readRenderedFieldValue(field),
+                        partyId,
+                        readPartyRowText(rowLabel));
+                return;
+            }
+
             field.scrollIntoViewIfNeeded();
             field.click(new Locator.ClickOptions().setForce(true));
             boolean lookupCodePartyName = looksLikePartyLookupCode(partyName);
@@ -1842,11 +1872,21 @@ public class IptDeclarationPage {
                 return false;
             }
 
-            pauseUi(UI_ACTION_PAUSE_MS);
+            Locator nameField = resolvePartyNameFieldFromComponentOrNull(rowLabel);
+            if (nameField == null) {
+                nameField = resolvePartyNameField(rowLabel);
+            }
             Locator idField = resolvePartyIdFieldOrNull(rowLabel);
-            return partyId == null
+            boolean nameResolved = partyName == null
+                    || partyName.isBlank()
+                    || waitForResolvedPartyNameFieldValue(nameField, partyName, partyId, 900)
+                    || waitForPartyFieldValue(nameField, partyName, 900)
+                    || waitForPartyRowValues(rowLabel, partyName, null, 900);
+            boolean idResolved = partyId == null
                     || partyId.isBlank()
-                    || waitForStablePartyIdFieldValue(idField, partyId, 600, 1500);
+                    || waitForStablePartyIdFieldValue(idField, partyId, 250, 1200)
+                    || waitForPartyRowValues(rowLabel, partyName, partyId, 900);
+            return nameResolved && idResolved;
         } catch (PlaywrightException ignored) {
             return false;
         }
@@ -3892,6 +3932,10 @@ public class IptDeclarationPage {
         if (field == null) {
             return;
         }
+        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+        if (waitForAnyRenderedFieldValue(field, 150, expectedValues.toArray(String[]::new))) {
+            return;
+        }
         focusAndTypeByClickOnly(field, value, suggestionHints);
     }
 
@@ -4090,10 +4134,7 @@ public class IptDeclarationPage {
                     }
 
                     field.click(new Locator.ClickOptions().setForce(true));
-                    page.keyboard().press("Control+A");
-                    page.keyboard().press("Backspace");
-                    page.keyboard().type(value);
-                    pauseUi(UI_ACTION_PAUSE_MS);
+                    typeFieldValue(field, value);
                     if (selectSuggestion) {
                         commitSuggestionSelection(field, value, suggestionHints, expectedValues);
                     } else {
@@ -4121,10 +4162,7 @@ public class IptDeclarationPage {
             }
 
             field.click(new Locator.ClickOptions().setForce(true));
-            page.keyboard().press("Control+A");
-            page.keyboard().press("Backspace");
-            page.keyboard().type(value);
-            pauseUi(UI_ACTION_PAUSE_MS);
+            typeFieldValue(field, value);
             commitSuggestionSelectionByClickOnly(field, value, suggestionHints, expectedValues);
             finalizeFieldEntry(field);
         });
@@ -4240,11 +4278,19 @@ public class IptDeclarationPage {
             }
 
             if (lookupClickOnlySelectionResolved(field, value, suggestionHints, expectedValues)) {
+                logFieldMappingInfo("Field validation PASS -> expected='" + firstNonBlank(expectedValues.toArray(String[]::new))
+                        + "', actual='" + firstNonBlank(readRenderedFieldValue(field), "<empty>")
+                        + "', lookup=true, control={" + describeControlSafely(field) + "}");
                 validatedFieldEntryCount++;
+                automationDiagnostics.recordValidatedField();
                 return;
             }
 
             if (!suggestionClicked) {
+                automationDiagnostics.recordFieldVerificationFailure(
+                        "Lookup suggestion was not selected by click.",
+                        value,
+                        readRenderedFieldValue(field));
                 throw new IllegalStateException(buildFieldVerificationFailure(
                         "Lookup suggestion was not selected by click",
                         field,
@@ -4252,6 +4298,10 @@ public class IptDeclarationPage {
                         expectedValues.toArray(String[]::new)));
             }
 
+            automationDiagnostics.recordFieldVerificationFailure(
+                    "Lookup suggestion click did not resolve field.",
+                    value,
+                    readRenderedFieldValue(field));
             throw new IllegalStateException(buildFieldVerificationFailure(
                     "Lookup suggestion click did not resolve field",
                     field,
@@ -4276,16 +4326,25 @@ public class IptDeclarationPage {
             }
         }
         if (!waitForAnyRenderedFieldValue(field, 1800, candidates)) {
+            String actualValue = readRenderedFieldValue(field);
             automationDiagnostics.recordFieldVerificationFailure(
                     "Field value was not rendered after interaction.",
                     value,
-                    readRenderedFieldValue(field));
+                    actualValue);
+            logFieldMappingWarning("Field validation FAIL -> expected='" + firstNonBlank(candidates)
+                    + "', actual='" + firstNonBlank(actualValue, "<empty>")
+                    + "', lookup=" + lookupField
+                    + ", control={" + describeControlSafely(field) + "}");
             throw new IllegalStateException(buildFieldVerificationFailure(
                     "Field value was not rendered",
                     field,
                     value,
                     candidates));
         }
+        logFieldMappingInfo("Field validation PASS -> expected='" + firstNonBlank(candidates)
+                + "', actual='" + firstNonBlank(readRenderedFieldValue(field), "<empty>")
+                + "', lookup=" + lookupField
+                + ", control={" + describeControlSafely(field) + "}");
         validatedFieldEntryCount++;
         automationDiagnostics.recordValidatedField();
     }
@@ -4716,6 +4775,29 @@ public class IptDeclarationPage {
         try {
             page.keyboard().press("Control+A");
             page.keyboard().press("Backspace");
+        } catch (PlaywrightException ignored) {
+        }
+    }
+
+    private void typeFieldValue(Locator field, String value) {
+        clearFieldForEntry(field);
+        try {
+            field.fill(value);
+            waitForAnyRenderedFieldValue(field, 250, value);
+            return;
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            field.type(value, new Locator.TypeOptions().setDelay(20));
+            waitForAnyRenderedFieldValue(field, 250, value);
+            return;
+        } catch (PlaywrightException ignored) {
+        }
+
+        try {
+            page.keyboard().type(value);
+            waitForAnyRenderedFieldValue(field, 250, value);
         } catch (PlaywrightException ignored) {
         }
     }
@@ -5516,46 +5598,41 @@ public class IptDeclarationPage {
                 page.keyboard().type(value);
             }
         }
-        page.waitForTimeout(300);
-        page.waitForTimeout(500);
+        waitForAnyRenderedFieldValue(field, 250, value);
     }
 
     private boolean attemptPartySuggestionSelection(Locator field, String... selectionHints) {
         if (waitForVisibleSuggestion(2000, field, selectionHints) && clickVisibleSuggestion(field, selectionHints)) {
-            page.waitForTimeout(400);
-            if (!waitForVisibleSuggestion(400, field, selectionHints)) {
-                page.waitForTimeout(600);
+            if (waitForCommittedPartySelection(field, 700)
+                    || !waitForVisibleSuggestion(350, field, selectionHints)) {
                 return true;
             }
         }
 
         if (waitForAnyVisibleSuggestion(2500, field)
                 && clickVisibleSuggestion(field, selectionHints)) {
-            page.waitForTimeout(400);
-            if (!waitForVisibleSuggestion(400, field, selectionHints)) {
-                page.waitForTimeout(600);
+            if (waitForCommittedPartySelection(field, 700)
+                    || !waitForAnyVisibleSuggestion(350, field)) {
                 return true;
             }
         }
 
         try {
             page.keyboard().press("ArrowDown");
-            page.waitForTimeout(300);
             if (waitForVisibleSuggestion(1500, field, selectionHints)) {
                 page.keyboard().press("Enter");
-                page.waitForTimeout(1000);
-                return true;
+                return waitForCommittedPartySelection(field, 900)
+                        || !waitForAnyVisibleSuggestion(350, field);
             }
             if (waitForAnyVisibleSuggestion(1500, field)
                     && clickVisibleSuggestion(field, selectionHints)) {
-                page.waitForTimeout(1000);
-                return true;
+                return waitForCommittedPartySelection(field, 900)
+                        || !waitForAnyVisibleSuggestion(350, field);
             }
         } catch (PlaywrightException ignored) {
         }
 
-        page.waitForTimeout(1000);
-        return false;
+        return waitForCommittedPartySelection(field, 250);
     }
 
     private boolean confirmVisibleSuggestionWithKeyboard(Locator field, String... selectionHints) {
@@ -5565,10 +5642,9 @@ public class IptDeclarationPage {
 
         try {
             page.keyboard().press("ArrowDown");
-            page.waitForTimeout(300);
             page.keyboard().press("Enter");
-            page.waitForTimeout(1000);
-            return true;
+            return waitForCommittedPartySelection(field, 900)
+                    || !waitForAnyVisibleSuggestion(350, field);
         } catch (PlaywrightException ignored) {
             return false;
         }
@@ -5693,8 +5769,8 @@ public class IptDeclarationPage {
         if (!clickFirstVisibleSuggestion(field)) {
             return false;
         }
-        page.waitForTimeout(1000);
-        return true;
+        return waitForCommittedPartySelection(field, 900)
+                || !waitForAnyVisibleSuggestion(350, field);
     }
 
     private Locator resolvePartyRowContainerOrNull(String rowLabel) {
@@ -6416,17 +6492,36 @@ public class IptDeclarationPage {
     }
 
     protected void logFieldMappingInfo(String message) {
-        String entry = "INFO: " + message;
+        String entry = contextualDiagnosticEntry("INFO: " + message);
         fieldMappingDiagnostics.add(entry);
         classifyFieldMappingInfo(message);
         System.out.println("[IptDeclarationPage] " + entry);
+        emitFieldMappingLog(entry);
     }
 
     protected void logFieldMappingWarning(String message) {
-        String entry = "WARN: " + message;
+        String entry = contextualDiagnosticEntry("WARN: " + message);
         fieldMappingDiagnostics.add(entry);
         classifyFieldMappingWarning(message);
         System.out.println("[IptDeclarationPage] " + entry);
+        emitFieldMappingLog(entry);
+    }
+
+    private String contextualDiagnosticEntry(String entry) {
+        if (executionContextLabel == null || executionContextLabel.isBlank()) {
+            return entry;
+        }
+        return executionContextLabel + " | " + entry;
+    }
+
+    private void emitFieldMappingLog(String entry) {
+        if (fieldMappingLogSink == null) {
+            return;
+        }
+        try {
+            fieldMappingLogSink.accept(entry);
+        } catch (Exception ignored) {
+        }
     }
 
     private void classifyFieldMappingInfo(String message) {
@@ -6456,6 +6551,7 @@ public class IptDeclarationPage {
     }
 
     private void recordFieldInteractionPreconditions(Locator field, String value) {
+        waitForFieldInteractionReady(field);
         automationDiagnostics.recordJsonValueCheck(flowLabelForDiagnostics(), value);
         boolean visible = false;
         boolean enabled = false;
@@ -6470,6 +6566,65 @@ public class IptDeclarationPage {
                 visible,
                 enabled,
                 "Control state evaluated before interaction.");
+    }
+
+    private void waitForFieldInteractionReady(Locator field) {
+        if (field == null) {
+            throw new IllegalStateException("Field locator was null before interaction.");
+        }
+        field.waitFor(new Locator.WaitForOptions()
+                .setState(WaitForSelectorState.VISIBLE)
+                .setTimeout(automationSettings.thresholdValidation().elementWaitTimeoutMs()));
+
+        long deadline = System.currentTimeMillis()
+                + Math.max(1000L, automationSettings.thresholdValidation().elementWaitTimeoutMs());
+        while (System.currentTimeMillis() <= deadline) {
+            if (isFieldReadyForInteraction(field)) {
+                return;
+            }
+            page.waitForTimeout(100);
+        }
+        throw new IllegalStateException(buildFieldVerificationFailure(
+                "Field was not enabled/editable before interaction",
+                field,
+                null));
+    }
+
+    private boolean isFieldReadyForInteraction(Locator field) {
+        try {
+            return Boolean.TRUE.equals(field.evaluate("""
+                    element => {
+                        const editableSelector = "input:not([type='hidden']), textarea, select, [role='combobox'], [role='textbox'], [contenteditable='true']";
+                        const isVisible = candidate => !!candidate
+                            && !!(candidate.offsetWidth || candidate.offsetHeight || candidate.getClientRects().length);
+                        const target = element.matches?.(editableSelector)
+                            ? element
+                            : element.querySelector?.(editableSelector)
+                                || element.closest?.(editableSelector)
+                                || element;
+                        if (!isVisible(target)) {
+                            return false;
+                        }
+                        if (target.disabled || target.getAttribute?.('aria-disabled') === 'true') {
+                            return false;
+                        }
+                        if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+                            return !target.readOnly;
+                        }
+                        if (target instanceof HTMLSelectElement) {
+                            return true;
+                        }
+                        if (target.isContentEditable) {
+                            return true;
+                        }
+                        return target.getAttribute?.('role') === 'combobox'
+                            || target.getAttribute?.('role') === 'textbox'
+                            || !!target.querySelector?.("input:not([type='hidden']):not([disabled]), textarea:not([disabled]), select:not([disabled])");
+                    }
+                    """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     private boolean isPageReadyForInteraction() {

@@ -690,6 +690,7 @@ public class OutDeclarationPage extends IptDeclarationPage {
             return;
         }
 
+        long stabilizationStartedAt = System.currentTimeMillis();
         int[] retryWaitsMs = {0, 150, 350};
         for (int attempt = 0; attempt < retryWaitsMs.length; attempt++) {
             if (retryWaitsMs[attempt] > 0) {
@@ -705,19 +706,41 @@ public class OutDeclarationPage extends IptDeclarationPage {
                             + "', currentUen='" + safeRenderedOutPartyValue(idField)
                             + ", expectedName='" + firstNonBlank(expectedName, "N/A")
                             + "', expectedUen='" + firstNonBlank(expectedId, "N/A") + "'");
-            if (outPartyRowExactlyResolved(nameField, idField, expectedName, expectedId)) {
-                logOutPartyDebug(normalize(rowLabel).toUpperCase(), "Stabilization skipped; row already exact");
+            boolean nameExact = expectedName == null
+                    || expectedName.isBlank()
+                    || waitForExactOutPartyFieldValue(nameField, expectedName, 150);
+            boolean idExact = expectedId == null
+                    || expectedId.isBlank()
+                    || waitForExactOutPartyFieldValue(idField, expectedId, 150);
+            if (nameExact && idExact) {
+                logOutPartyDebug(
+                        normalize(rowLabel).toUpperCase(),
+                        "Stabilization skipped; row already exact"
+                                + ", attempt=" + (attempt + 1)
+                                + ", elapsedMs=" + (System.currentTimeMillis() - stabilizationStartedAt));
                 return;
             }
 
-            ensureExactOutPartyRowFieldValue(nameField, expectedName);
-            ensureExactOutPartyRowFieldValue(idField, expectedId);
+            if (!nameExact) {
+                ensureExactOutPartyRowFieldValue(nameField, expectedName);
+            }
+            if (!idExact) {
+                ensureExactOutPartyRowFieldValue(idField, expectedId);
+            }
             if (outPartyRowExactlyResolved(nameField, idField, expectedName, expectedId)) {
-                logOutPartyDebug(normalize(rowLabel).toUpperCase(), "Stabilization resolved");
+                logOutPartyDebug(
+                        normalize(rowLabel).toUpperCase(),
+                        "Stabilization resolved"
+                                + ", attempt=" + (attempt + 1)
+                                + ", elapsedMs=" + (System.currentTimeMillis() - stabilizationStartedAt));
                 return;
             }
         }
-        logOutPartyDebug(normalize(rowLabel).toUpperCase(), "Stabilization exhausted without exact resolution");
+        logOutPartyDebug(
+                normalize(rowLabel).toUpperCase(),
+                "Stabilization exhausted without exact resolution"
+                        + ", attempts=" + retryWaitsMs.length
+                        + ", elapsedMs=" + (System.currentTimeMillis() - stabilizationStartedAt));
     }
 
     private boolean outPartyRowExactlyResolved(String rowLabel, String expectedName, String expectedId) {

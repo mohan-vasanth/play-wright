@@ -126,34 +126,57 @@
     const defaultForm = {
         totalUsers: '100',
         browserTabs: '100',
-        tabsPerUser: '100',
+        tabsPerUser: '1',
         url: 'http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard',
         username: 'mohan',
         password: '12345678',
         declarationType: '',
         selectedJson: '',
-        headless: false
+        headless: false,
+        testingMode: 'STANDARD_LOAD',
+        concurrencyLimit: '',
+        maxResponseTimeSeconds: '',
+        maxErrorRatePercent: '',
+        minimumSuccessRatePercent: '',
+        maxPartyTabTimeSeconds: ''
     };
 
     const sidebarItems = [
         { label: 'Dashboard', href: '#dashboard' },
-        { label: 'Load Testing', href: '#load-testing' },
-        { label: 'Test Configuration', href: '#test-configuration' },
-        { label: 'Job Management', href: '#job-management' },
-        { label: 'Test Results', href: '#test-results' },
+        { label: 'Test Setup', href: '#test-configuration' },
+        { label: 'Live Execution', href: '#live-execution' },
+        { label: 'Validation', href: '#validation' },
+        { label: 'Issues', href: '#issues' },
+        { label: 'Performance', href: '#performance' },
         { label: 'Reports', href: '#reports' },
-        { label: 'Analytics', href: '#analytics' },
         { label: 'Settings', href: '#settings' }
+    ];
+
+    const testingModes = [
+        { value: 'STANDARD_LOAD', label: 'Standard Load Test' },
+        { value: 'LOW_TESTING', label: 'Low Testing' },
+        { value: 'THRESHOLD_VALIDATION', label: 'Threshold Validation' },
+        { value: 'STRESS_TESTING', label: 'Stress Testing' },
+        { value: 'SPIKE_TESTING', label: 'Spike Testing' },
+        { value: 'ENDURANCE_TESTING', label: 'Endurance / Soak Testing' },
+        { value: 'CAPACITY_TESTING', label: 'Capacity Testing' },
+        { value: 'PENETRATION_TESTING', label: 'Penetration Testing' }
     ];
 
     const DEFAULT_GRID_COLUMN_KEYS = [
         'userIndex',
+        'browserSessionId',
+        'browserContextId',
         'tabNumber',
+        'partyTabDurationMs',
         'jobId',
         'messageReference',
         'declarationType',
         'createdBy',
         'status',
+        'expectedFieldCount',
+        'filledFieldCount',
+        'missingFieldCount',
         'permitNumber',
         'urnDate',
         'declarantId',
@@ -286,8 +309,187 @@
         return `${numeric}${suffix}`;
     }
 
+    function formatCompactDuration(milliseconds) {
+        const safeMs = Math.max(0, Number(milliseconds) || 0);
+        if (safeMs < 1000) {
+            return `${safeMs} ms`;
+        }
+        const totalSeconds = Math.round(safeMs / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) {
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function formatRelativeTime(value) {
+        if (!value) {
+            return 'No recent run';
+        }
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) {
+            return 'Recently';
+        }
+        const deltaMs = Date.now() - parsed.getTime();
+        if (deltaMs < 60000) {
+            return 'just now';
+        }
+        const minutes = Math.floor(deltaMs / 60000);
+        if (minutes < 60) {
+            return `${minutes} min ago`;
+        }
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) {
+            return `${hours} hr ago`;
+        }
+        const days = Math.floor(hours / 24);
+        return `${days} day${days === 1 ? '' : 's'} ago`;
+    }
+
     function statusAccent(status) {
         return statusColors[String(status || 'IDLE').toUpperCase()] || '#94a3b8';
+    }
+
+    function resolveSystemState(status, systemOnline) {
+        if (!systemOnline) {
+            return 'SYSTEM ERROR';
+        }
+        const state = String(status?.status || '').toUpperCase();
+        if (state === 'RUNNING' || state === 'STOPPING') {
+            return 'TEST RUNNING';
+        }
+        if (state === 'COMPLETED') {
+            return 'TEST COMPLETED';
+        }
+        if (state === 'FAILED' || state === 'STOPPED') {
+            return 'TEST FAILED';
+        }
+        return 'SYSTEM READY';
+    }
+
+    function deriveExecutionStatus(item) {
+        const rawStatus = String(
+            item?.status
+            || item?.submissionStatus
+            || item?.creationStatus
+            || (item?.success ? 'COMPLETED' : '')
+            || 'QUEUED'
+        ).toUpperCase();
+
+        if (['SUCCESS', 'SUBMITTED', 'COMPLETED', 'DONE', 'PMT', 'SUB'].includes(rawStatus)) {
+            return 'COMPLETED';
+        }
+        if (['FAILED', 'ERROR', 'REJ', 'FLD'].includes(rawStatus)) {
+            return 'FAILED';
+        }
+        if (['PENDING', 'DRF', 'DRAFT', 'REG'].includes(rawStatus)) {
+            return 'VALIDATING';
+        }
+        if (['RUNNING', 'STOPPING'].includes(rawStatus)) {
+            return 'RUNNING';
+        }
+        return rawStatus || 'QUEUED';
+    }
+
+    function deriveCurrentStep(item) {
+        const failedStep = String(item?.failedStep || '').trim();
+        if (failedStep) {
+            return failedStep;
+        }
+        const status = deriveExecutionStatus(item);
+        if (status === 'COMPLETED') {
+            return 'Complete';
+        }
+        if (status === 'FAILED') {
+            return item?.failureFieldName ? `${item.failureFieldName}` : 'Validation';
+        }
+        if (item?.submissionStatus && String(item.submissionStatus).toUpperCase() !== 'FAILED') {
+            return 'Submit';
+        }
+        if (item?.creationStatus && String(item.creationStatus).toUpperCase() !== 'FAILED') {
+            return 'Review';
+        }
+        return 'Queued';
+    }
+
+    function deriveRowProgress(item) {
+        const expected = Math.max(0, Number(item?.expectedFieldCount) || 0);
+        const filled = Math.max(0, Number(item?.filledFieldCount) || 0);
+        if (expected > 0) {
+            return clamp((filled / expected) * 100, 0, 100);
+        }
+        return deriveExecutionStatus(item) === 'COMPLETED' ? 100 : 0;
+    }
+
+    function deriveFlowStepIndex(item) {
+        const current = `${deriveCurrentStep(item)} ${item?.failureFieldName || ''}`.toUpperCase();
+        if (current.includes('LOGIN')) {
+            return 0;
+        }
+        if (current.includes('PARTY')) {
+            return 1;
+        }
+        if (current.includes('ITEM')) {
+            return 2;
+        }
+        if (current.includes('CARGO') || current.includes('SHIPMENT') || current.includes('TRANSPORT')) {
+            return 3;
+        }
+        if (current.includes('REVIEW') || current.includes('SUMMARY') || current.includes('VALIDATION') || current.includes('SUBMIT')) {
+            return 4;
+        }
+        return deriveExecutionStatus(item) === 'COMPLETED' ? 5 : 0;
+    }
+
+    function buildExecutionFlow(item) {
+        const flow = ['Login', 'Party', 'Item', 'Cargo', 'Review', 'Complete'];
+        const status = deriveExecutionStatus(item);
+        const currentIndex = deriveFlowStepIndex(item);
+        return flow.map((label, index) => {
+            let state = 'pending';
+            if (status === 'FAILED' && index === currentIndex) {
+                state = 'failed';
+            } else if (status === 'COMPLETED' || index < currentIndex) {
+                state = 'done';
+            } else if (index === currentIndex && status !== 'QUEUED') {
+                state = 'running';
+            }
+            return { label, state };
+        });
+    }
+
+    function deriveIssueRows(userJobResults) {
+        return (userJobResults || [])
+            .filter(item =>
+                (Number(item?.missingFieldCount) || 0) > 0
+                || deriveExecutionStatus(item) === 'FAILED'
+                || !!item?.failureReason
+                || !!item?.errorMessage)
+            .map(item => ({
+                item,
+                title: item?.failureFieldName
+                    ? `${deriveCurrentStep(item)} → ${item.failureFieldName}`
+                    : deriveCurrentStep(item),
+                summary: item?.failureReason || item?.errorMessage || item?.failedFieldDetails || 'Validation issue detected',
+                timestamp: item?.failureTimestamp || item?.endTime || item?.startTime || null
+            }))
+            .sort((left, right) => new Date(right.timestamp || 0).getTime() - new Date(left.timestamp || 0).getTime());
+    }
+
+    function extractActivityEntries(logs) {
+        return (logs || [])
+            .slice(-6)
+            .reverse()
+            .map((line, index) => {
+                const match = String(line || '').match(/^(\d{1,2}:\d{2}:\d{2}(?:\s?[AP]M)?)\s+(.*)$/i);
+                return {
+                    id: `${index}-${line}`,
+                    time: match ? match[1] : 'Live',
+                    message: match ? match[2] : String(line || '')
+                };
+            });
     }
 
     function buildHistoryPoint(payload) {
@@ -592,24 +794,43 @@
         const [status, setStatus] = useState({
             status: 'IDLE',
             running: false,
+            testingMode: 'STANDARD_LOAD',
+            requestedBrowserTabs: 0,
+            concurrencyLimit: null,
             totalUsers: 0,
             tabsPerUser: 1,
             totalTabRuns: 0,
+            startedUsers: 0,
             activeUsers: 0,
+            activeBrowserSessions: 0,
+            activeBrowserContexts: 0,
             completedUsers: 0,
             executedUsers: 0,
             successCount: 0,
             failureCount: 0,
             openTabsCount: 0,
             totalTabsOpened: 0,
+            populatedTabsCount: 0,
+            totalFilledFieldCount: 0,
+            totalMissingFieldCount: 0,
             totalJobsCreated: 0,
             totalJobsSubmitted: 0,
             draftJobCount: 0,
             pendingVerificationCount: 0,
             averageResponseTime: 0,
+            p95ResponseTime: 0,
+            p99ResponseTime: 0,
+            averagePartyTabTime: 0,
+            p95PartyTabTime: 0,
+            p99PartyTabTime: 0,
             throughput: 0,
             transactionsPerSecond: 0,
             errorPercentage: 0,
+            currentUser: 0,
+            currentTab: 0,
+            currentField: '',
+            currentDeclaration: '',
+            validationStatus: 'IDLE',
             recentLogs: [],
             screenshots: [],
             userJobResults: [],
@@ -627,17 +848,19 @@
         const [textPreview, setTextPreview] = useState({ open: false, title: '', value: '' });
         const [columnDrawerOpen, setColumnDrawerOpen] = useState(false);
         const [visibleGridColumns, setVisibleGridColumns] = useState(DEFAULT_GRID_COLUMN_KEYS);
+        const [selectedExecution, setSelectedExecution] = useState(null);
 
         const theme = useMemo(() => buildTheme(), []);
         const jmeterStatus = status.jmeterStatus || {};
         const systemOnline = !apiConnectionError;
-        const concurrentUserCap = Number(status.configuration?.browserTabs || form.browserTabs || 0);
+        const systemStateLabel = resolveSystemState(status, systemOnline);
+        const requestedBrowserTabs = Number(status.requestedBrowserTabs || status.configuration?.browserTabs || form.browserTabs || 0);
         const totalTabRuns = Number(status.totalTabRuns || (Number(status.totalUsers || 0) * Number(status.tabsPerUser || 1)));
-        const utilizationEstimate = concurrentUserCap > 0
-            ? clamp((Number(status.openTabsCount || 0) / concurrentUserCap) * 100, 0, 100)
-            : 0;
-        const memoryEstimate = totalTabRuns > 0
+        const completionProgress = totalTabRuns > 0
             ? clamp((Number(status.completedUsers || 0) / totalTabRuns) * 100, 0, 100)
+            : 0;
+        const populationProgress = requestedBrowserTabs > 0
+            ? clamp((Number(status.populatedTabsCount || 0) / requestedBrowserTabs) * 100, 0, 100)
             : 0;
         const jmeterThresholdLabel = (() => {
             if (!status.jmeterStatus || jmeterStatus.status === 'IDLE') {
@@ -648,19 +871,106 @@
             }
             return jmeterStatus.thresholdsPassed ? 'Passed' : 'Failed';
         })();
+        const successRate = Number(status.executedUsers || 0) > 0
+            ? clamp((Number(status.successCount || 0) / Number(status.executedUsers || 0)) * 100, 0, 100)
+            : 0;
 
-        const summaryCards = [
-            { title: 'Total Users', value: status.totalUsers || 0, caption: 'Isolated users requested for current run', accent: '#2563eb' },
-            { title: 'Tabs / User', value: status.tabsPerUser || form.tabsPerUser || 1, caption: 'Logical tab executions per user session', accent: '#38bdf8' },
-            { title: 'Total Tab Runs', value: totalTabRuns || 0, caption: 'Users x tabs per user planned for this run', accent: '#22c55e' },
-            { title: 'Tab Runs Failed', value: status.failureCount || 0, caption: 'Any missing or incorrect field marks that tab execution failed', accent: '#ef4444' },
-            { title: 'Created Successfully', value: status.totalJobsCreated || 0, caption: 'Verified by generated Job ID', accent: '#38bdf8' },
-            { title: 'Submitted Successfully', value: status.totalJobsSubmitted || 0, caption: 'Verified successful submission', accent: '#22c55e' },
-            { title: 'Pending / Unverified', value: status.pendingVerificationCount || 0, caption: 'Completed tab runs still awaiting final verification', accent: '#f59e0b' },
-            { title: 'Active Tab Runs', value: status.activeUsers || 0, caption: 'Tab executions running now across isolated users', accent: '#7c3aed' },
-            { title: 'Active User Sessions', value: status.openTabsCount || 0, caption: 'Visible isolated browser sessions currently open', accent: '#06b6d4' },
-            { title: 'Throughput', value: status.throughput || 0, suffix: ' /s', caption: 'Completed tab executions per second', accent: '#8b5cf6' }
+        const executionRows = useMemo(
+            () => [...(status.userJobResults || [])].sort((left, right) =>
+                (Number(right.executionOrder) || 0) - (Number(left.executionOrder) || 0)),
+            [status.userJobResults]
+        );
+        const issueRows = useMemo(() => deriveIssueRows(executionRows), [executionRows]);
+        const activityEntries = useMemo(() => extractActivityEntries(status.recentLogs || []), [status.recentLogs]);
+        const primaryMetrics = [
+            {
+                title: 'Running',
+                value: status.activeUsers || 0,
+                caption: 'Users running',
+                accent: '#2563eb'
+            },
+            {
+                title: 'Active Tabs',
+                value: status.openTabsCount || 0,
+                caption: 'Pages executing',
+                accent: '#06b6d4'
+            },
+            {
+                title: 'Browsers',
+                value: status.activeBrowserSessions || 0,
+                caption: 'Browser processes',
+                accent: '#7c3aed'
+            },
+            {
+                title: 'Contexts',
+                value: status.activeBrowserContexts || 0,
+                caption: 'Isolated contexts',
+                accent: '#0ea5e9'
+            },
+            {
+                title: 'Completed',
+                value: status.successCount || 0,
+                caption: 'Users completed',
+                accent: '#22c55e'
+            },
+            {
+                title: 'Failed',
+                value: status.failureCount || 0,
+                caption: 'Users failed',
+                accent: '#ef4444'
+            },
+            {
+                title: 'Progress',
+                value: `${Math.round(completionProgress)}%`,
+                caption: `${status.completedUsers || 0} of ${totalTabRuns || 0} finished`,
+                accent: '#0ea5e9'
+            },
+            {
+                title: 'Filled Fields',
+                value: status.totalFilledFieldCount || 0,
+                caption: 'Validated values',
+                accent: '#14b8a6'
+            },
+            {
+                title: 'Missing Fields',
+                value: status.totalMissingFieldCount || 0,
+                caption: 'Validation misses',
+                accent: '#f59e0b'
+            },
+            {
+                title: 'Success Rate',
+                value: `${Math.round(successRate)}%`,
+                caption: `${status.successCount || 0} of ${status.executedUsers || 0} executed`,
+                accent: '#22c55e'
+            }
         ];
+        const summaryCards = primaryMetrics.map(card => ({
+            title: card.title,
+            value: card.value,
+            caption: card.caption,
+            accent: card.accent
+        }));
+        const validationProcessed = Math.max(
+            Number(status.totalFilledFieldCount || 0) + Number(status.totalMissingFieldCount || 0),
+            executionRows.reduce((total, item) => total + (Number(item.expectedFieldCount) || 0), 0)
+        );
+        const validationPassed = Number(status.totalFilledFieldCount || 0);
+        const validationFailed = Number(status.totalMissingFieldCount || 0);
+        const missingValueRuns = executionRows.filter(item => (Number(item.missingFieldCount) || 0) > 0).length;
+        const runCompleted = !status.running && !!status.finishedAt && totalTabRuns > 0;
+        const finishedAtValue = status.finishedAt ? new Date(status.finishedAt).getTime() : null;
+        const startedAtValue = status.startedAt ? new Date(status.startedAt).getTime() : null;
+        const elapsedMs = startedAtValue
+            ? Math.max(0, (runCompleted && finishedAtValue ? finishedAtValue : Date.now()) - startedAtValue)
+            : 0;
+        const remainingUsers = Math.max(0, totalTabRuns - Number(status.completedUsers || 0));
+        const estimatedRemainingMs = Number(status.throughput || 0) > 0
+            ? (remainingUsers / Number(status.throughput || 0)) * 1000
+            : 0;
+        const throughputPerMinute = Number(status.throughput || 0) * 60;
+        const selectedRow = selectedExecution
+            ? executionRows.find(item => `${item.executionOrder}-${item.jobId || item.startTime}` === selectedExecution)
+            : null;
 
         const activeUserTrend = history.map(point => point.activeUsers);
         const tpsTrend = history.map(point => point.throughput);
@@ -807,6 +1117,14 @@
             setColumnDrawerOpen(false);
         }
 
+        function openExecutionDrawer(item) {
+            setSelectedExecution(`${item.executionOrder}-${item.jobId || item.startTime}`);
+        }
+
+        function closeExecutionDrawer() {
+            setSelectedExecution(null);
+        }
+
         function showAllGridColumns() {
             setVisibleGridColumns(gridColumns.map(column => column.key));
         }
@@ -845,9 +1163,14 @@
                 render: item => item.tabNumber || 'N/A'
             },
             {
-                key: 'workerSlotNumber',
-                label: 'Worker Slot',
-                render: item => item.workerSlotNumber || item.tabNumber || 'N/A'
+                key: 'browserSessionId',
+                label: 'Browser ID',
+                render: item => item.browserSessionId || item.userIndex || 'N/A'
+            },
+            {
+                key: 'browserContextId',
+                label: 'Context ID',
+                render: item => item.browserContextId || 'N/A'
             },
             {
                 key: 'jobNumber',
@@ -975,6 +1298,11 @@
                 render: item => item.executionTimeMs ? `${item.executionTimeMs} ms` : 'N/A'
             },
             {
+                key: 'partyTabDurationMs',
+                label: 'Party Duration',
+                render: item => item.partyTabDurationMs ? `${item.partyTabDurationMs} ms` : 'N/A'
+            },
+            {
                 key: 'evidence',
                 label: 'Evidence',
                 render: item => (
@@ -1031,6 +1359,21 @@
                 key: 'jsonRecordNumber',
                 label: 'JSON Record',
                 render: item => item.jsonRecordNumber || 'N/A'
+            },
+            {
+                key: 'expectedFieldCount',
+                label: 'Expected Fields',
+                render: item => item.expectedFieldCount || 'N/A'
+            },
+            {
+                key: 'filledFieldCount',
+                label: 'Filled Fields',
+                render: item => item.filledFieldCount || 'N/A'
+            },
+            {
+                key: 'missingFieldCount',
+                label: 'Missing Fields',
+                render: item => item.missingFieldCount || 'N/A'
             },
             {
                 key: 'createdBy',
@@ -1142,6 +1485,23 @@
             }
         }
 
+        function buildThresholdPayload() {
+            const thresholds = {};
+            if (form.maxResponseTimeSeconds !== '') {
+                thresholds.maxResponseTimeSeconds = Number(form.maxResponseTimeSeconds);
+            }
+            if (form.maxErrorRatePercent !== '') {
+                thresholds.maxErrorRatePercent = Number(form.maxErrorRatePercent);
+            }
+            if (form.minimumSuccessRatePercent !== '') {
+                thresholds.minimumSuccessRatePercent = Number(form.minimumSuccessRatePercent);
+            }
+            if (form.maxPartyTabTimeSeconds !== '') {
+                thresholds.maxPartyTabTimeSeconds = Number(form.maxPartyTabTimeSeconds);
+            }
+            return Object.keys(thresholds).length ? thresholds : null;
+        }
+
         async function handleRun() {
             setBusy(true);
             try {
@@ -1159,7 +1519,10 @@
                         selectedJson: form.selectedJson,
                         headless: false,
                         jmeterRampUpSeconds: Math.max(1, Math.round(Number(form.totalUsers || 1) / 10)),
-                        jmeterLoopCount: 1
+                        jmeterLoopCount: 1,
+                        testingMode: form.testingMode,
+                        concurrencyLimit: form.concurrencyLimit === '' ? null : Number(form.concurrencyLimit),
+                        thresholds: buildThresholdPayload()
                     })
                 });
                 showToast('success', response.message);
@@ -1191,20 +1554,25 @@
         }
 
         function handleExportExcel() {
-            const headers = ['Execution Order', 'User Index', 'Tab Number', 'Worker Slot', 'Job Number', 'Job ID', 'Final Status', 'Creation Status', 'Submission Status', 'Application Status', 'Error Message', 'Failure Reason', 'Failure Field Name', 'Failure JSON Key', 'Failure JSON Value', 'Failed Step', 'Failure Timestamp', 'Failed Field Details', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Reference', 'Permit Number', 'Screenshot URL', 'Diagnostics URL'];
+            const headers = ['Execution Order', 'User Index', 'Browser ID', 'Context ID', 'Tab Number', 'Job Number', 'Job ID', 'Final Status', 'Creation Status', 'Submission Status', 'Application Status', 'Expected Fields', 'Filled Fields', 'Missing Fields', 'Party Tab Duration', 'Error Message', 'Failure Reason', 'Failure Field Name', 'Failure JSON Key', 'Failure JSON Value', 'Failed Step', 'Failure Timestamp', 'Failed Field Details', 'Execution Time', 'Declaration Type', 'Selected JSON', 'JSON Record', 'Created By', 'Message Reference', 'Permit Number', 'Screenshot URL', 'Diagnostics URL'];
             const rows = (status.userJobResults || []).map(item => {
                 const errorMessage = item.errorMessage || item.failureReason || '';
                 return [
                     item.executionOrder || '',
                     item.userIndex || '',
+                    item.browserSessionId || item.userIndex || '',
+                    item.browserContextId || '',
                     item.tabNumber || '',
-                    item.workerSlotNumber || item.tabNumber || '',
                     item.jobNumber || item.executionOrder || '',
                     item.jobId || '',
                     item.status || '',
                     item.creationStatus || '',
                     item.submissionStatus || item.applicationStatus || '',
                     item.applicationStatus || '',
+                    item.expectedFieldCount || '',
+                    item.filledFieldCount || '',
+                    item.missingFieldCount || '',
+                    item.partyTabDurationMs ? `${item.partyTabDurationMs} ms` : '',
                     String(errorMessage).replace(/"/g, '""'),
                     item.failureReason || '',
                     item.failureFieldName || '',
@@ -1523,15 +1891,33 @@
                                                                     </Typography>
                                                                 </Grid>
                                                                 <Grid item xs={6}>
-                                                                    <Typography variant="body2" color="text.secondary">Tabs / User</Typography>
+                                                                    <Typography variant="body2" color="text.secondary">Requested Tabs</Typography>
                                                                     <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
-                                                                        {status.tabsPerUser || form.tabsPerUser || 1}
+                                                                        {requestedBrowserTabs || form.browserTabs || 0}
                                                                     </Typography>
                                                                 </Grid>
                                                                 <Grid item xs={6}>
-                                                                    <Typography variant="body2" color="text.secondary">Total Tab Runs</Typography>
+                                                                    <Typography variant="body2" color="text.secondary">Browser Count</Typography>
                                                                     <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
-                                                                        {totalTabRuns || 0}
+                                                                        {status.activeBrowserSessions || 0}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Context Count</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.activeBrowserContexts || 0}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Active Tabs</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.openTabsCount || 0}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Testing Mode</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {(status.testingMode || form.testingMode || 'STANDARD_LOAD').replaceAll('_', ' ')}
                                                                     </Typography>
                                                                 </Grid>
                                                                 <Grid item xs={6}>
@@ -1546,12 +1932,38 @@
                                                                         {status.finishedAt ? formatDateTime(status.finishedAt) : 'Running'}
                                                                     </Typography>
                                                                 </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Current User</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.currentUser || 'N/A'}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={6}>
+                                                                    <Typography variant="body2" color="text.secondary">Current Tab</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5 }}>
+                                                                        {status.currentTab || 'N/A'}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={12}>
+                                                                    <Typography variant="body2" color="text.secondary">Current Declaration</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
+                                                                        {status.currentDeclaration || status.declarationTypeLabel || 'N/A'}
+                                                                    </Typography>
+                                                                </Grid>
+                                                                <Grid item xs={12}>
+                                                                    <Typography variant="body2" color="text.secondary">Current Field</Typography>
+                                                                    <Typography variant="subtitle2" sx={{ mt: 0.5, wordBreak: 'break-word' }}>
+                                                                        {status.currentField || 'N/A'}
+                                                                    </Typography>
+                                                                </Grid>
                                                             </Grid>
                                                             <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
                                                             <Typography variant="body2" sx={{ color: alpha('#f8fafc', 0.75), lineHeight: 1.8 }}>
                                                                 {status.message || 'Ready to run the workflow.'}
                                                             </Typography>
                                                             <Stack direction="row" spacing={1.2} flexWrap="wrap">
+                                                                <StatusBadge label={(status.testingMode || form.testingMode || 'STANDARD_LOAD').replaceAll('_', ' ')} />
+                                                                <StatusBadge label={status.validationStatus || 'IDLE'} />
                                                                 <StatusBadge label={jmeterThresholdLabel} />
                                                                 <StatusBadge label={systemOnline ? 'API READY' : 'API DOWN'} />
                                                             </Stack>
@@ -1584,7 +1996,7 @@
                                         <SectionHeader
                                             eyebrow="Load Test Configuration"
                                             title="Operator Controls"
-                                            description="Configure target access, concurrent user slots, tabs per user, declaration type, and repository-backed JSON payload selection before launching the run."
+                                            description="Configure total users, isolated worker pages, testing mode, optional future concurrency limits, and repository-backed JSON payload selection before launching the run."
                                             action={busy ? <CircularProgress size={24} /> : null}
                                         />
                                         <Grid container spacing={2}>
@@ -1592,10 +2004,44 @@
                                                 <TextField fullWidth type="number" label="User Count" name="totalUsers" value={form.totalUsers} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
-                                                <TextField fullWidth type="number" label="Concurrent User Slots" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
+                                                <TextField fullWidth type="number" label="Worker Tabs" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
-                                                <TextField fullWidth type="number" label="Tabs Per User" name="tabsPerUser" value={form.tabsPerUser} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
+                                                <TextField fullWidth type="number" label="Tabs Per User" name="tabsPerUser" value={form.tabsPerUser} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} disabled helperText="Legacy field. Isolated worker execution fixes this to 1 so one user maps to one run." />
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <FormControl fullWidth sx={inputSx}>
+                                                    <InputLabel id="testing-mode-label">Testing Mode</InputLabel>
+                                                    <Select
+                                                        labelId="testing-mode-label"
+                                                        label="Testing Mode"
+                                                        name="testingMode"
+                                                        value={form.testingMode}
+                                                        onChange={handleFieldChange}
+                                                    >
+                                                        {testingModes.map(option => (
+                                                            <MenuItem key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </MenuItem>
+                                                        ))}
+                                                    </Select>
+                                                    <FormHelperText>
+                                                        `STANDARD_LOAD` uses one browser process with one isolated context/page per active worker.
+                                                    </FormHelperText>
+                                                </FormControl>
+                                            </Grid>
+                                            <Grid item xs={12} md={6}>
+                                                <TextField
+                                                    fullWidth
+                                                    type="number"
+                                                    label="Concurrency Limit"
+                                                    name="concurrencyLimit"
+                                                    value={form.concurrencyLimit}
+                                                    onChange={handleFieldChange}
+                                                    inputProps={{ min: 1 }}
+                                                    sx={inputSx}
+                                                    helperText="Reserved for future strategies. Ignored for the current Standard Load execution engine."
+                                                />
                                             </Grid>
                                             <Grid item xs={12}>
                                                 <TextField fullWidth label="Application URL" name="url" value={form.url} onChange={handleFieldChange} sx={inputSx} />
@@ -1645,6 +2091,32 @@
                                                     </FormHelperText>
                                                 </FormControl>
                                             </Grid>
+                                            {form.testingMode === 'THRESHOLD_VALIDATION' ? (
+                                                <>
+                                                    <Grid item xs={12}>
+                                                        <GlassPanel sx={{ p: 2.1, borderRadius: 4, background: 'rgba(15, 23, 42, 0.44)' }}>
+                                                            <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                                                Threshold Configuration
+                                                            </Typography>
+                                                            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.7, lineHeight: 1.75 }}>
+                                                                Threshold values are stored with the run configuration now so validation rules can plug into the same execution engine later.
+                                                            </Typography>
+                                                        </GlassPanel>
+                                                    </Grid>
+                                                    <Grid item xs={12} md={6}>
+                                                        <TextField fullWidth type="number" label="Max Response Time (sec)" name="maxResponseTimeSeconds" value={form.maxResponseTimeSeconds} onChange={handleFieldChange} inputProps={{ min: 0, step: '0.1' }} sx={inputSx} />
+                                                    </Grid>
+                                                    <Grid item xs={12} md={6}>
+                                                        <TextField fullWidth type="number" label="Max Error Rate (%)" name="maxErrorRatePercent" value={form.maxErrorRatePercent} onChange={handleFieldChange} inputProps={{ min: 0, step: '0.1' }} sx={inputSx} />
+                                                    </Grid>
+                                                    <Grid item xs={12} md={6}>
+                                                        <TextField fullWidth type="number" label="Minimum Success Rate (%)" name="minimumSuccessRatePercent" value={form.minimumSuccessRatePercent} onChange={handleFieldChange} inputProps={{ min: 0, max: 100, step: '0.1' }} sx={inputSx} />
+                                                    </Grid>
+                                                    <Grid item xs={12} md={6}>
+                                                        <TextField fullWidth type="number" label="Max Party Tab Time (sec)" name="maxPartyTabTimeSeconds" value={form.maxPartyTabTimeSeconds} onChange={handleFieldChange} inputProps={{ min: 0, step: '0.1' }} sx={inputSx} />
+                                                    </Grid>
+                                                </>
+                                            ) : null}
                                             <Grid item xs={12}>
                                                 <GlassPanel sx={{ p: 2.1, borderRadius: 4, background: 'rgba(15, 23, 42, 0.44)' }}>
                                                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between">
@@ -1748,17 +2220,17 @@
                                             </Grid>
                                             <Grid item xs={12} md={6}>
                                                 <GaugeCard
-                                                    title="CPU Usage (est.)"
-                                                    value={utilizationEstimate}
-                                                    note="Derived from live tab utilization against the configured browser cap."
+                                                    title="Completion Progress"
+                                                    value={completionProgress}
+                                                    note="Actual completed tab executions against the planned run total."
                                                     color="#06b6d4"
                                                 />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
                                                 <GaugeCard
-                                                    title="Memory Usage (est.)"
-                                                    value={memoryEstimate}
-                                                    note="Progressive execution ratio used as a workload proxy until host telemetry is wired."
+                                                    title="Population Progress"
+                                                    value={populationProgress}
+                                                    note="Actual populated tabs against the requested browser tab target."
                                                     color="#7c3aed"
                                                 />
                                             </Grid>

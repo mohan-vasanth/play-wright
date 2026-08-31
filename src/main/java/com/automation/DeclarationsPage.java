@@ -6,6 +6,8 @@ import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.options.LoadState;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +25,7 @@ public class DeclarationsPage {
             "DRF", "PMT", "FLD", "REJ", "REG");
     private final Page page;
     private static final String DECLARATIONS_MENU = "text=Declarations";
-    private static final String NEW_DECLARATION_BUTTON = "button:has-text('NEW DECLARATION')";
+    private static final String NEW_DECLARATION_LABEL = "NEW DECLARATION";
 
     public DeclarationsPage(Page page) {
         this.page = page;
@@ -55,7 +57,7 @@ public class DeclarationsPage {
         openDeclarationsMenuIfNeeded(menuLabel);
         clickDeclarationMenuItem(menuLabel, route);
         page.waitForURL("**" + route);
-        waitForNewDeclarationButton();
+        waitForDeclarationActionButton(route);
     }
 
     public void createNewDeclarationDraft(String route) {
@@ -63,12 +65,11 @@ public class DeclarationsPage {
     }
 
     public void createNewDeclarationDraft(String route, String... expectedVisibleTexts) {
-        clickNewDeclarationButton();
+        clickNewDeclarationButton(route);
         waitForDeclarationEditScreenVisible(route, expectedVisibleTexts);
     }
 
     public void waitForDeclarationEditScreenVisible(String route, String... expectedVisibleTexts) {
-        page.waitForURL("**" + route + "/edit/*");
         page.waitForLoadState(LoadState.DOMCONTENTLOADED);
         page.waitForFunction("""
                 args => {
@@ -85,7 +86,11 @@ public class DeclarationsPage {
                     };
 
                     const path = window.location.pathname || '';
-                    if (!path.includes(args.route + '/edit/')) {
+                    const route = args.route || '';
+                    const onEditorRoute = path.includes(route + '/edit/')
+                        || path === route + '/create'
+                        || path.endsWith(route + '/create');
+                    if (!onEditorRoute) {
                         return false;
                     }
 
@@ -1206,7 +1211,7 @@ public class DeclarationsPage {
     private void waitForDeclarationListRefresh() {
         try {
             page.waitForLoadState(LoadState.DOMCONTENTLOADED);
-            waitForNewDeclarationButton();
+            waitForDeclarationActionButton(page.url());
         } catch (PlaywrightException ignored) {
         }
         page.waitForTimeout(1000);
@@ -1316,38 +1321,65 @@ public class DeclarationsPage {
         }
     }
 
-    private void waitForNewDeclarationButton() {
-        Locator button = resolveNewDeclarationButton();
+    private void waitForDeclarationActionButton(String route) {
+        Locator button = resolveNewDeclarationButton(route);
         if (button != null) {
             button.waitFor(new Locator.WaitForOptions().setTimeout(30000));
             return;
         }
 
+        List<String> labels = declarationActionLabels(route);
         try {
             page.waitForFunction("""
-                    () => Array.from(document.querySelectorAll("button, [role='button'], a"))
-                            .some(element => ((element.innerText || element.textContent || "").replace(/\\s+/g, " ").trim().toUpperCase()).includes("NEW DECLARATION"))
-                    """);
+                    labels => {
+                        const normalize = value => (value || "").replace(/\\s+/g, " ").trim().toUpperCase();
+                        const isVisible = element => !!element
+                            && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
+                        return Array.from(document.querySelectorAll("button, [role='button'], a"))
+                            .filter(isVisible)
+                            .some(element => {
+                                const text = normalize(element.innerText || element.textContent);
+                                return labels.some(label => text === label || text.includes(label));
+                            });
+                    }
+                    """, labels);
         } catch (PlaywrightException exception) {
             System.out.println("DECLARATION_LIST_URL=" + page.url());
             System.out.println("DECLARATION_LIST_BODY=" + page.locator("body").innerText());
-            throw new IllegalStateException("NEW DECLARATION button was not visible on declarations page.", exception);
+            throw new IllegalStateException(
+                    "Declaration action button was not visible on declarations page. Expected one of: "
+                            + String.join(", ", labels),
+                    exception);
         }
     }
 
-    private void clickNewDeclarationButton() {
-        Locator button = resolveNewDeclarationButton();
-        if (button != null && button.isVisible()) {
-            button.click();
+    private void clickNewDeclarationButton(String route) {
+        Locator button = resolveNewDeclarationButton(route);
+        List<String> labels = declarationActionLabels(route);
+        if (button != null && button.isVisible() && clickDeclarationActionButton(labels)) {
             return;
         }
-        
 
+        if (clickDeclarationActionButton(labels)) {
+            return;
+        }
+
+        throw new IllegalStateException("Unable to click declaration action button. Expected one of: "
+                + String.join(", ", labels));
+    }
+
+    private boolean clickDeclarationActionButton(List<String> labels) {
         Boolean clicked = (Boolean) page.evaluate("""
-                () => {
+                labels => {
                     const normalize = value => (value || "").replace(/\\s+/g, " ").trim().toUpperCase();
+                    const isVisible = element => !!element
+                        && !!(element.offsetWidth || element.offsetHeight || element.getClientRects().length);
                     const target = Array.from(document.querySelectorAll("button, [role='button'], a"))
-                        .find(element => normalize(element.innerText || element.textContent).includes("NEW DECLARATION"));
+                        .filter(isVisible)
+                        .find(element => {
+                            const text = normalize(element.innerText || element.textContent);
+                            return labels.some(label => text === label || text.includes(label));
+                        });
                     if (!target) {
                         return false;
                     }
@@ -1355,29 +1387,61 @@ public class DeclarationsPage {
                     target.click();
                     return true;
                 }
-                """);
-
-        if (!Boolean.TRUE.equals(clicked)) {
-            throw new IllegalStateException("Unable to click NEW DECLARATION button.");
-        }
+                """, labels);
+        return Boolean.TRUE.equals(clicked);
     }
 
-    private Locator resolveNewDeclarationButton() {
-        String[] selectors = new String[] {
-                "button:has-text('NEW DECLARATION')",
-                "button:has-text('New Declaration')",
-                "[role='button']:has-text('NEW DECLARATION')",
-                "[role='button']:has-text('New Declaration')",
-                "text=NEW DECLARATION"
-        };
+    private Locator resolveNewDeclarationButton(String route) {
+        for (String label : declarationActionLabels(route)) {
+            String escapedLabel = label.replace("'", "\\'");
+            String[] selectors = new String[] {
+                    "button:has-text('" + escapedLabel + "')",
+                    "[role='button']:has-text('" + escapedLabel + "')",
+                    "a:has-text('" + escapedLabel + "')",
+                    "text=" + label
+            };
 
-        for (String selector : selectors) {
-            Locator locator = page.locator(selector).first();
-            if (locator.count() > 0) {
-                return locator;
+            for (String selector : selectors) {
+                Locator locator = page.locator(selector).first();
+                if (locator.count() > 0) {
+                    return locator;
+                }
             }
         }
 
+        return null;
+    }
+
+    private List<String> declarationActionLabels(String route) {
+        LinkedHashSet<String> labels = new LinkedHashSet<>();
+        labels.add(NEW_DECLARATION_LABEL);
+
+        String key = declarationRouteKey(route);
+        if (key != null) {
+            labels.add("NEW " + key + " DECLARATION");
+            labels.add("CREATE " + key + " DECLARATION");
+            labels.add(key + " DECLARATION");
+        }
+
+        return new ArrayList<>(labels);
+    }
+
+    private String declarationRouteKey(String route) {
+        if (route == null || route.isBlank()) {
+            return null;
+        }
+        String normalized = route.replace('\\', '/').replaceAll("[?#].*$", "");
+        int declarationsIndex = normalized.toLowerCase().lastIndexOf("/declarations/");
+        if (declarationsIndex >= 0) {
+            normalized = normalized.substring(declarationsIndex + "/declarations/".length());
+        }
+        String[] segments = normalized.split("/");
+        for (int index = segments.length - 1; index >= 0; index--) {
+            String segment = segments[index].replaceAll("[^A-Za-z0-9]", "").trim();
+            if (!segment.isBlank() && !"edit".equalsIgnoreCase(segment)) {
+                return segment.toUpperCase();
+            }
+        }
         return null;
     }
 
@@ -1398,7 +1462,11 @@ public class DeclarationsPage {
                         };
 
                         const path = window.location.pathname || '';
-                        if (!path.includes(args.route + '/edit/')) {
+                        const route = args.route || '';
+                        const onEditorRoute = path.includes(route + '/edit/')
+                            || path === route + '/create'
+                            || path.endsWith(route + '/create');
+                        if (!onEditorRoute) {
                             return false;
                         }
 
