@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load-Test User Provisioning</title>
+    <style>
+        :root { --ink:#10223d; --muted:#62748b; --line:#dbe5f0; --bg:#f4f8fc; --card:#fff; --blue:#0b78bb; --green:#07855a; --red:#be263d; }
+        * { box-sizing:border-box; } body { margin:0; font-family:Inter,"Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+        .shell { max-width:1180px; margin:auto; padding:28px 20px 48px; } header { display:flex; justify-content:space-between; gap:16px; align-items:center; margin-bottom:24px; }
+        h1 { margin:0; font-size:29px; } h2 { margin:0 0 6px; font-size:20px; } p { color:var(--muted); line-height:1.5; }
+        .nav, button { border:0; border-radius:9px; padding:10px 15px; font-weight:700; cursor:pointer; text-decoration:none; } .nav { color:var(--blue); background:#e8f4fc; }
+        button.primary { background:var(--blue); color:#fff; } button.secondary { background:#e7f2f8; color:var(--ink); } button:disabled { cursor:not-allowed; opacity:.55; }
+        .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; } .card { background:var(--card); border:1px solid var(--line); box-shadow:0 10px 30px #112c4710; border-radius:14px; padding:22px; }
+        .wide { grid-column:1/-1; } .fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; } label { color:#38506b; display:grid; gap:6px; font-size:13px; font-weight:750; }
+        input, select { width:100%; border:1px solid #bcd0e3; border-radius:8px; padding:10px; color:var(--ink); background:#fff; font:inherit; } .actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+        .tabs { display:flex; gap:8px; flex-wrap:wrap; margin:18px 0; } .tab { background:#eaf0f6; color:#426079; } .tab.active { background:var(--blue); color:#fff; }
+        .mode { display:none; } .mode.active { display:block; } .note { border-left:4px solid var(--blue); padding:10px 12px; background:#edf7fd; color:#33516f; margin:14px 0; }
+        .message { display:none; margin:16px 0; padding:12px; border-radius:9px; } .message.show { display:block; } .message.success { background:#e5f7ef; color:#05633f; } .message.error { background:#fdecef; color:#9b1933; }
+        table { width:100%; border-collapse:collapse; font-size:14px; } th,td { text-align:left; padding:10px; border-bottom:1px solid var(--line); } th { color:#4e657c; } .CREATED { color:var(--green); font-weight:800; } .EXISTS { color:#9a6400; font-weight:800; } .FAILED { color:var(--red); font-weight:800; }
+        @media(max-width:760px) { .grid,.fields { grid-template-columns:1fr; } header { align-items:flex-start; flex-direction:column; } }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <header>
+        <div><h1>Load-Test User Provisioning</h1><p>Create a single user, upload an Excel user list, or generate a sequential batch. Successful users become available to the load dashboard immediately.</p></div>
+        <a class="nav" href="load-testing-dashboard.html">Open Load Dashboard</a>
+    </header>
+    <div id="message" class="message"></div>
+    <section class="card wide">
+        <h2>Admin connection</h2>
+        <p>Credentials are used only for this provisioning request and are never saved or returned.</p>
+        <div class="fields">
+            <label>Target login URL<input id="loginUrl" value="http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard"></label>
+            <label>Admin username<input id="adminUsername" autocomplete="username"></label>
+            <label class="wide">Admin password<input id="adminPassword" type="password" autocomplete="current-password"></label>
+        </div>
+    </section>
+    <div class="tabs"><button class="tab active" data-mode="single">Single user</button><button class="tab" data-mode="upload">Excel upload</button><button class="tab" data-mode="generate">Sequential users</button></div>
+    <section id="single" class="card mode active">
+        <h2>Create one user</h2>
+        <div class="fields">
+            <label>Username<input id="singleUsername" placeholder="loadtest51"></label><label>Password<input id="singlePassword" type="password"></label>
+            <label>Email<input id="singleEmail" type="email" placeholder="loadtest51@email.com"></label><label>Organization role<select id="singleRole"><option>DECLARANT</option></select></label>
+            <label>Forwarder<input id="singleForwarder" value="ADATACOMPANY PTE. LTD."></label><label>Department<input id="singleDepartment" value="IMPORT"></label>
+        </div><div class="actions"><button class="primary" id="singleSubmit">Create user</button></div>
+    </section>
+    <section id="upload" class="card mode">
+        <h2>Excel bulk upload</h2><p>Use the template columns: <code>username, password, email, organizationRole, forwarder, department</code>.</p>
+        <div class="actions"><button class="secondary" id="downloadTemplate">Download Excel template</button></div>
+        <label>Completed .xlsx template<input id="uploadFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <div class="actions"><button class="primary" id="uploadSubmit">Upload and create users</button></div>
+    </section>
+    <section id="generate" class="card mode">
+        <h2>Generate sequential users</h2><p id="sequencePreview" class="note">Set a prefix, start sequence, and count.</p>
+        <div class="fields">
+            <label>Username prefix<input id="prefix" value="loadtest"></label><label>Start sequence<input id="startSequence" type="number" min="1" value="51"></label>
+            <label>User count<input id="count" type="number" min="1" max="500" value="20"></label><label>Shared password<input id="generatedPassword" type="password"></label>
+            <label>Email domain<input id="emailDomain" value="email.com"></label><label>Organization role<select id="generatedRole"><option>DECLARANT</option></select></label>
+            <label>Forwarder<input id="generatedForwarder" value="ADATACOMPANY PTE. LTD."></label><label>Department<input id="generatedDepartment" value="IMPORT"></label>
+        </div><div class="actions"><button class="primary" id="generateSubmit">Generate and create users</button></div>
+    </section>
+    <section class="card wide"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2>Load-test user pool</h2><p id="poolSummary">No users loaded.</p></div><div class="actions" style="margin:0"><button class="secondary" id="refreshPool">Refresh pool</button><button class="secondary" id="exportPool" disabled>Export created users</button></div></div>
+        <p class="note">The export contains usernames, passwords, emails, role, forwarder, and department. Store the downloaded file securely and delete it when the load test is complete.</p>
+        <div style="overflow:auto"><table><thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Forwarder</th><th>Department</th></tr></thead><tbody id="poolRows"></tbody></table></div>
+    </section>
+    <section class="card wide" id="resultCard" hidden><h2>Provisioning result</h2><div id="resultRows"></div></section>
+</div>
+<script>
+    const $ = id => document.getElementById(id);
+    const apiBase = () => window.location.protocol === 'file:' ? 'http://localhost:8081' : window.location.origin;
+    const credentials = () => ({ loginUrl:$('loginUrl').value.trim(), adminUsername:$('adminUsername').value.trim(), adminPassword:$('adminPassword').value });
+    function message(type, text) { const box=$('message'); box.className=`message show ${type}`; box.textContent=text; window.scrollTo({top:0,behavior:'smooth'}); }
+    async function request(path, options={}) { const response=await fetch(`${apiBase()}/api/user-provisioning/${path}`,options); const type=response.headers.get('content-type')||''; const body=type.includes('application/json')?await response.json():await response.text(); if(!response.ok) throw new Error(body.error||body.message||body||`HTTP ${response.status}`); return body; }
+    function setBusy(button, busy) { button.disabled=busy; button.dataset.label ||= button.textContent; button.textContent=busy?'Working…':button.dataset.label; }
+    function showResult(result) { $('resultCard').hidden=false; $('resultRows').innerHTML=`<p>${result.created} created, ${result.existing} already existed, ${result.failed} failed. Pool: ${result.loadTestPoolSize} user(s).</p><table><thead><tr><th>Username</th><th>Status</th><th>Result</th></tr></thead><tbody>${result.users.map(u=>`<tr><td>${escapeHtml(u.username)}</td><td class="${u.status}">${u.status}</td><td>${escapeHtml(u.message)}</td></tr>`).join('')}</tbody></table>`; }
+    const escapeHtml = value => String(value??'').replace(/[&<>'"]/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    async function provision(path, body, button) { setBusy(button,true); try { const result=await request(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); showResult(result); await refreshPool(); message(result.failed?'error':'success',result.failed?'Some users could not be provisioned. Review the result table.':'Users created and added to the load-test pool.'); } catch(error) { message('error',error.message); } finally { setBusy(button,false); } }
+    async function refreshPool() { try { const users=await request('pool'); $('poolSummary').textContent=`${users.length} credential set(s) available for per-user load testing.`; $('exportPool').disabled=!users.length; $('poolRows').innerHTML=users.length?users.map(user=>`<tr><td>${escapeHtml(user.username)}</td><td>${escapeHtml(user.email)}</td><td>${escapeHtml(user.organizationRole)}</td><td>${escapeHtml(user.forwarder)}</td><td>${escapeHtml(user.department)}</td></tr>`).join(''):'<tr><td colspan="5">No users have been provisioned in this application session.</td></tr>'; } catch(error) { $('poolSummary').textContent=`Unable to read pool: ${error.message}`; $('exportPool').disabled=true; } }
+    document.querySelectorAll('.tab').forEach(tab=>tab.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(item=>item.classList.remove('active'));document.querySelectorAll('.mode').forEach(item=>item.classList.remove('active'));tab.classList.add('active');$(tab.dataset.mode).classList.add('active');}));
+    $('singleSubmit').addEventListener('click',event=>provision('single',{...credentials(),username:$('singleUsername').value.trim(),password:$('singlePassword').value,email:$('singleEmail').value.trim(),organizationRole:$('singleRole').value,forwarder:$('singleForwarder').value.trim(),department:$('singleDepartment').value.trim()},event.currentTarget));
+    $('downloadTemplate').addEventListener('click',()=>window.location.assign(`${apiBase()}/api/user-provisioning/template`));
+    $('uploadSubmit').addEventListener('click',async event=>{const file=$('uploadFile').files[0];if(!file){message('error','Select a completed .xlsx template first.');return;}setBusy(event.currentTarget,true);try{const form=new FormData();Object.entries(credentials()).forEach(([key,value])=>form.append(key,value));form.append('file',file);const result=await request('upload',{method:'POST',body:form});showResult(result);await refreshPool();message(result.failed?'error':'success',result.failed?'Some users could not be provisioned. Review the result table.':'Users created and added to the load-test pool.');}catch(error){message('error',error.message);}finally{setBusy(event.currentTarget,false);}});
+    function updatePreview(){const prefix=$('prefix').value.trim()||'loadtest', start=Math.max(1,Number($('startSequence').value)||1), count=Math.max(1,Number($('count').value)||1), end=start+count-1;$('sequencePreview').textContent=`This creates ${count} user(s): ${prefix}${start} through ${prefix}${end}. For example, start 51 with count 20 creates loadtest51–loadtest70.`;}
+    ['prefix','startSequence','count'].forEach(id=>$(id).addEventListener('input',updatePreview));updatePreview();
+    $('generateSubmit').addEventListener('click',event=>provision('generate',{...credentials(),usernamePrefix:$('prefix').value.trim(),startSequence:Number($('startSequence').value),count:Number($('count').value),password:$('generatedPassword').value,emailDomain:$('emailDomain').value.trim(),organizationRole:$('generatedRole').value,forwarder:$('generatedForwarder').value.trim(),department:$('generatedDepartment').value.trim()},event.currentTarget));
+    $('refreshPool').addEventListener('click',refreshPool); $('exportPool').addEventListener('click',()=>window.location.assign(`${apiBase()}/api/user-provisioning/export`)); refreshPool();
+</script>
+</body>
+</html>

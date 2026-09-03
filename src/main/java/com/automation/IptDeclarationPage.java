@@ -1977,7 +1977,11 @@ public class IptDeclarationPage {
         if (hasPackingDescription) {
             fillPackingDescription(packingDescription);
         }
-        fillItemQuantityDetails(itemQuantity);
+        if (DeclarationPayloads.matchesDeclarationFamily(data, "IPT")) {
+            fillIptItemQuantityDetails(itemQuantity, formMetaData);
+        } else {
+            fillItemQuantityDetails(itemQuantity);
+        }
         fillVehicleDetails(motorVehicle);
         JsonNode transactionValue = item.path("transactionValue");
         fillItemValues(item, transactionValue, formMetaData);
@@ -2088,6 +2092,143 @@ public class IptDeclarationPage {
         fillQuantityRowInScope(itemQuantitySection, "Total Dutiable Quantity", totalDutiableQuantity);
         fillQuantityRowInScope(itemQuantitySection, "HS Quantity", hsQuantity);
         fillFieldAfterScopeLabelIfPresent(itemQuantitySection, "Alcohol %", 0, text(itemQuantity, "alcoholPercent"));
+    }
+
+    private void fillIptItemQuantityDetails(JsonNode itemQuantity, JsonNode formMetaData) {
+        Locator itemQuantitySection = resolveItemQuantitySection();
+        JsonNode dutiableQuantity = itemQuantity.path("dutiableQuantity");
+        JsonNode totalDutiableQuantity = itemQuantity.path("totalDutiableQuantity");
+        JsonNode hsQuantity = firstNonBlankNode(
+                itemQuantity.path("hsQuantity"),
+                itemQuantity.path("harmonizedSystemQuantity"));
+        boolean otherQuantityFieldsActive = isIptOtherQuantityFieldsActive(formMetaData, itemQuantity);
+
+        setCheckboxByLabelIfDifferent("Other Qty Fields", otherQuantityFieldsActive);
+        if (otherQuantityFieldsActive) {
+            fillIptQuantityRowIfEditable(itemQuantitySection, "Dutiable Quantity", dutiableQuantity);
+            fillIptQuantityRowIfEditable(itemQuantitySection, "Total Dutiable Qty", totalDutiableQuantity);
+            fillIptQuantityRowIfEditable(itemQuantitySection, "Total Dutiable Quantity", totalDutiableQuantity);
+        } else {
+            logFieldMappingInfo(
+                    "Skipping IPT optional item quantity fields because otherQuantityFieldIsActive=false.");
+        }
+
+        fillIptQuantityRowIfEditable(itemQuantitySection, "HS Quantity", hsQuantity);
+        fillIptQuantityFieldIfEditable(
+                itemQuantitySection,
+                "Alcohol %",
+                0,
+                text(itemQuantity, "alcoholPercent"),
+                false);
+    }
+
+    private boolean isIptOtherQuantityFieldsActive(JsonNode formMetaData, JsonNode itemQuantity) {
+        JsonNode configuredState = formMetaData == null
+                ? null
+                : formMetaData.path("otherQuantityFieldIsActive");
+        if (configuredState != null && !configuredState.isMissingNode() && !configuredState.isNull()) {
+            if (configuredState.isArray()) {
+                return !configuredState.isEmpty() && configuredState.path(0).asBoolean(false);
+            }
+            return configuredState.asBoolean(false);
+        }
+        return hasOtherQuantityFields(itemQuantity);
+    }
+
+    private void fillIptQuantityRowIfEditable(Locator scope, String rowLabel, JsonNode quantityNode) {
+        if (isMissingOrEmpty(quantityNode)) {
+            return;
+        }
+
+        fillIptQuantityFieldIfEditable(scope, rowLabel, 0, text(quantityNode, "value"), false);
+        String unitCode = text(quantityNode, "unitCode");
+        fillIptQuantityFieldIfEditable(scope, rowLabel, 1, unitCode, true, unitCode);
+    }
+
+    private void fillIptQuantityFieldIfEditable(
+            Locator scope,
+            String rowLabel,
+            int occurrence,
+            String value,
+            boolean lookupField,
+            String... suggestionHints) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        Locator candidate = lookupField
+                ? resolveLookupFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence)
+                : resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        if (candidate == null && lookupField) {
+            candidate = resolveEditableFieldAfterScopeLabelOrNull(scope, rowLabel, occurrence);
+        }
+        Locator field = resolveIptQuantityEditableFieldOrNull(candidate);
+        if (field == null) {
+            logFieldMappingInfo(
+                    "Skipping IPT item quantity field '" + rowLabel + "' because no visible, enabled, editable control was found.");
+            return;
+        }
+
+        List<String> expectedValues = expectedFieldValues(value, suggestionHints);
+        if (lookupField && waitForAnyRenderedFieldValue(field, 150, expectedValues.toArray(String[]::new))) {
+            return;
+        }
+
+        focusAndType(field, value, lookupField, suggestionHints);
+        if (!waitForAnyRenderedFieldValue(field, 1800, expectedValues.toArray(String[]::new))) {
+            throw new IllegalStateException(
+                    "IPT item quantity value was not rendered for " + rowLabel + ". Expected: "
+                            + value + ", Actual: " + readRenderedFieldValue(field));
+        }
+    }
+
+    private Locator resolveIptQuantityEditableFieldOrNull(Locator candidate) {
+        Locator resolved = resolveConcreteEditableFieldOrNull(candidate);
+        if (isVisibleEnabledEditableQuantityField(resolved)) {
+            return resolved;
+        }
+
+        if (resolved != null) {
+            Locator nestedField = firstVisible(resolved.locator(concreteEditableSelector()));
+            if (isVisibleEnabledEditableQuantityField(nestedField)) {
+                return nestedField;
+            }
+        }
+        return null;
+    }
+
+    private boolean isVisibleEnabledEditableQuantityField(Locator field) {
+        if (field == null) {
+            return false;
+        }
+
+        try {
+            return field.isVisible()
+                    && field.isEnabled()
+                    && field.isEditable()
+                    && Boolean.TRUE.equals(field.evaluate("""
+                            element => {
+                                if (element.disabled || element.readOnly
+                                        || element.getAttribute?.('aria-disabled') === 'true') {
+                                    return false;
+                                }
+                                if (element instanceof HTMLInputElement) {
+                                    return element.type !== 'checkbox' && !element.readOnly;
+                                }
+                                if (element instanceof HTMLTextAreaElement) {
+                                    return !element.readOnly;
+                                }
+                                if (element instanceof HTMLSelectElement) {
+                                    return true;
+                                }
+                                return element.isContentEditable
+                                        || element.getAttribute?.('role') === 'combobox'
+                                        || element.getAttribute?.('role') === 'textbox';
+                            }
+                            """));
+        } catch (PlaywrightException ignored) {
+            return false;
+        }
     }
 
     protected boolean isCertificateOfOriginSectionEnabled(JsonNode itemCertificate, JsonNode formMetaData) {

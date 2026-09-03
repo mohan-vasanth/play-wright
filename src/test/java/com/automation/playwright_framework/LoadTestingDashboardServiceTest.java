@@ -109,7 +109,13 @@ class LoadTestingDashboardServiceTest {
                 1,
                 "STANDARD_LOAD",
                 null,
-                null));
+                null,
+                null,
+                null,
+                false,
+                false,
+                null,
+                0));
 
         Method method = LoadTestingDashboardService.class.getDeclaredMethod(
                 "prepareJobWorkItem",
@@ -161,12 +167,148 @@ class LoadTestingDashboardServiceTest {
                         1,
                         "STANDARD_LOAD",
                         null,
-                        null));
+                        null,
+                        null,
+                        null,
+                        false,
+                        false,
+                        null,
+                        0));
 
         assertEquals(10, normalized.totalUsers());
         assertEquals(10, normalized.browserTabs());
         assertEquals(1, normalized.tabsPerUser());
         assertEquals(10, normalized.totalTabRuns());
+    }
+
+    @Test
+    void provisionedUserModePreservesConfiguredWorkerTabCount() throws Exception {
+        ProvisionedLoadTestUserPool pool = new ProvisionedLoadTestUserPool();
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null, pool);
+        Method method = LoadTestingDashboardService.class.getDeclaredMethod(
+                "normalizeRequest",
+                LoadTestingDashboardService.RunRequest.class);
+        method.setAccessible(true);
+
+        LoadTestingDashboardService.RunRequest normalized =
+                (LoadTestingDashboardService.RunRequest) method.invoke(service, new LoadTestingDashboardService.RunRequest(
+                        20, 2, 1, "http://localhost:8081", "", "", "OUT", "dataset.json", false,
+                        1, 1, "STANDARD_LOAD", null, null, null, null, true, false, null, 0));
+
+        assertTrue(normalized.useProvisionedUsers());
+        assertEquals(2, normalized.browserTabs());
+    }
+
+    @Test
+    void assignedCredentialsFollowQueuedUserInsteadOfWorkerTab() throws Exception {
+        ProvisionedLoadTestUserPool pool = new ProvisionedLoadTestUserPool();
+        for (int sequence = 1; sequence <= 5; sequence++) {
+            pool.register(new ProvisionedLoadTestUserPool.LoadTestUser(
+                    "loadtest" + sequence,
+                    "pwd-" + sequence,
+                    "loadtest" + sequence + "@email.com",
+                    "DECLARANT",
+                    "FORWARDER-" + sequence,
+                    "DEPARTMENT-" + sequence,
+                    Instant.now()));
+        }
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null, pool);
+        Method method = LoadTestingDashboardService.class.getDeclaredMethod(
+                "requestForJob",
+                LoadTestingDashboardService.RunRequest.class,
+                Class.forName("com.automation.playwright_framework.LoadTestingDashboardService$JobWorkItem"),
+                List.class);
+        method.setAccessible(true);
+
+        LoadTestingDashboardService.RunRequest request = new LoadTestingDashboardService.RunRequest(
+                5, 2, 1, "http://localhost:8081", "", "", "OUT", "dataset.json", false,
+                1, 1, "STANDARD_LOAD", null, null, null, null, true, false, null, 0);
+        Class<?> jobType = Class.forName("com.automation.playwright_framework.LoadTestingDashboardService$JobWorkItem");
+        var constructor = jobType.getDeclaredConstructors()[0];
+        constructor.setAccessible(true);
+        Object jobForFifthUser = constructor.newInstance(5, 5, 1, 1, payload("MR-005"));
+
+        LoadTestingDashboardService.RunRequest assignedRequest =
+                (LoadTestingDashboardService.RunRequest) method.invoke(service, request, jobForFifthUser, pool.first(5));
+
+        assertEquals("loadtest5", assignedRequest.username());
+        assertEquals("pwd-5", assignedRequest.password());
+        assertEquals("FORWARDER-5", assignedRequest.forwarder());
+        assertEquals("DEPARTMENT-5", assignedRequest.department());
+    }
+
+    @Test
+    void fiftyProvisionedUsersKeepDistinctCredentialsAndLoginAttributes() throws Exception {
+        ProvisionedLoadTestUserPool pool = new ProvisionedLoadTestUserPool();
+        for (int sequence = 51; sequence <= 100; sequence++) {
+            pool.register(new ProvisionedLoadTestUserPool.LoadTestUser(
+                    "loadtest" + sequence,
+                    "pwd-" + sequence,
+                    "loadtest" + sequence + "@email.com",
+                    "DECLARANT",
+                    "ADATACOMPANY PTE. LTD.",
+                    "IMPORT",
+                    Instant.now()));
+        }
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null, pool);
+        Method method = LoadTestingDashboardService.class.getDeclaredMethod(
+                "requestForProvisionedUser",
+                LoadTestingDashboardService.RunRequest.class,
+                ProvisionedLoadTestUserPool.LoadTestUser.class);
+        method.setAccessible(true);
+        LoadTestingDashboardService.RunRequest baseRequest = new LoadTestingDashboardService.RunRequest(
+                50, 50, 1, "http://localhost:8081", "", "", "OUT", "dataset.json", false,
+                1, 1, "STANDARD_LOAD", null, null, null, null, true, false, null, 0);
+
+        List<ProvisionedLoadTestUserPool.LoadTestUser> assignedUsers = pool.first(50);
+        assertEquals(50, assignedUsers.size());
+        for (int index = 0; index < assignedUsers.size(); index++) {
+            LoadTestingDashboardService.RunRequest workerRequest =
+                    (LoadTestingDashboardService.RunRequest) method.invoke(service, baseRequest, assignedUsers.get(index));
+            int sequence = index + 51;
+            assertEquals("loadtest" + sequence, workerRequest.username());
+            assertEquals("pwd-" + sequence, workerRequest.password());
+            assertEquals("ADATACOMPANY PTE. LTD.", workerRequest.forwarder());
+            assertEquals("IMPORT", workerRequest.department());
+        }
+    }
+
+    @Test
+    void sequentialLoginModeBuildsAndUsesLoadtest1ThroughLoadtest50() throws Exception {
+        LoadTestingDashboardService service = new LoadTestingDashboardService(null, null);
+        Method normalizeRequest = LoadTestingDashboardService.class.getDeclaredMethod(
+                "normalizeRequest", LoadTestingDashboardService.RunRequest.class);
+        normalizeRequest.setAccessible(true);
+        Method assignedUsersFor = LoadTestingDashboardService.class.getDeclaredMethod(
+                "assignedUsersFor", LoadTestingDashboardService.RunRequest.class);
+        assignedUsersFor.setAccessible(true);
+        Method workerRequestFor = LoadTestingDashboardService.class.getDeclaredMethod(
+                "requestForProvisionedUser",
+                LoadTestingDashboardService.RunRequest.class,
+                ProvisionedLoadTestUserPool.LoadTestUser.class);
+        workerRequestFor.setAccessible(true);
+        LoadTestingDashboardService.RunRequest sequentialRequest = new LoadTestingDashboardService.RunRequest(
+                50, 1, 1, "http://localhost:8081", "", "pwd123456", "OUT", "dataset.json", false,
+                1, 1, "STANDARD_LOAD", null, null, "ADATACOMPANY PTE. LTD.", "IMPORT",
+                false, true, "loadtest", 1);
+        sequentialRequest = (LoadTestingDashboardService.RunRequest) normalizeRequest.invoke(service, sequentialRequest);
+
+        assertEquals(1, sequentialRequest.browserTabs());
+
+        @SuppressWarnings("unchecked")
+        List<ProvisionedLoadTestUserPool.LoadTestUser> users =
+                (List<ProvisionedLoadTestUserPool.LoadTestUser>) assignedUsersFor.invoke(service, sequentialRequest);
+
+        assertEquals(50, users.size());
+        for (int index = 0; index < users.size(); index++) {
+            int sequence = index + 1;
+            LoadTestingDashboardService.RunRequest workerRequest =
+                    (LoadTestingDashboardService.RunRequest) workerRequestFor.invoke(service, sequentialRequest, users.get(index));
+            assertEquals("loadtest" + sequence, workerRequest.username());
+            assertEquals("pwd123456", workerRequest.password());
+            assertEquals("ADATACOMPANY PTE. LTD.", workerRequest.forwarder());
+            assertEquals("IMPORT", workerRequest.department());
+        }
     }
 
     @Test
@@ -186,7 +328,13 @@ class LoadTestingDashboardServiceTest {
                 1,
                 "LOW_TESTING",
                 null,
-                null);
+                null,
+                null,
+                null,
+                false,
+                false,
+                null,
+                0);
         LoadTestingDeclarationCatalog.DeclarationDefinition definition =
                 new LoadTestingDeclarationCatalog.DeclarationDefinition(
                         "ipt",

@@ -95,6 +95,8 @@
         FormControlLabel,
         FormHelperText,
         Grid,
+        IconButton,
+        InputAdornment,
         InputLabel,
         LinearProgress,
         List,
@@ -130,6 +132,12 @@
         url: 'http://ec2-18-141-176-151.ap-southeast-1.compute.amazonaws.com/auth/login?returnUrl=%2Fdashboard',
         username: 'mohan',
         password: '12345678',
+        useProvisionedUsers: false,
+        useSequentialUsers: false,
+        sequentialUsernamePrefix: 'loadtest',
+        sequentialStartSequence: '1',
+        forwarder: 'ADATACOMPANY PTE. LTD.',
+        department: 'IMPORT',
         declarationType: '',
         selectedJson: '',
         headless: false,
@@ -849,6 +857,9 @@
         const [columnDrawerOpen, setColumnDrawerOpen] = useState(false);
         const [visibleGridColumns, setVisibleGridColumns] = useState(DEFAULT_GRID_COLUMN_KEYS);
         const [selectedExecution, setSelectedExecution] = useState(null);
+        const [provisionedPool, setProvisionedPool] = useState([]);
+        const [provisionedPoolError, setProvisionedPoolError] = useState('');
+        const [showPassword, setShowPassword] = useState(false);
 
         const theme = useMemo(() => buildTheme(), []);
         const jmeterStatus = status.jmeterStatus || {};
@@ -1066,6 +1077,12 @@
         useEffect(() => {
             refreshStatus(true);
             const interval = window.setInterval(() => refreshStatus(true), 3000);
+            return () => window.clearInterval(interval);
+        }, [apiBaseUrl]);
+
+        useEffect(() => {
+            refreshProvisionedPool(true);
+            const interval = window.setInterval(() => refreshProvisionedPool(true), 5000);
             return () => window.clearInterval(interval);
         }, [apiBaseUrl]);
 
@@ -1485,6 +1502,20 @@
             }
         }
 
+        async function refreshProvisionedPool(silent = true) {
+            try {
+                const users = await fetchFromApi('api/user-provisioning/pool');
+                setProvisionedPool(Array.isArray(users) ? users : []);
+                setProvisionedPoolError('');
+            } catch (error) {
+                setProvisionedPool([]);
+                setProvisionedPoolError(error.message);
+                if (!silent) {
+                    showToast('error', `Unable to read provisioned users: ${error.message}`);
+                }
+            }
+        }
+
         function buildThresholdPayload() {
             const thresholds = {};
             if (form.maxResponseTimeSeconds !== '') {
@@ -1503,6 +1534,12 @@
         }
 
         async function handleRun() {
+            const requestedUsers = Math.max(1, Number(form.totalUsers) || 1);
+            if (form.useProvisionedUsers && provisionedPool.length < requestedUsers) {
+                showToast('error', `This run needs ${requestedUsers} provisioned user(s), but only ${provisionedPool.length} are available.`);
+                await refreshProvisionedPool(false);
+                return;
+            }
             setBusy(true);
             try {
                 const response = await fetchFromApi('api/load-dashboard/run', {
@@ -1515,6 +1552,12 @@
                         url: form.url.trim(),
                         username: form.username.trim(),
                         password: form.password,
+                        useProvisionedUsers: Boolean(form.useProvisionedUsers),
+                        useSequentialUsers: Boolean(form.useSequentialUsers),
+                        sequentialUsernamePrefix: form.sequentialUsernamePrefix.trim(),
+                        sequentialStartSequence: Number(form.sequentialStartSequence),
+                        forwarder: form.forwarder.trim(),
+                        department: form.department.trim(),
                         declarationType: form.declarationType,
                         selectedJson: form.selectedJson,
                         headless: false,
@@ -1996,7 +2039,7 @@
                                         <SectionHeader
                                             eyebrow="Load Test Configuration"
                                             title="Operator Controls"
-                                            description="Configure total users, isolated worker pages, testing mode, optional future concurrency limits, and repository-backed JSON payload selection before launching the run."
+                                            description="Configure user count, concurrent tab count, testing mode, and repository-backed JSON payload selection before launching the run."
                                             action={busy ? <CircularProgress size={24} /> : null}
                                         />
                                         <Grid container spacing={2}>
@@ -2004,7 +2047,7 @@
                                                 <TextField fullWidth type="number" label="User Count" name="totalUsers" value={form.totalUsers} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
-                                                <TextField fullWidth type="number" label="Worker Tabs" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} />
+                                                <TextField fullWidth type="number" label="Tab Count" name="browserTabs" value={form.browserTabs} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} helperText="Maximum number of users executing concurrently. Each assigned user still receives a fresh isolated browser context and page." />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
                                                 <TextField fullWidth type="number" label="Tabs Per User" name="tabsPerUser" value={form.tabsPerUser} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} disabled helperText="Legacy field. Isolated worker execution fixes this to 1 so one user maps to one run." />
@@ -2026,7 +2069,7 @@
                                                         ))}
                                                     </Select>
                                                     <FormHelperText>
-                                                        `STANDARD_LOAD` uses one browser process with one isolated context/page per active worker.
+                                                        `STANDARD_LOAD` uses one browser process with isolated context/page state for every user execution.
                                                     </FormHelperText>
                                                 </FormControl>
                                             </Grid>
@@ -2046,11 +2089,69 @@
                                             <Grid item xs={12}>
                                                 <TextField fullWidth label="Application URL" name="url" value={form.url} onChange={handleFieldChange} sx={inputSx} />
                                             </Grid>
+                                            <Grid item xs={12}>
+                                                <FormControlLabel
+                                                    control={<Checkbox checked={Boolean(form.useProvisionedUsers)} onChange={event => setForm(current => ({ ...current, useProvisionedUsers: event.target.checked, useSequentialUsers: false }))} />}
+                                                    label="Use provisioned user pool (one created user login per user execution)"
+                                                />
+                                                <FormHelperText>
+                                                    Create or upload users from the Provision Users page first. This mode logs in each user with its stored password, forwarder, and department inside a fresh isolated context.
+                                                </FormHelperText>
+                                            </Grid>
+                                            {form.useProvisionedUsers ? (
+                                                <Grid item xs={12}>
+                                                    <GlassPanel sx={{ p: 2.1, borderRadius: 4, background: 'rgba(15, 23, 42, 0.44)' }}>
+                                                        <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ md: 'center' }}>
+                                                            <Box>
+                                                                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Provisioned user pool</Typography>
+                                                                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65, lineHeight: 1.7 }}>
+                                                                    {provisionedPoolError
+                                                                        ? `Pool unavailable: ${provisionedPoolError}`
+                                                                        : `${provisionedPool.length} user credential set(s) available. This run will use the first ${Math.max(1, Number(form.totalUsers) || 1)} stored users in provisioning order.`}
+                                                                </Typography>
+                                                            </Box>
+                                                            <Stack direction="row" spacing={1} flexWrap="wrap">
+                                                                <Button size="small" variant="outlined" onClick={() => refreshProvisionedPool(false)}>Refresh pool</Button>
+                                                                <Button size="small" variant="outlined" component="a" href="user-provisioning.html">Provision users</Button>
+                                                                <Button size="small" variant="outlined" component="a" href={resolveApiUrl('api/user-provisioning/export')} disabled={!provisionedPool.length}>Export users</Button>
+                                                            </Stack>
+                                                        </Stack>
+                                                    </GlassPanel>
+                                                </Grid>
+                                            ) : null}
+                                            <Grid item xs={12}>
+                                                <FormControlLabel
+                                                    control={<Checkbox checked={Boolean(form.useSequentialUsers)} onChange={event => setForm(current => ({ ...current, useSequentialUsers: event.target.checked, useProvisionedUsers: false }))} />}
+                                                    label="Use sequential user logins (one username in the range per user execution)"
+                                                />
+                                                <FormHelperText>
+                                                    Use this when the accounts already exist, such as loadtest1 through loadtest50. No temporary user-pool entry is required.
+                                                </FormHelperText>
+                                            </Grid>
+                                            {form.useSequentialUsers ? (
+                                                <Grid item xs={12}>
+                                                    <GlassPanel sx={{ p: 2.1, borderRadius: 4, background: 'rgba(15, 23, 42, 0.44)' }}>
+                                                        <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>Sequential user login range</Typography>
+                                                        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.65, mb: 1.8, lineHeight: 1.7 }}>
+                                                            The User Count is the sequence length. Each user logs in separately, fills the selected JSON declaration, and verifies its test case.
+                                                        </Typography>
+                                                        <Grid container spacing={2}>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth label="Username Prefix" name="sequentialUsernamePrefix" value={form.sequentialUsernamePrefix} onChange={handleFieldChange} placeholder="loadtest" sx={inputSx} /></Grid>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth type="number" label="Start Sequence" name="sequentialStartSequence" value={form.sequentialStartSequence} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} /></Grid>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth type="number" label="Sequence Length / User Count" name="totalUsers" value={form.totalUsers} onChange={handleFieldChange} inputProps={{ min: 1 }} sx={inputSx} /></Grid>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth type={showPassword ? "text" : "password"} label="Shared Password" name="password" value={form.password} onChange={handleFieldChange} sx={inputSx} InputProps={{ endAdornment: <InputAdornment position="end"><IconButton edge="end" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(current => !current)}>{showPassword ? "🙈" : "👁"}</IconButton></InputAdornment> }} /></Grid>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth label="Forwarder" name="forwarder" value={form.forwarder} onChange={handleFieldChange} sx={inputSx} /></Grid>
+                                                            <Grid item xs={12} md={6}><TextField fullWidth label="Department" name="department" value={form.department} onChange={handleFieldChange} sx={inputSx} /></Grid>
+                                                            <Grid item xs={12}><Typography variant="body2" color="text.secondary">This run will use {`${form.sequentialUsernamePrefix.trim() || 'loadtest'}${Math.max(1, Number(form.sequentialStartSequence) || 1)}`} through {`${form.sequentialUsernamePrefix.trim() || 'loadtest'}${Math.max(1, Number(form.sequentialStartSequence) || 1) + Math.max(1, Number(form.totalUsers) || 1) - 1}`}.</Typography></Grid>
+                                                        </Grid>
+                                                    </GlassPanel>
+                                                </Grid>
+                                            ) : null}
                                             <Grid item xs={12} md={6}>
-                                                <TextField fullWidth label="Username" name="username" value={form.username} onChange={handleFieldChange} sx={inputSx} />
+                                                <TextField fullWidth label="Username" name="username" value={form.username} onChange={handleFieldChange} sx={inputSx} disabled={Boolean(form.useProvisionedUsers || form.useSequentialUsers)} />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
-                                                <TextField fullWidth type="password" label="Password" name="password" value={form.password} onChange={handleFieldChange} sx={inputSx} />
+                                                <TextField fullWidth type={showPassword ? "text" : "password"} label="Password" name="password" value={form.password} onChange={handleFieldChange} sx={inputSx} disabled={Boolean(form.useProvisionedUsers || form.useSequentialUsers)} InputProps={{ endAdornment: <InputAdornment position="end"><IconButton edge="end" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(current => !current)}>{showPassword ? "🙈" : "👁"}</IconButton></InputAdornment> }} />
                                             </Grid>
                                             <Grid item xs={12} md={6}>
                                                 <FormControl fullWidth sx={inputSx}>
